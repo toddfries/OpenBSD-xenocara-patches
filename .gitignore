@@ -1,3 +1,8 @@
+*.log
+*.orig
+*.rej
+*.sh
+.#*
+.cvsignore
 CVS
 obj
-.cvsignore
