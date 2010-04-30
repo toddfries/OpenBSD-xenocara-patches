@@ -15,14 +15,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
 
-#define KeyMask		(KeyPressMask|ExposureMask)
-#define MenuMask 	(ButtonMask|ButtonMotionMask|ExposureMask| \
-			PointerMotionMask)
-#define MenuGrabMask	(ButtonMask|ButtonMotionMask|StructureNotifyMask|\
-			PointerMotionMask)
 #define PROMPT_SCHAR	'»'
 #define PROMPT_ECHAR	'«'
 
@@ -48,7 +52,7 @@ static struct menu	*menu_handle_key(XEvent *, struct menu_ctx *,
 			     struct menu_q *, struct menu_q *);
 static void		 menu_handle_move(XEvent *, struct menu_ctx *,
 			     struct screen_ctx *);
-struct menu		*menu_handle_release(XEvent *, struct menu_ctx *,
+static struct menu	*menu_handle_release(XEvent *, struct menu_ctx *,
 			     struct screen_ctx *, struct menu_q *);
 static void		 menu_draw(struct screen_ctx *, struct menu_ctx *,
 			     struct menu_q *, struct menu_q *);
@@ -58,24 +62,33 @@ static int		 menu_calc_entry(struct screen_ctx *, struct menu_ctx *,
 void
 menu_init(struct screen_ctx *sc)
 {
-	sc->menuwin = XCreateSimpleWindow(X_Dpy, sc->rootwin, 0, 0,
-	    1, 1, 1, sc->blackpixl, sc->whitepixl);
+	XGCValues	 gv;
+
+	sc->menuwin = XCreateSimpleWindow(X_Dpy, sc->rootwin, 0, 0, 1, 1, 0,
+	    sc->color[CWM_COLOR_BG_MENU].pixel,
+	    sc->color[CWM_COLOR_BG_MENU].pixel);
+
+	gv.foreground =
+	    sc->color[CWM_COLOR_FG_MENU].pixel^sc->color[CWM_COLOR_BG_MENU].pixel;
+	gv.background = sc->color[CWM_COLOR_BG_MENU].pixel;
+	gv.function = GXxor;
+
+	sc->gc = XCreateGC(X_Dpy, sc->menuwin,
+	    GCForeground|GCBackground|GCFunction, &gv);
 }
 
 struct menu *
-menu_filter(struct menu_q *menuq, char *prompt, char *initial, int dummy,
+menu_filter(struct screen_ctx *sc, struct menu_q *menuq, char *prompt,
+    char *initial, int dummy,
     void (*match)(struct menu_q *, struct menu_q *, char *),
     void (*print)(struct menu *, int))
 {
-	struct screen_ctx	*sc;
 	struct menu_ctx		 mc;
 	struct menu_q		 resultq;
 	struct menu		*mi = NULL;
 	XEvent			 e;
 	Window			 focuswin;
-	int			 Mask, focusrevert;
-
-	sc = screen_current();
+	int			 evmask, focusrevert;
 
 	TAILQ_INIT(&resultq);
 
@@ -84,16 +97,16 @@ menu_filter(struct menu_q *menuq, char *prompt, char *initial, int dummy,
 	xu_ptr_getpos(sc->rootwin, &mc.x, &mc.y);
 
 	if (prompt == NULL) {
-		Mask = MenuMask;
+		evmask = MenuMask;
 		mc.promptstr[0] = '\0';
 		mc.list = 1;
 	} else {
-		Mask = MenuMask | KeyMask; /* only accept keys if prompt */
+		evmask = MenuMask | KeyMask; /* only accept keys if prompt */
 		snprintf(mc.promptstr, sizeof(mc.promptstr), "%s%c", prompt,
 		    PROMPT_SCHAR);
 		snprintf(mc.dispstr, sizeof(mc.dispstr), "%s%s%c", mc.promptstr,
 		    mc.searchstr, PROMPT_ECHAR);
-		mc.width = font_width(mc.dispstr, strlen(mc.dispstr));
+		mc.width = font_width(sc, mc.dispstr, strlen(mc.dispstr));
 		mc.hasprompt = 1;
 	}
 
@@ -107,8 +120,8 @@ menu_filter(struct menu_q *menuq, char *prompt, char *initial, int dummy,
 	mc.entry = mc.prev = -1;
 
 	XMoveResizeWindow(X_Dpy, sc->menuwin, mc.x, mc.y, mc.width,
-	    font_height());
-	XSelectInput(X_Dpy, sc->menuwin, Mask);
+	    font_height(sc));
+	XSelectInput(X_Dpy, sc->menuwin, evmask);
 	XMapRaised(X_Dpy, sc->menuwin);
 
 	if (xu_ptr_grab(sc->menuwin, MenuGrabMask, Cursor_question) < 0) {
@@ -126,7 +139,7 @@ menu_filter(struct menu_q *menuq, char *prompt, char *initial, int dummy,
 	for (;;) {
 		mc.changed = 0;
 
-		XWindowEvent(X_Dpy, sc->menuwin, Mask, &e);
+		XWindowEvent(X_Dpy, sc->menuwin, evmask, &e);
 
 		switch (e.type) {
 		default:
@@ -150,7 +163,7 @@ menu_filter(struct menu_q *menuq, char *prompt, char *initial, int dummy,
 		}
 	}
 out:
-	if ((dummy == 0 && mi->dummy) || (mi->text[0] == '\0')) { /* no match */
+	if (dummy == 0 && mi->dummy) { /* no match */
 		xfree (mi);
 		mi = NULL;
 		xu_ptr_ungrab();
@@ -210,6 +223,7 @@ menu_handle_key(XEvent *e, struct menu_ctx *mc, struct menu_q *menuq,
 			    mc->searchstr, sizeof(mi->text));
 			mi->dummy = 1;
 		}
+		mi->abort = 0;
 		return (mi);
 	case CTL_WIPE:
 		mc->searchstr[0] = '\0';
@@ -222,6 +236,7 @@ menu_handle_key(XEvent *e, struct menu_ctx *mc, struct menu_q *menuq,
 		mi = xmalloc(sizeof *mi);
 		mi->text[0] = '\0';
 		mi->dummy = 1;
+		mi->abort = 1;
 		return (mi);
 	default:
 		break;
@@ -237,14 +252,14 @@ menu_handle_key(XEvent *e, struct menu_ctx *mc, struct menu_q *menuq,
 	}
 
 	mc->noresult = 0;
-	if (mc->changed && strlen(mc->searchstr) > 0) {
+	if (mc->changed && mc->searchstr[0] != '\0') {
 		(*mc->match)(menuq, resultq, mc->searchstr);
 		/* If menuq is empty, never show we've failed */
 		mc->noresult = TAILQ_EMPTY(resultq) && !TAILQ_EMPTY(menuq);
 	} else if (mc->changed)
 		TAILQ_INIT(resultq);
 
-	 if (!mc->list && mc->listing && !mc->changed) {
+	if (!mc->list && mc->listing && !mc->changed) {
 		TAILQ_INIT(resultq);
 		mc->listing = 0;
 	}
@@ -277,8 +292,8 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 	if (mc->hasprompt) {
 		snprintf(mc->dispstr, sizeof(mc->dispstr), "%s%s%c",
 		    mc->promptstr, mc->searchstr, PROMPT_ECHAR);
-		mc->width = font_width(mc->dispstr, strlen(mc->dispstr));
-		dy = font_height();
+		mc->width = font_width(sc, mc->dispstr, strlen(mc->dispstr));
+		dy = font_height(sc);
 		mc->num = 1;
 	}
 
@@ -293,9 +308,9 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 			text = mi->text;
 		}
 
-		mc->width = MAX(mc->width, font_width(text,
+		mc->width = MAX(mc->width, font_width(sc, text,
 		    MIN(strlen(text), MENU_MAXENTRY)));
-		dy += font_height();
+		dy += font_height(sc);
 		mc->num++;
 	}
 
@@ -320,7 +335,7 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 
 	if (mc->hasprompt) {
 		font_draw(sc, mc->dispstr, strlen(mc->dispstr), sc->menuwin,
-		    0, font_ascent() + 1);
+		    0, font_ascent(sc) + 1);
 		n = 1;
 	} else
 		n = 0;
@@ -330,20 +345,20 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 		    mi->print : mi->text;
 
 		font_draw(sc, text, MIN(strlen(text), MENU_MAXENTRY),
-		    sc->menuwin, 0, n*font_height() + font_ascent() + 1);
+		    sc->menuwin, 0, n * font_height(sc) + font_ascent(sc) + 1);
 		n++;
 	}
 
 	if (mc->hasprompt && n > 1)
 		XFillRectangle(X_Dpy, sc->menuwin, sc->gc,
-		    0, font_height(), mc->width, font_height());
+		    0, font_height(sc), mc->width, font_height(sc));
 
 	if (mc->noresult)
 		XFillRectangle(X_Dpy, sc->menuwin, sc->gc,
-		    0, 0, mc->width, font_height());
+		    0, 0, mc->width, font_height(sc));
 }
 
-void
+static void
 menu_handle_move(XEvent *e, struct menu_ctx *mc, struct screen_ctx *sc)
 {
 	mc->prev = mc->entry;
@@ -351,16 +366,16 @@ menu_handle_move(XEvent *e, struct menu_ctx *mc, struct screen_ctx *sc)
 
 	if (mc->prev != -1)
 		XFillRectangle(X_Dpy, sc->menuwin, sc->gc, 0,
-		    font_height() * mc->prev, mc->width, font_height());
+		    font_height(sc) * mc->prev, mc->width, font_height(sc));
 	if (mc->entry != -1) {
 		xu_ptr_regrab(MenuGrabMask, Cursor_select);
 		XFillRectangle(X_Dpy, sc->menuwin, sc->gc, 0,
-		    font_height() * mc->entry, mc->width, font_height());
+		    font_height(sc) * mc->entry, mc->width, font_height(sc));
 	} else
 		xu_ptr_regrab(MenuGrabMask, Cursor_default);
 }
 
-struct menu *
+static struct menu *
 menu_handle_release(XEvent *e, struct menu_ctx *mc, struct screen_ctx *sc,
     struct menu_q *resultq)
 {
@@ -377,7 +392,7 @@ menu_handle_release(XEvent *e, struct menu_ctx *mc, struct screen_ctx *sc,
 		if (entry == i++)
 			break;
 	if (mi == NULL) {
-		XMALLOC(mi, struct menu);
+		mi = xmalloc(sizeof(*mi));
 		mi->text[0] = '\0';
 		mi->dummy = 1;
 	}
@@ -389,11 +404,11 @@ menu_calc_entry(struct screen_ctx *sc, struct menu_ctx *mc, int x, int y)
 {
 	int	 entry;
 
-	entry = y / font_height();
+	entry = y / font_height(sc);
 
 	/* in bounds? */
-	if (x < 0 || x > mc->width || y < 0 || y > font_height() * mc->num ||
-	    entry < 0 || entry >= mc->num)
+	if (x <= 0 || x > mc->width || y <= 0 ||
+	    y > font_height(sc) * mc->num || entry < 0 || entry >= mc->num)
 		entry = -1;
 
 	if (mc->hasprompt && entry == 0)

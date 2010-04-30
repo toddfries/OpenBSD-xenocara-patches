@@ -15,10 +15,22 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: calmwm.c,v 1.29 2008/09/22 14:28:04 oga Exp $
+ * $Id: calmwm.c,v 1.53 2010/04/12 16:17:46 oga Exp $
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/wait.h>
+
+#include <err.h>
+#include <errno.h>
+#include <getopt.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
 
 Display				*X_Dpy;
@@ -29,23 +41,19 @@ Cursor				 Cursor_select;
 Cursor				 Cursor_default;
 Cursor				 Cursor_question;
 
-struct screen_ctx_q		 Screenq;
-struct screen_ctx		*Curscreen;
-u_int				 Nscreens;
+struct screen_ctx_q		 Screenq = TAILQ_HEAD_INITIALIZER(Screenq);
+struct client_ctx_q		 Clientq = TAILQ_HEAD_INITIALIZER(Clientq);
 
-struct client_ctx_q		 Clientq;
-
-int				 Doshape, Shape_ev;
+int				 HasXinerama, HasRandr, Randr_ev;
 int				 Starting;
 struct conf			 Conf;
 
-/* From TWM */
-#define gray_width 2
-#define gray_height 2
-static char gray_bits[] = {0x02, 0x01};
-
-static void	_sigchld_cb(int);
+static void	sigchld_cb(int);
 static void	dpy_init(const char *);
+static int	x_errorhandler(Display *, XErrorEvent *);
+static void	x_setup(void);
+static void	x_setupscreen(struct screen_ctx *, u_int);
+static void	x_teardown(void);
 
 int
 main(int argc, char **argv)
@@ -69,46 +77,26 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	/* Ignore a few signals. */
-	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+	if (signal(SIGCHLD, sigchld_cb) == SIG_ERR)
 		err(1, "signal");
-
-	if (signal(SIGCHLD, _sigchld_cb) == SIG_ERR)
-		err(1, "signal");
-
-	group_init();
 
 	Starting = 1;
 	dpy_init(display_name);
+
 	bzero(&Conf, sizeof(Conf));
 	conf_setup(&Conf, conf_file);
-	client_setup();
+	xu_getatoms();
 	x_setup();
 	Starting = 0;
 
-	xev_init();
-	XEV_QUICK(NULL, NULL, MapRequest, xev_handle_maprequest, NULL);
-	XEV_QUICK(NULL, NULL, UnmapNotify, xev_handle_unmapnotify, NULL);
-	XEV_QUICK(NULL, NULL, ConfigureRequest,
-	    xev_handle_configurerequest, NULL);
-	XEV_QUICK(NULL, NULL, PropertyNotify, xev_handle_propertynotify, NULL);
-	XEV_QUICK(NULL, NULL, EnterNotify, xev_handle_enternotify, NULL);
-	XEV_QUICK(NULL, NULL, LeaveNotify, xev_handle_leavenotify, NULL);
-	XEV_QUICK(NULL, NULL, ButtonPress, xev_handle_buttonpress, NULL);
-	XEV_QUICK(NULL, NULL, ButtonRelease, xev_handle_buttonrelease, NULL);
-	XEV_QUICK(NULL, NULL, KeyPress, xev_handle_keypress, NULL);
-	XEV_QUICK(NULL, NULL, KeyRelease, xev_handle_keyrelease, NULL);
-	XEV_QUICK(NULL, NULL, Expose, xev_handle_expose, NULL);
-	XEV_QUICK(NULL, NULL, DestroyNotify, xev_handle_destroynotify, NULL);
-	XEV_QUICK(NULL, NULL, ClientMessage, xev_handle_clientmessage, NULL);
-	XEV_QUICK(NULL, NULL, MappingNotify, xev_handle_mapping, NULL);
-
 	xev_loop();
+
+	x_teardown();
 
 	return (0);
 }
 
-void
+static void
 dpy_init(const char *dpyname)
 {
 	int	i;
@@ -119,21 +107,18 @@ dpy_init(const char *dpyname)
 
 	XSetErrorHandler(x_errorhandler);
 
-	Doshape = XShapeQueryExtension(X_Dpy, &Shape_ev, &i);
-
-	TAILQ_INIT(&Screenq);
+	HasRandr = XRRQueryExtension(X_Dpy, &Randr_ev, &i);
 }
 
-void
+static void
 x_setup(void)
 {
 	struct screen_ctx	*sc;
 	struct keybinding	*kb;
 	int			 i;
 
-	Nscreens = ScreenCount(X_Dpy);
-	for (i = 0; i < (int)Nscreens; i++) {
-		XMALLOC(sc, struct screen_ctx);
+	for (i = 0; i < ScreenCount(X_Dpy); i++) {
+		sc = xcalloc(1, sizeof(*sc));
 		x_setupscreen(sc, i);
 		TAILQ_INSERT_TAIL(&Screenq, sc, entry);
 	}
@@ -145,7 +130,6 @@ x_setup(void)
 	TAILQ_FOREACH(kb, &Conf.keybindingq, entry)
 		conf_grab(&Conf, kb);
 
-
 	Cursor_move = XCreateFontCursor(X_Dpy, XC_fleur);
 	Cursor_resize = XCreateFontCursor(X_Dpy, XC_bottom_right_corner);
 	Cursor_select = XCreateFontCursor(X_Dpy, XC_hand1);
@@ -153,92 +137,44 @@ x_setup(void)
 	Cursor_question = XCreateFontCursor(X_Dpy, XC_question_arrow);
 }
 
-void
+static void
+x_teardown(void)
+{
+	struct screen_ctx	*sc;
+
+	TAILQ_FOREACH(sc, &Screenq, entry)
+		XFreeGC(X_Dpy, sc->gc);
+
+	XCloseDisplay(X_Dpy);
+}
+
+static void
 x_setupscreen(struct screen_ctx *sc, u_int which)
 {
-	XColor			 tmp;
-	XGCValues		 gv;
 	Window			*wins, w0, w1;
 	XWindowAttributes	 winattr;
 	XSetWindowAttributes	 rootattr;
+	int			 fake;
 	u_int			 nwins, i;
-
-	Curscreen = sc;
-
-	sc->display = x_screenname(which);
 	sc->which = which;
-	sc->rootwin = RootWindow(X_Dpy, which);
+	sc->rootwin = RootWindow(X_Dpy, sc->which);
 
-	sc->xmax = DisplayWidth(X_Dpy, sc->which);
-	sc->ymax = DisplayHeight(X_Dpy, sc->which);
+	conf_gap(&Conf, sc);
+	screen_update_geometry(sc, DisplayWidth(X_Dpy, sc->which),
+	    DisplayHeight(X_Dpy, sc->which));
 
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "black", &sc->fgcolor, &tmp);
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "#00cc00", &sc->bgcolor, &tmp);
-	XAllocNamedColor(X_Dpy,DefaultColormap(X_Dpy, which),
-	    "blue", &sc->fccolor, &tmp);
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "red", &sc->redcolor, &tmp);
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "#00ccc8", &sc->cyancolor, &tmp);
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "white", &sc->whitecolor, &tmp);
-	XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, which),
-	    "black", &sc->blackcolor, &tmp);
+	conf_color(&Conf, sc);
 
-	sc->blackpixl = BlackPixel(X_Dpy, sc->which);
-	sc->whitepixl = WhitePixel(X_Dpy, sc->which);
-	sc->bluepixl = sc->fccolor.pixel;
-	sc->redpixl = sc->redcolor.pixel;
-	sc->cyanpixl = sc->cyancolor.pixel;
-
-	sc->gray = XCreatePixmapFromBitmapData(X_Dpy, sc->rootwin,
-	    gray_bits, gray_width, gray_height,
-	    sc->blackpixl, sc->whitepixl, DefaultDepth(X_Dpy, sc->which));
-
-	sc->blue = XCreatePixmapFromBitmapData(X_Dpy, sc->rootwin,
-	    gray_bits, gray_width, gray_height,
-	    sc->bluepixl, sc->whitepixl, DefaultDepth(X_Dpy, sc->which));
-
-	sc->red = XCreatePixmapFromBitmapData(X_Dpy, sc->rootwin,
-	    gray_bits, gray_width, gray_height,
-	    sc->redpixl, sc->whitepixl, DefaultDepth(X_Dpy, sc->which));
-
-	gv.foreground = sc->blackpixl^sc->whitepixl;
-	gv.background = sc->whitepixl;
-	gv.function = GXxor;
-	gv.line_width = 1;
-	gv.subwindow_mode = IncludeInferiors;
-
-	sc->gc = XCreateGC(X_Dpy, sc->rootwin,
-	    GCForeground|GCBackground|GCFunction|
-	    GCLineWidth|GCSubwindowMode, &gv);
-
+	group_init(sc);
 	font_init(sc);
-	conf_font(&Conf);
+	conf_font(&Conf, sc);
 
 	TAILQ_INIT(&sc->mruq);
 
 	/* Initialize menu window. */
 	menu_init(sc);
 
-	/* Deal with existing clients. */
-	XQueryTree(X_Dpy, sc->rootwin, &w0, &w1, &wins, &nwins);
-
-	for (i = 0; i < nwins; i++) {
-		XGetWindowAttributes(X_Dpy, wins[i], &winattr);
-		if (winattr.override_redirect ||
-		    winattr.map_state != IsViewable) {
-			char *name;
-			XFetchName(X_Dpy, wins[i], &name);
-			continue;
-		}
-		client_new(wins[i], sc, winattr.map_state != IsUnmapped);
-	}
-	XFree(wins);
-
-	screen_updatestackingorder();
+	xu_setwmname(sc);
 
 	rootattr.event_mask = ChildMask|PropertyChangeMask|EnterWindowMask|
 	    LeaveWindowMask|ColormapChangeMask|ButtonMask;
@@ -246,38 +182,36 @@ x_setupscreen(struct screen_ctx *sc, u_int which)
 	XChangeWindowAttributes(X_Dpy, sc->rootwin,
 	    CWEventMask, &rootattr);
 
+	/* Deal with existing clients. */
+	XQueryTree(X_Dpy, sc->rootwin, &w0, &w1, &wins, &nwins);
+
+	for (i = 0; i < nwins; i++) {
+		XGetWindowAttributes(X_Dpy, wins[i], &winattr);
+		if (winattr.override_redirect ||
+		    winattr.map_state != IsViewable)
+			continue;
+		client_new(wins[i], sc, winattr.map_state != IsUnmapped);
+	}
+	XFree(wins);
+
+	screen_updatestackingorder(sc);
+
+	if (XineramaQueryExtension(X_Dpy, &fake, &fake) == 1 &&
+	    ((HasXinerama = XineramaIsActive(X_Dpy)) == 1))
+		HasXinerama = 1;
+	if (HasRandr)
+		XRRSelectInput(X_Dpy, sc->rootwin, RRScreenChangeNotifyMask);
+	/*
+	 * initial setup of xinerama screens, if we're using RandR then we'll
+	 * redo this whenever the screen changes since a CTRC may have been
+	 * added or removed
+	 */
+	screen_init_xinerama(sc);
+
 	XSync(X_Dpy, False);
-
-	return;
 }
 
-char *
-x_screenname(int which)
-{
-	char	*cp, *dstr, *sn;
-	size_t	 snlen;
-
-	if (which > 9)
-		errx(1, "Can't handle more than 9 screens.  If you need it, "
-		    "tell <marius@monkey.org>.  It's a trivial fix.");
-
-	dstr = xstrdup(DisplayString(X_Dpy));
-
-	if ((cp = strrchr(dstr, ':')) == NULL)
-		return (NULL);
-
-	if ((cp = strchr(cp, '.')) != NULL)
-		*cp = '\0';
-
-	snlen = strlen(dstr) + 3; /* string, dot, number, null */
-	sn = (char *)xmalloc(snlen);
-	snprintf(sn, snlen, "%s.%d", dstr, which);
-	free(dstr);
-
-	return (sn);
-}
-
-int
+static int
 x_errorhandler(Display *dpy, XErrorEvent *e)
 {
 #ifdef DEBUG
@@ -303,7 +237,7 @@ x_errorhandler(Display *dpy, XErrorEvent *e)
 }
 
 static void
-_sigchld_cb(int which)
+sigchld_cb(int which)
 {
 	pid_t	 pid;
 	int	 save_errno = errno;

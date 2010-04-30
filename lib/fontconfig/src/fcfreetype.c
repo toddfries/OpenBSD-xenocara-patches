@@ -1,5 +1,5 @@
 /*
- * $RCSId: xc/lib/fontconfig/src/fcfreetype.c,v 1.11 2002/08/31 22:17:32 keithp Exp $
+ * fontconfig/src/fcfreetype.c
  *
  * Copyright © 2001 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -45,6 +45,7 @@
 */
 
 #include "fcint.h"
+#include "fcftint.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -80,13 +81,13 @@
  */
 
 static const struct {
-    int		    bit;
-    const FcChar8   *lang;
+    char    	    bit;
+    const FcChar8   lang[6];
 } FcCodePageRange[] = {
-    { 17,	(const FcChar8 *) "ja" },
-    { 18,	(const FcChar8 *) "zh-cn" },
-    { 19,	(const FcChar8 *) "ko" },
-    { 20,	(const FcChar8 *) "zh-tw" },
+    { 17,	"ja" },
+    { 18,	"zh-cn" },
+    { 19,	"ko" },
+    { 20,	"zh-tw" },
 };
 
 #define NUM_CODE_PAGE_RANGE (int) (sizeof FcCodePageRange / sizeof FcCodePageRange[0])
@@ -119,11 +120,11 @@ static const FcFtEncoding   fcFtEncoding[] = {
  {  TT_PLATFORM_MACINTOSH,	TT_MAC_ID_JAPANESE,	"SJIS" },
  {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_UNICODE_CS,	"UTF-16BE" },
  {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_SJIS,		"SJIS-WIN" },
- {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_GB2312,	"GB3212" },
+ {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_GB2312,	"GB2312" },
  {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_BIG_5,		"BIG-5" },
  {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_WANSUNG,	"Wansung" },
  {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_JOHAB,		"Johab" },
- {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_UCS_4,		"UCS4" },
+ {  TT_PLATFORM_MICROSOFT,	TT_MS_ID_UCS_4,		"UCS-2BE" },
  {  TT_PLATFORM_ISO,		TT_ISO_ID_7BIT_ASCII,	"ASCII" },
  {  TT_PLATFORM_ISO,		TT_ISO_ID_10646,	"UCS-2BE" },
  {  TT_PLATFORM_ISO,		TT_ISO_ID_8859_1,	"ISO-8859-1" },
@@ -801,29 +802,47 @@ FcSfntNameLanguage (FT_SfntName *sname)
 /* Order is significant.  For example, some B&H fonts are hinted by
    URW++, and both strings appear in the notice. */
 
-static const struct {
-    const FT_String *notice;
-    const FcChar8   *foundry;
-} FcNoticeFoundries[] = {
-    { (const FT_String *) "Bigelow",	(const FcChar8 *) "b&h" },
-    { (const FT_String *) "Adobe",	(const FcChar8 *) "adobe" },
-    { (const FT_String *) "Bitstream",	(const FcChar8 *) "bitstream" },
-    { (const FT_String *) "Monotype",	(const FcChar8 *) "monotype" },
-    { (const FT_String *) "Linotype",	(const FcChar8 *) "linotype" },
-    { (const FT_String *) "LINOTYPE-HELL",
-					(const FcChar8 *) "linotype" },
-    { (const FT_String *) "IBM",	(const FcChar8 *) "ibm" },
-    { (const FT_String *) "URW",	(const FcChar8 *) "urw" },
-    { (const FT_String *) "International Typeface Corporation", 
-					(const FcChar8 *) "itc" },
-    { (const FT_String *) "Tiro Typeworks",
-					(const FcChar8 *) "tiro" },
-    { (const FT_String *) "XFree86",	(const FcChar8 *) "xfree86" },
-    { (const FT_String *) "Microsoft",	(const FcChar8 *) "microsoft" },
-    { (const FT_String *) "Omega",	(const FcChar8 *) "omega" },
-    { (const FT_String *) "Font21",	(const FcChar8 *) "hwan" },
-    { (const FT_String *) "HanYang System",
-					(const FcChar8 *) "hanyang" }
+static const char notice_foundry_data[] =
+	"Bigelow\0b&h\0"
+	"Adobe\0adobe\0"
+	"Bitstream\0bitstream\0"
+	"Monotype\0monotype\0"
+	"Linotype\0linotype\0"
+	"LINOTYPE-HELL\0linotype\0"
+	"IBM\0ibm\0"
+	"URW\0urw\0"
+	"International Typeface Corporation\0itc\0"
+	"Tiro Typeworks\0tiro\0"
+	"XFree86\0xfree86\0"
+	"Microsoft\0microsoft\0"
+	"Omega\0omega\0"
+	"Font21\0hwan\0"
+	"HanYang System\0hanyang";
+
+struct _notice_foundry {
+    /* these are the offsets into the
+     * notice_foundry_data array.
+     */
+    unsigned char notice_offset;
+    unsigned char foundry_offset;
+};
+
+static const struct _notice_foundry FcNoticeFoundries[] = {
+    { 0, 8 },
+    { 12, 18 },
+    { 24, 34 },
+    { 44, 53 },
+    { 62, 71 },
+    { 80, 94 },
+    { 103, 107 },
+    { 111, 115 },
+    { 119, 154 },
+    { 158, 173 },
+    { 178, 186 },
+    { 194, 204 },
+    { 214, 220 },
+    { 226, 233 },
+    { 238, 253 }
 };
 
 #define NUM_NOTICE_FOUNDRIES	(int) (sizeof (FcNoticeFoundries) / sizeof (FcNoticeFoundries[0]))
@@ -835,8 +854,14 @@ FcNoticeFoundry(const FT_String *notice)
 
     if (notice)
 	for(i = 0; i < NUM_NOTICE_FOUNDRIES; i++)
-	    if (strstr ((const char *) notice, (const char *) FcNoticeFoundries[i].notice))
-		return FcNoticeFoundries[i].foundry;
+        {
+            const struct _notice_foundry *nf = &FcNoticeFoundries[i];
+            const char *n = notice_foundry_data + nf->notice_offset;
+            const char *f = notice_foundry_data + nf->foundry_offset;
+
+	    if (strstr ((const char *) notice, n))
+		return (const FcChar8 *) f;
+        }
     return 0;
 }
 
@@ -861,38 +886,38 @@ FcVendorMatch(const FT_Char vendor[4], const FT_Char *vendor_string)
    entries for padding both with spaces and NULs. */
 
 static const struct {
-    const FT_Char   *vendor;
-    const FcChar8   *foundry;
+    const FT_Char   vendor[5];
+    const FcChar8   foundry[13];
 } FcVendorFoundries[] = {
-    { (const FT_Char *) "ADBE", (const FcChar8 *) "adobe"},
-    { (const FT_Char *) "AGFA", (const FcChar8 *) "agfa"},
-    { (const FT_Char *) "ALTS", (const FcChar8 *) "altsys"},
-    { (const FT_Char *) "APPL", (const FcChar8 *) "apple"},
-    { (const FT_Char *) "ARPH", (const FcChar8 *) "arphic"},
-    { (const FT_Char *) "ATEC", (const FcChar8 *) "alltype"},
-    { (const FT_Char *) "B&H",  (const FcChar8 *) "b&h"},
-    { (const FT_Char *) "BITS", (const FcChar8 *) "bitstream"},
-    { (const FT_Char *) "CANO", (const FcChar8 *) "cannon"},
-    { (const FT_Char *) "DYNA", (const FcChar8 *) "dynalab"},
-    { (const FT_Char *) "EPSN", (const FcChar8 *) "epson"},
-    { (const FT_Char *) "FJ",   (const FcChar8 *) "fujitsu"},
-    { (const FT_Char *) "IBM",  (const FcChar8 *) "ibm"},
-    { (const FT_Char *) "ITC",  (const FcChar8 *) "itc"},
-    { (const FT_Char *) "IMPR", (const FcChar8 *) "impress"},
-    { (const FT_Char *) "LARA", (const FcChar8 *) "larabiefonts"},
-    { (const FT_Char *) "LEAF", (const FcChar8 *) "interleaf"},
-    { (const FT_Char *) "LETR", (const FcChar8 *) "letraset"},
-    { (const FT_Char *) "LINO", (const FcChar8 *) "linotype"},
-    { (const FT_Char *) "MACR", (const FcChar8 *) "macromedia"},
-    { (const FT_Char *) "MONO", (const FcChar8 *) "monotype"},
-    { (const FT_Char *) "MS",   (const FcChar8 *) "microsoft"},
-    { (const FT_Char *) "MT",   (const FcChar8 *) "monotype"},
-    { (const FT_Char *) "NEC",  (const FcChar8 *) "nec"},
-    { (const FT_Char *) "PARA", (const FcChar8 *) "paratype"},
-    { (const FT_Char *) "QMSI", (const FcChar8 *) "qms"},
-    { (const FT_Char *) "RICO", (const FcChar8 *) "ricoh"},
-    { (const FT_Char *) "URW",  (const FcChar8 *) "urw"},
-    { (const FT_Char *) "Y&Y",  (const FcChar8 *) "y&y"}
+    { "ADBE", "adobe"},
+    { "AGFA", "agfa"},
+    { "ALTS", "altsys"},
+    { "APPL", "apple"},
+    { "ARPH", "arphic"},
+    { "ATEC", "alltype"},
+    { "B&H",  "b&h"},
+    { "BITS", "bitstream"},
+    { "CANO", "cannon"},
+    { "DYNA", "dynalab"},
+    { "EPSN", "epson"},
+    { "FJ",   "fujitsu"},
+    { "IBM",  "ibm"},
+    { "ITC",  "itc"},
+    { "IMPR", "impress"},
+    { "LARA", "larabiefonts"},
+    { "LEAF", "interleaf"},
+    { "LETR", "letraset"},
+    { "LINO", "linotype"},
+    { "MACR", "macromedia"},
+    { "MONO", "monotype"},
+    { "MS",   "microsoft"},
+    { "MT",   "monotype"},
+    { "NEC",  "nec"},
+    { "PARA", "paratype"},
+    { "QMSI", "qms"},
+    { "RICO", "ricoh"},
+    { "URW",  "urw"},
+    { "Y&Y",  "y&y"}
 };
 
 #define NUM_VENDOR_FOUNDRIES	(int) (sizeof (FcVendorFoundries) / sizeof (FcVendorFoundries[0]))
@@ -935,8 +960,18 @@ FcStringContainsConst (const FcChar8	    *string,
     int	i;
 
     for (i = 0; i < nc; i++)
-	if (FcStrContainsIgnoreBlanksAndCase (string, c[i].name))
-	    return c[i].value;
+    {
+	if (c[i].name[0] == '<')
+	{
+	    if (FcStrContainsWord (string, c[i].name + 1))
+		return c[i].value;
+	}
+	else
+	{
+	    if (FcStrContainsIgnoreBlanksAndCase (string, c[i].name))
+		return c[i].value;
+	}
+    }
     return -1;
 }
 
@@ -958,6 +993,10 @@ static const FcStringConst  weightConsts[] = {
     { (FC8) "superbold",	FC_WEIGHT_EXTRABOLD },
     { (FC8) "ultrabold",	FC_WEIGHT_ULTRABOLD },
     { (FC8) "bold",		FC_WEIGHT_BOLD },
+    { (FC8) "ultrablack",	FC_WEIGHT_ULTRABLACK },
+    { (FC8) "superblack",	FC_WEIGHT_EXTRABLACK },
+    { (FC8) "extrablack",	FC_WEIGHT_EXTRABLACK },
+    { (FC8) "<ultra",		FC_WEIGHT_ULTRABOLD }, /* only if a word */
     { (FC8) "black",		FC_WEIGHT_BLACK },
     { (FC8) "heavy",		FC_WEIGHT_HEAVY },
 };
@@ -977,6 +1016,7 @@ static const FcStringConst  widthConsts[] = {
     { (FC8) "extraexpanded",	FC_WIDTH_EXTRAEXPANDED },
     { (FC8) "ultraexpanded",	FC_WIDTH_ULTRAEXPANDED },
     { (FC8) "expanded",		FC_WIDTH_EXPANDED },	/* must be after *expanded */
+    { (FC8) "extended",		FC_WIDTH_EXPANDED },
 };
 
 #define NUM_WIDTH_CONSTS    (int) (sizeof (widthConsts) / sizeof (widthConsts[0]))
@@ -997,11 +1037,11 @@ static const FcStringConst  slantConsts[] = {
 
 static const FcStringConst  decorativeConsts[] = {
     { (FC8) "shadow",		FcTrue },
-    { (FC8) "smallcaps",    	FcTrue },
+    { (FC8) "caps",		FcTrue },
     { (FC8) "antiqua",		FcTrue },
     { (FC8) "romansc",		FcTrue },
     { (FC8) "embosed",		FcTrue },
-    { (FC8) "romansmallcaps",	FcTrue },
+    { (FC8) "dunhill",		FcTrue },
 };
 
 #define NUM_DECORATIVE_CONSTS	(int) (sizeof (decorativeConsts) / sizeof (decorativeConsts[0]))
@@ -1051,10 +1091,16 @@ static const FT_UShort platform_order[] = {
 #define NUM_PLATFORM_ORDER (sizeof (platform_order) / sizeof (platform_order[0]))
 
 static const FT_UShort nameid_order[] = {
+#ifdef TT_NAME_ID_WWS_FAMILY
+    TT_NAME_ID_WWS_FAMILY,
+#endif
     TT_NAME_ID_PREFERRED_FAMILY,
     TT_NAME_ID_FONT_FAMILY,
     TT_NAME_ID_MAC_FULL_NAME,
     TT_NAME_ID_FULL_NAME,
+#ifdef TT_NAME_ID_WWS_SUBFAMILY
+    TT_NAME_ID_WWS_SUBFAMILY,
+#endif
     TT_NAME_ID_PREFERRED_SUBFAMILY,
     TT_NAME_ID_FONT_SUBFAMILY,
     TT_NAME_ID_TRADEMARK,
@@ -1079,7 +1125,7 @@ FcFreeTypeQueryFace (const FT_Face  face,
 #if 0
     FcChar8	    *family = 0;
 #endif
-    FcChar8	    *complex;
+    FcChar8	    *complex_;
     const FcChar8   *foundry = 0;
     int		    spacing;
     TT_OS2	    *os2;
@@ -1196,6 +1242,9 @@ FcFreeTypeQueryFace (const FT_Face  face,
 		    continue;
 
 		switch (sname.name_id) {
+#ifdef TT_NAME_ID_WWS_FAMILY
+		case TT_NAME_ID_WWS_FAMILY:
+#endif
 		case TT_NAME_ID_PREFERRED_FAMILY:
 		case TT_NAME_ID_FONT_FAMILY:
 #if 0	    
@@ -1226,6 +1275,9 @@ FcFreeTypeQueryFace (const FT_Face  face,
 		    np = &nfullname;
 		    nlangp = &nfullname_lang;
 		    break;
+#ifdef TT_NAME_ID_WWS_SUBFAMILY
+		case TT_NAME_ID_WWS_SUBFAMILY:
+#endif
 		case TT_NAME_ID_PREFERRED_SUBFAMILY:
 		case TT_NAME_ID_FONT_SUBFAMILY:
 		    if (FcDebug () & FC_DBG_SCANV)
@@ -1330,70 +1382,6 @@ FcFreeTypeQueryFace (const FT_Face  face,
 	++nfamily;
     }
 
-    /*
-     * Walk through FC_FULLNAME entries eliding those in FC_FAMILY
-     * or which are simply a FC_FAMILY and FC_STYLE glued together
-     */
-    {
-	int	fn, fa;
-	FcChar8	*full;
-	FcChar8	*fam;
-	FcChar8	*style;
-
-	for (fn = 0; FcPatternGetString (pat, FC_FULLNAME, fn, &full) == FcResultMatch; fn++)
-	{
-	    FcBool  remove = FcFalse;
-	    /*
-	     * Check each family
-	     */
-	    for (fa = 0; !remove && 
-		 FcPatternGetString (pat, FC_FAMILY, 
-				     fa, &fam) == FcResultMatch;
-		 fa++)
-	    {
-		/*
-		 * for exact match
-		 */
-		if (!FcStrCmpIgnoreBlanksAndCase (full, fam))
-		{
-		    remove = FcTrue;
-		    break;
-		}
-		/*
-		 * If the family is in the full name, check the
-		 * combination of this family with every style
-		 */
-		if (!FcStrContainsIgnoreBlanksAndCase (full, fam))
-		    continue;
-		for (st = 0; !remove && 
-		     FcPatternGetString (pat, FC_STYLE, 
-					 st, &style) == FcResultMatch;
-		     st++)
-		{
-		    FcChar8	*both = FcStrPlus (fam, style);
-
-		    if (both)
-		    {
-			if (FcStrCmpIgnoreBlanksAndCase (full, both) == 0)
-			    remove = FcTrue;
-			free (both);
-		    }
-		}
-	    }
-	    if (remove)
-	    {
-		FcPatternRemove (pat, FC_FULLNAME, fn);
-		FcPatternRemove (pat, FC_FULLNAMELANG, fn);
-		fn--;
-		nfullname--;
-		nfullname_lang--;
-	    }
-	}
-	if (FcDebug () & FC_DBG_SCANV)
-	    for (fn = 0; FcPatternGetString (pat, FC_FULLNAME, fn, &full) == FcResultMatch; fn++)
-		printf ("Saving unique fullname %s\n", full);
-    }
-
     if (!FcPatternAddString (pat, FC_FILE, file))
 	goto bail1;
 
@@ -1479,8 +1467,10 @@ FcFreeTypeQueryFace (const FT_Face  face,
 	    weight = FC_WEIGHT_BOLD;
 	else if (os2->usWeightClass < 850)
 	    weight = FC_WEIGHT_EXTRABOLD;
-	else if (os2->usWeightClass < 950)
+	else if (os2->usWeightClass < 925)
 	    weight = FC_WEIGHT_BLACK;
+	else if (os2->usWeightClass < 1000)
+	    weight = FC_WEIGHT_EXTRABLACK;
 	if ((FcDebug() & FC_DBG_SCANV) && weight != -1)
 	    printf ("\tos2 weight class %d maps to weight %d\n",
 		    os2->usWeightClass, weight);
@@ -1500,14 +1490,14 @@ FcFreeTypeQueryFace (const FT_Face  face,
 	    printf ("\tos2 width class %d maps to width %d\n",
 		    os2->usWidthClass, width);
     }
-    if (os2 && (complex = FcFontCapabilities(face)))
+    if (os2 && (complex_ = FcFontCapabilities(face)))
     {
-	if (!FcPatternAddString (pat, FC_CAPABILITY, complex))
+	if (!FcPatternAddString (pat, FC_CAPABILITY, complex_))
 	{
-	    free (complex);
+	    free (complex_);
 	    goto bail1;
 	}
-	free (complex);
+	free (complex_);
     }
 
     /*
@@ -1684,7 +1674,7 @@ FcFreeTypeQueryFace (const FT_Face  face,
     /*
      * Skip over PCF fonts that have no encoded characters; they're
      * usually just Unicode fonts transcoded to some legacy encoding
-     * ftglue.c forces us to approximate whether a font is a PCF font
+     * FT forces us to approximate whether a font is a PCF font
      * or not by whether it has any BDF properties.  Try PIXEL_SIZE;
      * I don't know how to get a list of BDF properties on the font. -PL
      */
@@ -1723,40 +1713,6 @@ FcFreeTypeQueryFace (const FT_Face  face,
 		goto bail2;
 	if (!FcPatternAddBool (pat, FC_ANTIALIAS, FcFalse))
 	    goto bail2;
-#if HAVE_FT_GET_BDF_PROPERTY
-        if(face->num_fixed_sizes == 1) {
-            int rc;
-            int value;
-
-	    /* skip bitmap fonts which do not even have a family name */
-	    rc =  FT_Get_BDF_Property(face, "FAMILY_NAME", &prop);
-	    if (rc != 0 || prop.type != BDF_PROPERTY_TYPE_ATOM)
-		goto bail2;
-
-            rc = FT_Get_BDF_Property(face, "POINT_SIZE", &prop);
-            if(rc == 0 && prop.type == BDF_PROPERTY_TYPE_INTEGER)
-                value = prop.u.integer;
-            else if(rc == 0 && prop.type == BDF_PROPERTY_TYPE_CARDINAL)
-                value = prop.u.cardinal;
-            else
-                goto nevermind;
-            if(!FcPatternAddDouble(pat, FC_SIZE, value / 10.0))
-                goto nevermind;
-
-            rc = FT_Get_BDF_Property(face, "RESOLUTION_Y", &prop);
-            if(rc == 0 && prop.type == BDF_PROPERTY_TYPE_INTEGER)
-                value = prop.u.integer;
-            else if(rc == 0 && prop.type == BDF_PROPERTY_TYPE_CARDINAL)
-                value = prop.u.cardinal;
-            else
-                goto nevermind;
-            if(!FcPatternAddDouble(pat, FC_DPI, (double)value))
-                goto nevermind;
-
-        }
-    nevermind:
-        ;
-#endif
     }
 #if HAVE_FT_GET_X11_FONT_FORMAT
     /*
@@ -2368,12 +2324,12 @@ FcUcs4ToGlyphName (FcChar32 ucs4)
 {
     int		i = (int) (ucs4 % FC_GLYPHNAME_HASH);
     int		r = 0;
-    const FcGlyphName	*gn;
+    FcGlyphId	gn;
 
-    while ((gn = ucs_to_name[i]))
+    while ((gn = _fc_ucs_to_name[i]) != -1)
     {
-	if (gn->ucs == ucs4)
-	    return gn->name;
+	if (_fc_glyph_names[gn].ucs == ucs4)
+	    return _fc_glyph_names[gn].name;
 	if (!r) 
 	{
 	    r = (int) (ucs4 % FC_GLYPHNAME_REHASH);
@@ -2393,12 +2349,12 @@ FcGlyphNameToUcs4 (FcChar8 *name)
     FcChar32	h = FcHashGlyphName (name);
     int		i = (int) (h % FC_GLYPHNAME_HASH);
     int		r = 0;
-    const FcGlyphName	*gn;
+    FcGlyphId	gn;
 
-    while ((gn = name_to_ucs[i]))
+    while ((gn = _fc_name_to_ucs[i]) != -1)
     {
-	if (!strcmp ((char *) name, (char *) gn->name))
-	    return gn->ucs;
+	if (!strcmp ((char *) name, (char *) _fc_glyph_names[gn].name))
+	    return _fc_glyph_names[gn].ucs;
 	if (!r) 
 	{
 	    r = (int) (h % FC_GLYPHNAME_REHASH);
@@ -2413,6 +2369,19 @@ FcGlyphNameToUcs4 (FcChar8 *name)
 }
 
 /*
+ * Work around a bug in some FreeType versions which fail
+ * to correctly bounds check glyph name buffers and overwrite
+ * the stack. As Postscript names have a limit of 127 characters,
+ * this should be sufficient.
+ */
+
+#if FC_GLYPHNAME_MAXLEN < 127
+# define FC_GLYPHNAME_BUFLEN 127
+#else
+# define FC_GLYPHNAME_BUFLEN FC_GLYPHNAME_MAXLEN
+#endif
+
+/*
  * Search through a font for a glyph by name.  This is
  * currently a linear search as there doesn't appear to be
  * any defined order within the font
@@ -2421,11 +2390,11 @@ static FT_UInt
 FcFreeTypeGlyphNameIndex (FT_Face face, const FcChar8 *name)
 {
     FT_UInt gindex;
-    FcChar8 name_buf[FC_GLYPHNAME_MAXLEN + 2];
+    FcChar8 name_buf[FC_GLYPHNAME_BUFLEN + 2];
 
     for (gindex = 0; gindex < (FT_UInt) face->num_glyphs; gindex++)
     {
-	if (FT_Get_Glyph_Name (face, gindex, name_buf, FC_GLYPHNAME_MAXLEN+1) == 0)
+	if (FT_Get_Glyph_Name (face, gindex, name_buf, FC_GLYPHNAME_BUFLEN+1) == 0)
 	    if (!strcmp ((char *) name, (char *) name_buf))
 		return gindex;
     }
@@ -2511,11 +2480,15 @@ FcFreeTypeCharIndex (FT_Face face, FcChar32 ucs4)
 static FcBool
 FcFreeTypeCheckGlyph (FT_Face face, FcChar32 ucs4, 
 		      FT_UInt glyph, FcBlanks *blanks,
-		      FT_Pos *advance)
+		      FT_Pos *advance,
+		      FcBool using_strike)
 {
     FT_Int	    load_flags = FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH | FT_LOAD_NO_SCALE | FT_LOAD_NO_HINTING;
     FT_GlyphSlot    slot;
     
+    if (using_strike)
+	load_flags &= ~FT_LOAD_NO_SCALE;
+
     /*
      * When using scalable fonts, only report those glyphs
      * which can be scaled; otherwise those fonts will
@@ -2564,13 +2537,10 @@ FcFreeTypeCheckGlyph (FT_Face face, FcChar32 ucs4,
     return FcFalse;
 }
 
-#define FC_MIN(a,b) ((a) < (b) ? (a) : (b))
-#define FC_MAX(a,b) ((a) > (b) ? (a) : (b))
-#define FC_ABS(a)   ((a) < 0 ? -(a) : (a))
 #define APPROXIMATELY_EQUAL(x,y) (FC_ABS ((x) - (y)) <= FC_MAX (FC_ABS (x), FC_ABS (y)) / 33)
 
-FcCharSet *
-FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
+static FcCharSet *
+FcFreeTypeCharSetAndSpacingForSize (FT_Face face, FcBlanks *blanks, int *spacing, FT_Int strike_index)
 {
     FcChar32	    page, off, ucs4;
 #ifdef CHECK
@@ -2584,11 +2554,20 @@ FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
     FT_UInt	    glyph;
     FT_Pos	    advance, advance_one = 0, advance_two = 0;
     FcBool	    has_advance = FcFalse, fixed_advance = FcTrue, dual_advance = FcFalse;
+    FcBool	    using_strike = FcFalse;
 
     fcs = FcCharSetCreate ();
     if (!fcs)
 	goto bail0;
     
+#if HAVE_FT_SELECT_SIZE
+    if (strike_index >= 0) {
+	if (FT_Select_Size (face, strike_index) != FT_Err_Ok)
+	    goto bail1;
+	using_strike = FcTrue;
+    }
+#endif
+
 #ifdef CHECK
     printf ("Family %s style %s\n", face->family_name, face->style_name);
 #endif
@@ -2608,7 +2587,7 @@ FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
 		ucs4 = map->ent[i].bmp;
 		glyph = FT_Get_Char_Index (face, map->ent[i].encode);
 		if (glyph && 
-		    FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance))
+		    FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance, using_strike))
 		{
 		    /* 
 		     * ignore glyphs with zero advance. They’re
@@ -2656,7 +2635,7 @@ FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
             ucs4 = FT_Get_First_Char (face, &glyph);
             while (glyph != 0)
 	    {
-		if (FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance))
+		if (FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance, using_strike))
 		{
 		    if (advance)
 		    {
@@ -2715,15 +2694,15 @@ FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
      */
     if (FcFreeTypeUseNames (face))
     {
-	FcChar8 name_buf[FC_GLYPHNAME_MAXLEN + 2];
+	FcChar8 name_buf[FC_GLYPHNAME_BUFLEN + 2];
 
 	for (glyph = 0; glyph < (FT_UInt) face->num_glyphs; glyph++)
 	{
-	    if (FT_Get_Glyph_Name (face, glyph, name_buf, FC_GLYPHNAME_MAXLEN+1) == 0)
+	    if (FT_Get_Glyph_Name (face, glyph, name_buf, FC_GLYPHNAME_BUFLEN+1) == 0)
 	    {
 		ucs4 = FcGlyphNameToUcs4 (name_buf);
 		if (ucs4 != 0xffff && 
-		    FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance))
+		    FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance, using_strike))
 		{
 		    if (advance)
 		    {
@@ -2766,7 +2745,7 @@ FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
 
 	if (has_char && !has_bit)
 	{
-	    if (!FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance))
+	    if (!FcFreeTypeCheckGlyph (face, ucs4, glyph, blanks, &advance, using_strike))
 		printf ("Bitmap missing broken char 0x%x\n", ucs4);
 	    else
 		printf ("Bitmap missing char 0x%x\n", ucs4);
@@ -2789,6 +2768,39 @@ bail0:
 }
 
 FcCharSet *
+FcFreeTypeCharSetAndSpacing (FT_Face face, FcBlanks *blanks, int *spacing)
+{
+    FcCharSet	*cs;
+    
+    cs = FcFreeTypeCharSetAndSpacingForSize (face, blanks, spacing, -1);
+    /*
+     * Check for bitmap-only ttf fonts that are missing the glyf table.
+     * In that case, pick a size and look for glyphs in that size instead
+     */
+    if (FcCharSetCount (cs) == 0) 
+    {
+	/* Check for non-scalable TT fonts */
+	if (!(face->face_flags & FT_FACE_FLAG_SCALABLE) &&
+	    face->num_fixed_sizes > 0 &&
+	    FT_Get_Sfnt_Table (face, ft_sfnt_head))
+	{
+	    FT_Int  strike_index = 0;
+	    int	    i;
+
+	    /* Select the face closest to 16 pixels tall */
+	    for (i = 1; i < face->num_fixed_sizes; i++) {
+		if (abs (face->available_sizes[i].height - 16) < 
+		    abs (face->available_sizes[strike_index].height - 16))
+		    strike_index = i;
+	    }
+	    FcCharSetDestroy (cs);
+	    cs = FcFreeTypeCharSetAndSpacingForSize (face, blanks, spacing, strike_index);
+	}
+    }
+    return cs;
+}
+
+FcCharSet *
 FcFreeTypeCharSet (FT_Face face, FcBlanks *blanks)
 {
     int spacing;
@@ -2800,10 +2812,6 @@ FcFreeTypeCharSet (FT_Face face, FcBlanks *blanks)
 #define TTAG_GPOS  FT_MAKE_TAG( 'G', 'P', 'O', 'S' )
 #define TTAG_GSUB  FT_MAKE_TAG( 'G', 'S', 'U', 'B' )
 #define TTAG_SILF  FT_MAKE_TAG( 'S', 'i', 'l', 'f')
-#define TT_Err_Ok FT_Err_Ok
-#define TT_Err_Invalid_Face_Handle FT_Err_Invalid_Face_Handle
-#define TTO_Err_Empty_Script              0x1005
-#define TTO_Err_Invalid_SubTable          0x1001
 
 #define OTLAYOUT_HEAD	    "otlayout:"
 #define OTLAYOUT_HEAD_LEN   9
@@ -2819,7 +2827,7 @@ FcFreeTypeCharSet (FT_Face face, FcBlanks *blanks)
 #define FcIsValidScript(x)  (FcIsLower(x) || FcIsUpper (x) || FcIsSpace(x))
 			     
 static void
-addtag(FcChar8 *complex, FT_ULong tag)
+addtag(FcChar8 *complex_, FT_ULong tag)
 {
     FcChar8 tagstring[OTLAYOUT_ID_LEN + 1];
 
@@ -2838,10 +2846,10 @@ addtag(FcChar8 *complex, FT_ULong tag)
 	!FcIsValidScript(tagstring[3]))
 	return;
 
-    if (*complex != '\0')
-	strcat ((char *) complex, " ");
-    strcat ((char *) complex, "otlayout:");
-    strcat ((char *) complex, (char *) tagstring);
+    if (*complex_ != '\0')
+	strcat ((char *) complex_, " ");
+    strcat ((char *) complex_, "otlayout:");
+    strcat ((char *) complex_, (char *) tagstring);
 }
 
 static int
@@ -2853,29 +2861,30 @@ compareulong (const void *a, const void *b)
 }
 
 
-static FT_Error
-GetScriptTags(FT_Face face, FT_ULong tabletag, FT_ULong **stags, FT_UShort *script_count)
+static int
+GetScriptTags(FT_Face face, FT_ULong tabletag, FT_ULong **stags)
 {
-    FT_ULong         cur_offset, new_offset, base_offset;
+    FT_ULong   cur_offset, new_offset, base_offset;
     FT_Stream  stream = face->stream;
     FT_Error   error;
-    FT_UShort          n, p;
+    FT_UShort  n, p;
     FT_Memory  memory;
+    int        script_count;
 
-    if ( !stream )
-	return TT_Err_Invalid_Face_Handle;
+    if (!stream)
+        return 0;
 
     memory = stream->memory;
 
     if (( error = ftglue_face_goto_table( face, tabletag, stream ) ))
-	return error;
+	return 0;
 
     base_offset = ftglue_stream_pos ( stream );
 
     /* skip version */
 
     if ( ftglue_stream_seek ( stream, base_offset + 4L ) || ftglue_stream_frame_enter( stream, 2L ) )
-	return error;
+	return 0;
 
     new_offset = GET_UShort() + base_offset;
 
@@ -2883,25 +2892,24 @@ GetScriptTags(FT_Face face, FT_ULong tabletag, FT_ULong **stags, FT_UShort *scri
 
     cur_offset = ftglue_stream_pos( stream );
 
-    if ( ftglue_stream_seek( stream, new_offset ) != TT_Err_Ok )
-	return error;
+    if ( ftglue_stream_seek( stream, new_offset ) != FT_Err_Ok )
+	return 0;
 
     base_offset = ftglue_stream_pos( stream );
 
     if ( ftglue_stream_frame_enter( stream, 2L ) )
-	return error;
+	return 0;
 
-    *script_count = GET_UShort ();
+    script_count = GET_UShort ();
 
     ftglue_stream_frame_exit( stream );
 
-    *stags = ftglue_alloc(memory, *script_count * sizeof( FT_ULong ), &error);
-
-    if (error)
-	return error;
+    *stags = malloc(script_count * sizeof (FT_ULong));
+    if (!stags)
+	return 0;
 
     p = 0;
-    for ( n = 0; n < *script_count; n++ )
+    for ( n = 0; n < script_count; n++ )
     {
         if ( ftglue_stream_frame_enter( stream, 6L ) )
 	    goto Fail;
@@ -2915,28 +2923,24 @@ GetScriptTags(FT_Face face, FT_ULong tabletag, FT_ULong **stags, FT_UShort *scri
 
 	error = ftglue_stream_seek( stream, new_offset );
 
-	if ( error == TT_Err_Ok )
+	if ( error == FT_Err_Ok )
 	    p++;
 
 	(void)ftglue_stream_seek( stream, cur_offset );
     }
 
     if (!p)
-    {
-	error = TTO_Err_Invalid_SubTable;
 	goto Fail;
-    }
 
     /* sort the tag list before returning it */
-    qsort(*stags, *script_count, sizeof(FT_ULong), compareulong);
+    qsort(*stags, script_count, sizeof(FT_ULong), compareulong);
 
-    return TT_Err_Ok;
+    return script_count;
 
 Fail:
-    *script_count = 0;
-    ftglue_free( memory, *stags );
+    free(*stags);
     *stags = NULL;
-    return error;
+    return 0;
 }
 
 static FcChar8 *
@@ -2948,55 +2952,53 @@ FcFontCapabilities(FT_Face face)
     FT_ULong *gsubtags=NULL, *gpostags=NULL;
     FT_UShort gsub_count=0, gpos_count=0;
     FT_ULong maxsize;
-    FT_Memory  memory = face->stream->memory;
-    FcChar8 *complex = NULL;
+    FcChar8 *complex_ = NULL;
     int indx1 = 0, indx2 = 0;
 
     err = FT_Load_Sfnt_Table(face, TTAG_SILF, 0, 0, &len);
     issilgraphitefont = ( err == FT_Err_Ok);
 
-    if (GetScriptTags(face, TTAG_GPOS, &gpostags, &gpos_count) != FT_Err_Ok)
-	gpos_count = 0;
-    if (GetScriptTags(face, TTAG_GSUB, &gsubtags, &gsub_count) != FT_Err_Ok)
-	gsub_count = 0;
-    
+    gpos_count = GetScriptTags(face, TTAG_GPOS, &gpostags);
+    gsub_count = GetScriptTags(face, TTAG_GSUB, &gsubtags);
+
     if (!issilgraphitefont && !gsub_count && !gpos_count)
     	goto bail;
 
     maxsize = (((FT_ULong) gpos_count + (FT_ULong) gsub_count) * OTLAYOUT_LEN + 
 	       (issilgraphitefont ? 13 : 0));
-    complex = malloc (sizeof (FcChar8) * maxsize);
-    if (!complex)
+    complex_ = malloc (sizeof (FcChar8) * maxsize);
+    if (!complex_)
 	goto bail;
 
-    complex[0] = '\0';
+    complex_[0] = '\0';
     if (issilgraphitefont)
-        strcpy((char *) complex, "ttable:Silf ");
+        strcpy((char *) complex_, "ttable:Silf ");
 
     while ((indx1 < gsub_count) || (indx2 < gpos_count)) {
 	if (indx1 == gsub_count) {
-	    addtag(complex, gpostags[indx2]);
+	    addtag(complex_, gpostags[indx2]);
 	    indx2++;
 	} else if ((indx2 == gpos_count) || (gsubtags[indx1] < gpostags[indx2])) {
-	    addtag(complex, gsubtags[indx1]);
+	    addtag(complex_, gsubtags[indx1]);
 	    indx1++;
 	} else if (gsubtags[indx1] == gpostags[indx2]) {
-	    addtag(complex, gsubtags[indx1]);
+	    addtag(complex_, gsubtags[indx1]);
 	    indx1++;
 	    indx2++;
 	} else {
-	    addtag(complex, gpostags[indx2]);
+	    addtag(complex_, gpostags[indx2]);
 	    indx2++;
 	}
     }
     if (FcDebug () & FC_DBG_SCANV)
-	printf("complex features in this font: %s\n", complex);
+	printf("complex_ features in this font: %s\n", complex_);
 bail:
-    ftglue_free(memory, gsubtags);
-    ftglue_free(memory, gpostags);
-    return complex;
+    free(gsubtags);
+    free(gpostags);
+    return complex_;
 }
 
 #define __fcfreetype__
 #include "fcaliastail.h"
+#include "fcftaliastail.h"
 #undef __fcfreetype__

@@ -1,5 +1,5 @@
 /*
- * Copyright 2007  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007  Egbert Eich   <eich@novell.com>
  * Copyright 2007  Advanced Micro Devices, Inc.
@@ -44,6 +44,7 @@ struct rhdMonitor {
 
     Bool UseFixedModes;
     DisplayModePtr Modes; /* default: NULL */
+    DisplayModePtr NativeMode;
 
     xf86MonPtr EDID;
 };

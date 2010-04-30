@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.4 2008/09/14 19:47:42 matthieu Exp $
+# $OpenBSD: Makefile,v 1.9 2010/02/03 12:44:10 matthieu Exp $
 
 MESA=	${.CURDIR}/../../../dist/Mesa/src/mesa
 MESA_INCLUDE=	${.CURDIR}/../../../dist/Mesa/include
@@ -18,7 +18,7 @@ CPPFLAGS+= \
 	-I${MESA}/shader/grammar \
 	-I${MESA}/shader/slang \
 	-I${X11BASE}/include \
-	-I${X11BASE}/include/drm \
+	-I/usr/include/dev/pci/drm \
 	-DGLX_INDIRECT_RENDERING \
 	-DGLX_DIRECT_RENDERING \
 	-DUSE_EXTERNAL_DXTN_LIB=1 \
@@ -43,6 +43,7 @@ CPPFLAGS += \
 # main
 MAIN_SOURCES= \
 	api_arrayelt.c \
+	api_exec.c \
 	api_loopback.c \
 	api_noop.c \
 	api_validate.c \
@@ -52,6 +53,7 @@ MAIN_SOURCES= \
 	blend.c \
 	bufferobj.c \
 	buffers.c \
+	clear.c \
 	clip.c \
 	colortab.c \
 	context.c \
@@ -60,6 +62,7 @@ MAIN_SOURCES= \
 	depth.c \
 	depthstencil.c \
 	dlist.c \
+	dlopen.c \
 	drawpix.c \
 	enable.c \
 	enums.c \
@@ -68,6 +71,7 @@ MAIN_SOURCES= \
 	extensions.c \
 	fbobject.c \
 	feedback.c \
+	ffvertex_prog.c \
 	fog.c \
 	framebuffer.c \
 	get.c \
@@ -82,23 +86,30 @@ MAIN_SOURCES= \
 	matrix.c \
 	mipmap.c \
 	mm.c \
+	multisample.c \
 	pixel.c \
+	pixelstore.c \
 	points.c \
 	polygon.c \
 	queryobj.c \
 	rastpos.c \
 	rbadaptors.c \
+	readpix.c \
 	renderbuffer.c \
+	scissor.c \
 	shaders.c \
 	state.c \
 	stencil.c \
 	texcompress.c \
 	texcompress_s3tc.c \
 	texcompress_fxt1.c \
+	texenv.c \
 	texenvprogram.c \
 	texformat.c \
+	texgen.c \
 	teximage.c \
 	texobj.c \
+	texparam.c \
 	texrender.c \
 	texstate.c \
 	texstore.c \
@@ -158,6 +169,7 @@ TNL_SOURCES= \
 	t_context.c \
 	t_pipeline.c \
 	t_draw.c \
+	t_rasterpos.c \
 	t_vb_program.c \
 	t_vb_render.c \
 	t_vb_texgen.c \
@@ -171,7 +183,7 @@ TNL_SOURCES= \
 	t_vp_build.c \
 	t_vertex.c \
 	t_vertex_sse.c \
-	t_vertex_generic.c \
+	t_vertex_generic.c
 
 VBO_SOURCES = \
 	vbo_context.c \
@@ -199,14 +211,17 @@ SHADER_SOURCES=	\
 	nvprogram.c \
 	nvvertparse.c \
 	program.c \
+	prog_cache.c \
 	prog_debug.c \
 	prog_execute.c \
 	prog_instruction.c \
+	prog_noise.c \
 	prog_parameter.c \
 	prog_print.c \
 	prog_statevars.c \
+	prog_uniform.c \
 	programopt.c \
-	shader_api.c \
+	shader_api.c
 
 # shader/slang
 SLANG_SOURCES= \
@@ -220,7 +235,6 @@ SLANG_SOURCES= \
 	slang_emit.c	\
 	slang_ir.c	\
 	slang_label.c	\
-	slang_library_noise.c	\
 	slang_link.c	\
 	slang_log.c	\
 	slang_mem.c	\
@@ -279,7 +293,10 @@ ASM_C_SOURCES= \
 	common_ppc.c
 .endif
 
-SOLO_SOURCES = \
+COMMON_DRIVER_SOURCES = \
+	driverfuncs.c
+
+MESA_SOURCES = \
 	$(MAIN_SOURCES)		\
 	$(MATH_SOURCES)		\
 	$(VBO_SOURCES)		\
@@ -287,10 +304,11 @@ SOLO_SOURCES = \
 	$(SHADER_SOURCES)	\
 	$(SWRAST_SOURCES)	\
 	$(SWRAST_SETUP_SOURCES) \
+	$(COMMON_DRIVER_SOURCES) \
 	$(ASM_C_SOURCES)	\
 	$(SLANG_SOURCES)
 
-SRCS=	${SOLO_SOURCES}	\
+SRCS=	${MESA_SOURCES}	\
 	${ASM_SOURCES}
 
 OBJS+=  ${SRCS:N*.h:R:S/$/.so/g}
@@ -305,7 +323,7 @@ install:
 	@echo "Not installing libmesa"
 
 clean:
-	rm -f ${LIB}_pic.a ${OBJS} ${CLEANFILES}
+	rm -f ${LIB}_pic.a ${OBJS} $(CLEANFILES)
 
 cleandir:	clean
 
@@ -392,3 +410,7 @@ x86_xform4.so: matypes.h
 .PATH: ${MESA}/drivers/common
 
 .include <bsd.xorg.mk>
+
+.if ${MACHINE} == sparc
+PICFLAG=-fPIC
+.endif

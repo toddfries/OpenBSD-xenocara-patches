@@ -1,4 +1,4 @@
-/* $OpenBSD: wsfb_driver.c,v 1.13 2008/01/20 18:45:06 jasper Exp $ */
+/* $OpenBSD: wsfb_driver.c,v 1.20 2010/02/04 06:24:47 matthieu Exp $ */
 /*
  * Copyright (c) 2001 Matthieu Herrb
  * All rights reserved.
@@ -40,15 +40,16 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/time.h>
 #include <dev/wscons/wsconsio.h>
 
 /* All drivers need this. */
 #include "xf86.h"
 #include "xf86_OSproc.h"
-#include "xf86_ansic.h"
 
 #include "mipointer.h"
 #include "mibstore.h"
@@ -59,21 +60,21 @@
 #include "dgaproc.h"
 
 /* For visuals */
-#include "xf1bpp.h"
-#include "xf4bpp.h"
+#ifdef HAVE_XF1BPP
+# include "xf1bpp.h"
+#endif
+#ifdef HAVE_XF4BPP
+# include "xf4bpp.h"
+#endif
 #include "fb.h"
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 #include "xf86Resources.h"
 #include "xf86RAC.h"
+#endif
 
 #ifdef XvExtension
 #include "xf86xv.h"
-#endif
-
-/* #include "wsconsio.h" */
-
-#ifndef XFree86LOADER
-#include <sys/mman.h>
 #endif
 
 #ifdef X_PRIVSEP
@@ -184,22 +185,6 @@ static const OptionInfoRec WsfbOptions[] = {
 	{ -1, NULL, OPTV_NONE, {0}, FALSE}
 };
 
-/* Symbols needed from other modules. */
-static const char *fbSymbols[] = {
-	"fbPictureInit",
-	"fbScreenInit",
-	NULL
-};
-static const char *shadowSymbols[] = {
-	"shadowAdd",
-	"shadowSetup",
-	"shadowUpdatePacked",
-	"shadowUpdatePackedWeak",
-	"shadowUpdateRotatePacked",
-	"shadowUpdateRotatePackedWeak",
-	NULL
-};
-
 #ifdef XFree86LOADER
 static XF86ModuleVersionInfo WsfbVersRec = {
 	"wsfb",
@@ -237,7 +222,6 @@ WsfbSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 	if (!setupDone) {
 		setupDone = TRUE;
 		xf86AddDriver(&WSFB, module, HaveDriverFuncs);
-		LoaderRefSymLists(fbSymbols, shadowSymbols, NULL);
 		return (pointer)1;
 	} else {
 		if (errmaj != NULL)
@@ -314,7 +298,7 @@ wsfb_open(char *dev)
 {
 	int fd = -1;
 
-	/* Try argument from XF86Config first. */
+	/* Try argument from xorg.conf first. */
 	if (dev == NULL || ((fd = priv_open_device(dev)) == -1)) {
 		/* Second: environment variable. */
 		dev = getenv("XDEVICE");
@@ -434,8 +418,10 @@ WsfbPreInit(ScrnInfoPtr pScrn, int flags)
 
 	fPtr->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 	pScrn->racMemFlags = RAC_FB | RAC_COLORMAP | RAC_CURSOR | RAC_VIEWPORT;
 	pScrn->racIoFlags = pScrn->racMemFlags;
+#endif
 
 	dev = xf86FindOptionValue(fPtr->pEnt->device->options, "device");
 	fPtr->fd = wsfb_open(dev);
@@ -506,7 +492,8 @@ WsfbPreInit(ScrnInfoPtr pScrn, int flags)
 	if (flags24 & Support24bppFb)
 		flags24 |= SupportConvert32to24 | PreferConvert32to24;
 	
-	if (!xf86SetDepthBpp(pScrn, defaultDepth, 0, 0, flags24))
+	if (!xf86SetDepthBpp(pScrn, defaultDepth, 0,
+		fPtr->info.depth, flags24))
 		return FALSE;
 
 	if (wstype == WSDISPLAY_TYPE_PCIVGA) {
@@ -608,6 +595,7 @@ WsfbPreInit(ScrnInfoPtr pScrn, int flags)
 			masks.blue = 0xff0000;
 			break;
 		case WSDISPLAY_TYPE_PXALCD:
+		case WSDISPLAY_TYPE_SMFB:
 			masks.red = 0x1f << 11;
 			masks.green = 0x3f << 5;
 			masks.blue = 0x1f;
@@ -753,14 +741,18 @@ WsfbPreInit(ScrnInfoPtr pScrn, int flags)
 
 	/* Load bpp-specific modules. */
 	switch(pScrn->bitsPerPixel) {
+#ifdef HAVE_XF1BPP
 	case 1:
 		mod = "xf1bpp";
 		reqSym = "xf1bppScreenInit";
 		break;
+#endif
+#ifdef HAVE_XF4BPP
 	case 4:
 		mod = "xf4bpp";
 		reqSym = "xf4bppScreenInit";
 		break;
+#endif
 	default:
 		mod = "fb";
 		break;
@@ -775,18 +767,10 @@ WsfbPreInit(ScrnInfoPtr pScrn, int flags)
 			WsfbFreeRec(pScrn);
 			return FALSE;
 		}
-		xf86LoaderReqSymLists(shadowSymbols, NULL);
 	}
 	if (mod && xf86LoadSubModule(pScrn, mod) == NULL) {
 		WsfbFreeRec(pScrn);
 		return FALSE;
-	}
-	if (mod) {
-		if (reqSym) {
-			xf86LoaderReqSymbols(reqSym, NULL);
-		} else {
-			xf86LoaderReqSymLists(fbSymbols, NULL);
-		}
 	}
 	TRACE_EXIT("PreInit");
 	return TRUE;
@@ -944,17 +928,21 @@ WsfbScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	switch (pScrn->bitsPerPixel) {
 	case 1:
+#ifdef HAVE_XF1BPP
 		ret = xf1bppScreenInit(pScreen, fPtr->fbstart,
 				       pScrn->virtualX, pScrn->virtualY,
 				       pScrn->xDpi, pScrn->yDpi,
 				       fPtr->linebytes * 8);
 		break;
+#endif
 	case 4:
+#ifdef HAVE_XF4BPP
 		ret = xf4bppScreenInit(pScreen, fPtr->fbstart,
 				       pScrn->virtualX, pScrn->virtualY,
 				       pScrn->xDpi, pScrn->yDpi,
 				       fPtr->linebytes * 2);
 		break;
+#endif
 	case 8:
 	case 16:
 	case 24:
@@ -1070,9 +1058,14 @@ static Bool
 WsfbCloseScreen(int scrnIndex, ScreenPtr pScreen)
 {
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	PixmapPtr pPixmap;
 	WsfbPtr fPtr = WSFBPTR(pScrn);
 
+
 	TRACE_ENTER("WsfbCloseScreen");
+
+	pPixmap = pScreen->GetScreenPixmap(pScreen);
+	shadowRemove(pScreen, pPixmap);
 
 	if (pScrn->vtSema) {
 		WsfbRestore(pScrn);

@@ -15,9 +15,9 @@
     representations about the suitability of this software for any purpose.  It
     is provided "as is" without express or implied warranty.
    
-    KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+    THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
     INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
-    EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+    EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
     CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
     DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
     TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -37,6 +37,7 @@
    &confdir;/fonts.conf
    &confdir;/fonts.dtd
    &confdir;/conf.d
+   ~/.fonts.conf.d
    ~/.fonts.conf
 </synopsis>
 </refsynopsisdiv>
@@ -120,6 +121,7 @@ convenience for the applications' rendering mechanism.
   dpi             Double  Target dots per inch
   rgba            Int     unknown, rgb, bgr, vrgb, vbgr,
                           none - subpixel geometry
+  lcdfilter       Int     Type of LCD filter
   minspace        Bool    Eliminate leading from line spacing
   charset         CharSet Unicode chars encoded by the font
   lang            String  List of RFC-3066-style languages this
@@ -476,6 +478,10 @@ symbolic names for common font values:
   vrgb            rgba            3
   vbgr            rgba            4
   none            rgba            5
+  lcdnone         lcdfilter       0
+  lcddefault      lcdfilter       1
+  lcdlight        lcdfilter       2
+  lcdlegacy       lcdfilter       3
   hintnone        hintstyle       0
   hintslight      hintstyle       1
   hintmedium      hintstyle       2
@@ -657,6 +663,12 @@ format.  The master fonts.conf file references this directory in an
 is a DTD that describes the format of the configuration files.
   </para>
   <para>
+<emphasis>~/.fonts.conf.d</emphasis>
+is the conventional name for a per-user directory of (typically
+auto-generated) configuration files, although the
+actual location is specified in the global fonts.conf file.
+  </para>
+  <para>
 <emphasis>~/.fonts.conf</emphasis>
 is the conventional location for per-user font configuration, although the
 actual location is specified in the global fonts.conf file.
@@ -669,7 +681,7 @@ per-directory caches.  This file is automatically maintained by fontconfig.
 </refsect1>
 <refsect1><title>See Also</title>
   <para>
-fc-cache(1), fc-match(1), fc-list(1)
+fc-cat(1), fc-cache(1), fc-list(1), fc-match(1), fc-query(1)
   </para>
 </refsect1>
 <refsect1><title>Version</title>

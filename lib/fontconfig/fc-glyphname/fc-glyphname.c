@@ -1,5 +1,5 @@
 /*
- * $Id: fc-glyphname.c,v 1.1.1.1 2006/11/25 18:42:47 matthieu Exp $
+ * fontconfig/fc-glyphname/fc-glyphname.c
  *
  * Copyright © 2003 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -206,7 +206,7 @@ insert (FcGlyphName *gn, FcGlyphName **table, FcChar32 h)
     i = (int) (h % hash);
     while (table[i])
     {
-	if (!r) r = (int) (h % rehash);
+	if (!r) r = (int) (h % rehash + 1);
 	i += r;
 	if (i >= hash)
 	    i -= hash;
@@ -217,15 +217,15 @@ insert (FcGlyphName *gn, FcGlyphName **table, FcChar32 h)
 static void
 dump (FcGlyphName * const *table, const char *name)
 {
-    int	i;
+    int	    i;
     
-    printf ("static const FcGlyphName	*%s[%d] = {\n", name, hash);
+    printf ("static const FcGlyphId %s[%d] = {\n", name, hash);
 
     for (i = 0; i < hash; i++)
 	if (table[i])
-	    printf ("(FcGlyphName *) &glyph%d,\n", rawindex(table[i]));
+	    printf ("    %d,\n", rawindex(table[i]));
 	else
-	    printf ("0,\n");
+	    printf ("    -1,\n");
     
     printf ("};\n");
 }
@@ -237,6 +237,7 @@ main (int argc, char **argv)
     char	line[1024];
     FILE	*f;
     int		i;
+    char	*type;
     
     i = 0;
     while (argv[i+1])
@@ -283,27 +284,38 @@ main (int argc, char **argv)
     printf ("#define FC_GLYPHNAME_HASH %u\n", hash);
     printf ("#define FC_GLYPHNAME_REHASH %u\n", rehash);
     printf ("#define FC_GLYPHNAME_MAXLEN %d\n\n", max_name_len);
+    if (nraw < 128)
+	type = "int8_t";
+    else if (nraw < 32768)
+	type = "int16_t";
+    else
+	type = "int32_t";
+    
+    printf ("typedef %s FcGlyphId;\n\n", type);
     
     /*
      * Dump out entries
      */
     
+    printf ("static const struct { const FcChar32 ucs; const FcChar8 name[%d]; } _fc_glyph_names[%d] = {\n",
+	    max_name_len + 1, nraw);
+    
     for (i = 0; i < nraw; i++)
-	printf ("static const struct { const FcChar32 ucs; const FcChar8 name[%d]; }"
-	        " glyph%d = { 0x%lx, \"%s\" };\n",
-	        (int) strlen ((char *) raw[i]->name) + 1,
-		i, (unsigned long) raw[i]->ucs, raw[i]->name);
+	printf ("    { 0x%lx, \"%s\" },\n",
+		(unsigned long) raw[i]->ucs, raw[i]->name);
+
+    printf ("};\n");
 
     /*
      * Dump out name_to_ucs table
      */
 
-    dump (name_to_ucs, "name_to_ucs");
+    dump (name_to_ucs, "_fc_name_to_ucs");
     
     /*
      * Dump out ucs_to_name table
      */
-    dump (ucs_to_name, "ucs_to_name");
+    dump (ucs_to_name, "_fc_ucs_to_name");
 
     while (fgets (line, sizeof (line), stdin))
 	fputs (line, stdout);

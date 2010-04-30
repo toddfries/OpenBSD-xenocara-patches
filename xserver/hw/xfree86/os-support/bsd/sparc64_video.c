@@ -51,6 +51,9 @@ xf86OSInitVidMem(VidMemInfoPtr pVidMem)
 	pVidMem->linearSupported = TRUE;
 	pVidMem->mapMem = sparc64MapVidMem;
 	pVidMem->unmapMem = sparc64UnmapVidMem;
+#if HAVE_PCI_SYSTEM_INIT_DEV_MEM
+       pci_system_init_dev_mem(xf86Info.screenFd);
+#endif
 	pVidMem->initialised = TRUE;
 }
 
@@ -90,24 +93,6 @@ xf86ReadBIOS(unsigned long Base, unsigned long Offset, unsigned char *Buf,
 	return (0);
 }
 
-/***************************************************************************/
-/* Interrupt Handling section                                              */
-/***************************************************************************/
-
-_X_EXPORT Bool
-xf86DisableInterrupts()
-{
-
-	return(TRUE);
-}
-
-_X_EXPORT void
-xf86EnableInterrupts()
-{
-
-	return;
-}
-
 #ifdef X_PRIVSEP
 /*
  * Do all things that need root privileges early 
@@ -116,7 +101,7 @@ xf86EnableInterrupts()
 _X_EXPORT void
 xf86PrivilegedInit(void)
 {
-	pciInit();
+	pci_system_init();
 	xf86OpenConsole();
 }
 #endif

@@ -1,5 +1,5 @@
 /*
- * $Id: fcconfig.fncs,v 1.1.1.2 2006/12/31 14:58:00 matthieu Exp $
+ * fontconfig/doc/fcconfig.fncs
  *
  * Copyright © 2003 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -29,14 +29,28 @@
 Creates an empty configuration.
 @@
 
+@RET@           FcConfig *
+@FUNC@          FcConfigReference
+@TYPE1@         FcConfig *                      @ARG1@          config
+@PURPOSE@	Increment config reference count
+@DESC@
+Add another reference to <parameter>config</parameter>. Configs are freed only
+when the reference count reaches zero.
+If <parameter>config</parameter> is NULL, the current configuration is used.
+In that case this function will be similar to FcConfigGetCurrent() except that
+it increments the reference count before returning and the user is responsible
+for destroying the configuration when not needed anymore.
+@@
+
 @RET@           void
 @FUNC@          FcConfigDestroy
 @TYPE1@         FcConfig *                      @ARG1@          config
 @PURPOSE@	Destroy a configuration
 @DESC@
-Destroys a configuration and any data associated with it.  Note that calling
-this function with the return from FcConfigGetCurrent will place the library
-in an indeterminate state.
+Decrements the config reference count. If all references are gone, destroys
+the configuration and any data associated with it.
+Note that calling this function with the return from FcConfigGetCurrent will
+cause a new configuration to be created for use as current configuration.
 @@
 
 @RET@           FcBool
@@ -61,8 +75,31 @@ Returns the current default configuration.
 @TYPE1@         FcConfig *                      @ARG1@          config
 @PURPOSE@	Check timestamps on config files
 @DESC@
-Checks all of the files related to <parameter>config</parameter> and returns whether the
-in-memory version is in sync with the disk version.
+Checks all of the files related to <parameter>config</parameter> and returns
+whether any of them has been modified since the configuration was created.
+If <parameter>config</parameter> is NULL, the current configuration is used.
+@@
+
+@RET@		FcChar8 *
+@FUNC@		FcConfigHome
+@TYPE1@		void
+@PURPOSE@	return the current home directory.
+@DESC@
+Return the current user's home directory, if it is available, and if using it
+is enabled, and NULL otherwise.
+See also <function>FcConfigEnableHome</function>).
+@@
+
+@RET@		FcBol
+@FUNC@		FcConfigEnableHome
+@TYPE1@		FcBool%				@ARG1@		enable
+@PURPOSE@	controls use of the home directory.
+@DESC@
+If <parameter>enable</parameter> is FcTrue, then Fontconfig will use various
+files which are specified relative to the user's home directory (using the ~
+notation in the configuration). When <parameter>enable</parameter> is
+FcFalse, then all use of the home directory in these contexts will be
+disabled. The previous setting of the value is returned.
 @@
 
 @RET@           FcBool
@@ -73,6 +110,7 @@ in-memory version is in sync with the disk version.
 Builds the set of available fonts for the given configuration.  Note that
 any changes to the configuration after this call have indeterminate effects.
 Returns FcFalse if this operation runs out of memory.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcStrList *
@@ -82,6 +120,7 @@ Returns FcFalse if this operation runs out of memory.
 @DESC@
 Returns the list of font directories specified in the configuration files
 for <parameter>config</parameter>.  Does not include any subdirectories.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcStrList *
@@ -92,6 +131,7 @@ for <parameter>config</parameter>.  Does not include any subdirectories.
 Returns the list of font directories in <parameter>config</parameter>. This includes the
 configured font directories along with any directories below those in the
 filesystem.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcStrList *
@@ -100,15 +140,27 @@ filesystem.
 @PURPOSE@	Get config files
 @DESC@
 Returns the list of known configuration files used to generate <parameter>config</parameter>.
-Note that this will not include any configuration done with FcConfigParse.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
-@RET@           char *
+@RET@           FcChar8 *
 @FUNC@          FcConfigGetCache
 @TYPE1@         FcConfig *                      @ARG1@          config
-@PURPOSE@	Get cache filename
+@PURPOSE@	DEPRECATED used to return per-user cache filename
 @DESC@
-Returns the name of the file used to store per-user font information.
+With fontconfig no longer using per-user cache files, this function now
+simply returns NULL to indicate that no per-user file exists.
+@@
+
+@RET@		FcStrList *
+@FUNC@		FcConfigGetCacheDirs
+@TYPE1@		FcConfig *			@ARG1@		config
+@PURPOSE@	return the list of directories searched for cache files
+@DESC@
+<function>FcConfigGetCacheDirs</function> returns a string list containing
+all of the directories that fontconfig will search when attempting to load a
+cache file for a font directory.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcFontSet *
@@ -118,7 +170,9 @@ Returns the name of the file used to store per-user font information.
 @PURPOSE@	Get config font set
 @DESC@
 Returns one of the two sets of fonts from the configuration as specified
-by <parameter>set</parameter>.
+by <parameter>set</parameter>. This font set is owned by the library and must
+not be modified or freed.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBlanks *
@@ -128,44 +182,56 @@ by <parameter>set</parameter>.
 @DESC@
 Returns the FcBlanks object associated with the given configuration, if no
 blanks were present in the configuration, this function will return 0.
+The returned FcBlanks object if not NULL, is valid as long as the owning
+FcConfig is alive.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           int
-@FUNC@          FcConfigGetRescanInverval
+@FUNC@          FcConfigGetRescanInterval
 @TYPE1@         FcConfig *                      @ARG1@          config
 @PURPOSE@	Get config rescan interval
 @DESC@
 Returns the interval between automatic checks of the configuration (in
 seconds) specified in <parameter>config</parameter>.  The configuration is checked during
 a call to FcFontList when this interval has passed since the last check.
+An interval setting of zero disables automatic checks.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBool
-@FUNC@          FcConfigSetRescanInverval
+@FUNC@          FcConfigSetRescanInterval
 @TYPE1@         FcConfig *			@ARG1@		config
 @TYPE2@		int%                       	@ARG2@          rescanInterval
 @PURPOSE@	Set config rescan interval
 @DESC@
-Sets the rescan interval; returns FcFalse if an error occurred.
+Sets the rescan interval. Returns FcFalse if the interval cannot be set (due
+to allocation failure). Otherwise returns FcTrue.
+An interval setting of zero disables automatic checks.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBool
 @FUNC@          FcConfigAppFontAddFile
 @TYPE1@         FcConfig *			@ARG1@		config
-@TYPE2@		const char *                    @ARG2@          file
+@TYPE2@		const FcChar8 *			@ARG2@          file
 @PURPOSE@	Add font file to font database
 @DESC@
-Adds an application-specific font to the configuration.
+Adds an application-specific font to the configuration. Returns FcFalse
+if the fonts cannot be added (due to allocation failure). Otherwise returns FcTrue.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBool
 @FUNC@          FcConfigAppFontAddDir
 @TYPE1@         FcConfig *			@ARG1@		config
-@TYPE2@		const char *                    @ARG1@          dir
+@TYPE2@		const FcChar8 *			@ARG2@          dir
 @PURPOSE@	Add fonts from directory to font database
 @DESC@
 Scans the specified directory for fonts, adding each one found to the
-application-specific set of fonts.
+application-specific set of fonts. Returns FcFalse
+if the fonts cannot be added (due to allocation failure). Otherwise returns FcTrue.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           void
@@ -174,6 +240,7 @@ application-specific set of fonts.
 @PURPOSE@	Remove all app fonts from font database
 @DESC@
 Clears the set of application-specific fonts.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBool
@@ -187,7 +254,9 @@ Clears the set of application-specific fonts.
 Performs the sequence of pattern modification operations, if <parameter>kind</parameter> is
 FcMatchPattern, then those tagged as pattern operations are applied, else
 if <parameter>kind</parameter> is FcMatchFont, those tagged as font operations are applied and
-p_pat is used for &lt;test&gt; elements with target=pattern.
+p_pat is used for &lt;test&gt; elements with target=pattern. Returns FcFalse
+if the substitution cannot be performed (due to allocation failure). Otherwise returns FcTrue.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcBool
@@ -197,7 +266,9 @@ p_pat is used for &lt;test&gt; elements with target=pattern.
 @TYPE3@		FcMatchKind%                    @ARG3@          kind
 @PURPOSE@	Execute substitutions
 @DESC@
-Calls FcConfigSubstituteWithPat setting p_pat to NULL.
+Calls FcConfigSubstituteWithPat setting p_pat to NULL. Returns FcFalse
+if the substitution cannot be performed (due to allocation failure). Otherwise returns FcTrue.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcPattern *
@@ -207,9 +278,14 @@ Calls FcConfigSubstituteWithPat setting p_pat to NULL.
 @TYPE3@		FcResult *                      @ARG3@          result
 @PURPOSE@	Return best font
 @DESC@
-Returns the font in <parameter>config</parameter> most close matching <parameter>p</parameter>.  This function
-should be called only after FcConfigSubstitute and FcDefaultSubstitute have
-been called for <parameter>p</parameter>; otherwise the results will not be correct.
+Finds the font in <parameter>sets</parameter> most closely matching
+<parameter>pattern</parameter> and returns the result of
+<function>FcFontRenderPrepare</function> for that font and the provided
+pattern. This function should be called only after
+<function>FcConfigSubstitute</function> and
+<function>FcDefaultSubstitute</function> have been called for
+<parameter>p</parameter>; otherwise the results will not be correct.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcFontSet *
@@ -231,9 +307,10 @@ been called for <parameter>p</parameter>; otherwise the results will not be corr
 The returned FcFontSet references FcPattern structures which may be shared
 by the return value from multiple FcFontSort calls, applications must not
 modify these patterns.  Instead, they should be passed, along with <parameter>p</parameter> to
-FcFontRenderPrepare which combines them into a complete pattern.
+<function>FcFontRenderPrepare</function> which combines them into a complete pattern.
     </para><para>
 The FcFontSet returned by FcFontSort is destroyed by caling FcFontSetDestroy.
+If <parameter>config</parameter> is NULL, the current configuration is used.
 @@
 
 @RET@           FcPattern *
@@ -246,7 +323,7 @@ The FcFontSet returned by FcFontSort is destroyed by caling FcFontSetDestroy.
 Creates a new pattern consisting of elements of <parameter>font</parameter> not appearing
 in <parameter>pat</parameter>, elements of <parameter>pat</parameter> not appearing in <parameter>font</parameter> and the best matching
 value from <parameter>pat</parameter> for elements appearing in both.  The result is passed to
-FcConfigSubstitute with <parameter>kind</parameter> FcMatchFont and then returned.
+FcConfigSubstituteWithPat with <parameter>kind</parameter> FcMatchFont and then returned.
 @@
 
 @RET@           FcFontSet *
@@ -258,11 +335,13 @@ FcConfigSubstitute with <parameter>kind</parameter> FcMatchFont and then returne
 @DESC@
 Selects fonts matching <parameter>p</parameter>, creates patterns from those fonts containing
 only the objects in <parameter>os</parameter> and returns the set of unique such patterns.
+If <parameter>config</parameter> is NULL, the default configuration is checked
+to be up to date, and used.
 @@
 
-@RET@           char *
+@RET@           FcChar8 *
 @FUNC@          FcConfigFilename
-@TYPE1@         const char *                    @ARG1@          name
+@TYPE1@         const FcChar8 *			@ARG1@          name
 @PURPOSE@	Find a config file
 @DESC@
 Given the specified external entity name, return the associated filename.
@@ -282,11 +361,13 @@ FC_CONFIG_DIR environment variable.
 @FUNC@		FcConfigParseAndLoad
 @TYPE1@		FcConfig *			@ARG1@		config
 @TYPE2@		const FcChar8 *			@ARG2@		file
-@TYPE2@		FcBool%				@ARG3@		complain
+@TYPE3@		FcBool%				@ARG3@		complain
 @PURPOSE@	load a configuration file
 @DESC@
 Walks the configuration in 'file' and constructs the internal representation
 in 'config'.  Any include files referenced from within 'file' will be loaded
-with FcConfigLoad and also parsed.  If 'complain' is FcFalse, no warning
-will be displayed if 'file' does not exist.
+and parsed.  If 'complain' is FcFalse, no warning will be displayed if
+'file' does not exist. Error and warning messages will be output to stderr.
+Returns FcFalse if some error occurred while loading the file, either a
+parse error, semantic error or allocation failure. Otherwise returns FcTrue.
 @@

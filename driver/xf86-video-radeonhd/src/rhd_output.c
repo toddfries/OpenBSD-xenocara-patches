@@ -1,5 +1,5 @@
 /*
- * Copyright 2007, 2008  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007, 2008  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007, 2008  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007, 2008  Egbert Eich   <eich@novell.com>
  * Copyright 2007, 2008  Advanced Micro Devices, Inc.
@@ -33,6 +33,13 @@
 #include "rhd_connector.h"
 #include "rhd_output.h"
 #include "rhd_crtc.h"
+
+char *rhdPowerString[] = {
+    "POWER_ON",
+    "POWER_RESET",
+    "POWER_SHUTDOWN",
+    "POWER_UNKNOWN"
+};
 
 void
 RHDOutputAdd(RHDPtr rhdPtr, struct rhdOutput *New)
@@ -163,6 +170,8 @@ RHDOutputsDestroy(RHDPtr rhdPtr)
 	if (Output->Destroy)
 	    Output->Destroy(Output);
 
+	if (Output->OutputDriverPrivate)
+	    xfree(Output->OutputDriverPrivate);
 	xfree(Output);
 
 	Output = Next;
@@ -175,7 +184,7 @@ RHDOutputsDestroy(RHDPtr rhdPtr)
 void
 RHDOutputPrintSensedType(struct rhdOutput *Output)
 {
-    struct { enum rhdSensedOutput type; char *name; } 
+    struct { enum rhdSensedOutput type; char *name; }
     list[] = { { RHD_SENSED_NONE, "none" },
 	     { RHD_SENSED_VGA, "VGA" },
 	     { RHD_SENSED_DVI, "DVI" },
@@ -195,4 +204,117 @@ RHDOutputPrintSensedType(struct rhdOutput *Output)
 	}
 	i++;
     }
+}
+
+/*
+ * Attach an connector to the specified output and set output properties depending on the connector
+ */
+void
+RHDOutputAttachConnector(struct rhdOutput *Output, struct rhdConnector *Connector)
+{
+    RHDPtr rhdPtr = RHDPTRI(Output);
+
+    if(Output->Connector == Connector)
+	return; /* output is already attached to this connector -> nothing todo */
+
+    Output->Connector = Connector;
+
+    if(!Output->Property) /* property control available? */
+	return;  /* no -> we are done here */
+
+    /* yes -> check if we need to set any properties */
+    if (Output->Property(Output, rhdPropertyCheck, RHD_OUTPUT_COHERENT, NULL)) {
+	union rhdPropertyData val;
+	switch(RhdParseBooleanOption(&rhdPtr->coherent, Connector->Name)) {
+	    case RHD_OPTION_NOT_SET:
+		/* for compatibility with old implementation, test also output name */
+		switch(RhdParseBooleanOption(&rhdPtr->coherent, Output->Name)) {
+		    case RHD_OPTION_NOT_SET:
+		    case RHD_OPTION_DEFAULT:
+		    case RHD_OPTION_OFF:
+			val.Bool = FALSE;
+			break;
+		    case RHD_OPTION_ON:
+			val.Bool = TRUE;
+			break;
+		}
+		break;
+	    case RHD_OPTION_DEFAULT:
+	    case RHD_OPTION_OFF:
+		val.Bool = FALSE;
+		break;
+	    case RHD_OPTION_ON:
+		val.Bool = TRUE;
+		break;
+	}
+	if(Output->Property(Output, rhdPropertySet, RHD_OUTPUT_COHERENT, &val))
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Setting %s to %scoherent\n", Output->Name, val.Bool ? "" : "in");
+	else
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, "Failed to set %s to %scoherent\n", Output->Name, val.Bool ? "" : "in");
+    }
+
+    /* ask attached connector if EEDID or config options say we should enable HDMI */
+    if (Output->Property(Output, rhdPropertyCheck, RHD_OUTPUT_HDMI, NULL)) {
+	union rhdPropertyData val;
+	val.Bool = RHDConnectorEnableHDMI(Connector);
+	if(!Output->Property(Output, rhdPropertySet, RHD_OUTPUT_HDMI, &val))
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, "Failed to %s HDMI on %s\n", val.Bool ? "disable" : "enable", Output->Name);
+    }
+
+    /* check config option if we should enable audio workaround */
+    if (Output->Property(Output, rhdPropertyCheck, RHD_OUTPUT_AUDIO_WORKAROUND, NULL)) {
+	union rhdPropertyData val;
+	switch(RhdParseBooleanOption(&rhdPtr->audioWorkaround, Connector->Name)) {
+	    case RHD_OPTION_NOT_SET:
+	    case RHD_OPTION_OFF:
+		val.Bool = FALSE;
+		break;
+	    case RHD_OPTION_ON:
+	    case RHD_OPTION_DEFAULT:
+		val.Bool = TRUE;
+		break;
+	}
+	if(!Output->Property(Output, rhdPropertySet, RHD_OUTPUT_AUDIO_WORKAROUND, &val))
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING,
+		"Failed to %s audio workaorund on %s\n",
+		val.Bool ? "disable" : "enable", Output->Name);
+    }
+}
+
+/*
+ * Returns the TMDS index of the given output, important for HDMI/Audio setup
+ */
+int
+RHDOutputTmdsIndex(struct rhdOutput *Output)
+{
+    struct rhdOutput *i = RHDPTRI(Output)->Outputs;
+    int index;
+
+    switch(Output->Id) {
+	case RHD_OUTPUT_TMDSA:
+	case RHD_OUTPUT_UNIPHYA:
+	    index=0;
+	    break;
+
+	case RHD_OUTPUT_LVTMA:
+	    /* special case check if an TMDSA is present */
+	    index=0;
+	    while(i) {
+		if(i->Id==RHD_OUTPUT_TMDSA)
+		    index++;
+		i = i->Next;
+	    }
+	    break;
+
+	case RHD_OUTPUT_UNIPHYB:
+	case RHD_OUTPUT_KLDSKP_LVTMA:
+	    index=1;
+	    break;
+
+	default:
+	    xf86DrvMsg(Output->scrnIndex, X_ERROR, "%s: unsupported output type\n", __func__);
+            index=-1;
+	    break;
+    }
+    return index;
 }

@@ -35,8 +35,6 @@
 /*
  * arcsorter.c++
  *
- * $Date: 2007/11/24 17:27:02 $ $Revision: 1.1.1.2 $
- * $Header: /cvs/xenocara/dist/Mesa/src/glu/sgi/libnurbs/internals/arcsorter.cc,v 1.1.1.2 2007/11/24 17:27:02 matthieu Exp $
  */
 
 #ifndef __gluarcsorter_c_

@@ -66,6 +66,9 @@ xf86OSInitVidMem(VidMemInfoPtr pVidMem)
 	pVidMem->mapMem = ppcMapVidMem;
 	pVidMem->unmapMem = ppcUnmapVidMem;
 	pVidMem->initialised = TRUE;
+#if HAVE_PCI_SYSTEM_INIT_DEV_MEM
+	pci_system_init_dev_mem(xf86Info.screenFd);
+#endif
 	xf86EnableIO();
 }
 
@@ -131,23 +134,6 @@ xf86ReadBIOS(unsigned long Base, unsigned long Offset, unsigned char *Buf,
 	return rv;
 }
 
-/***************************************************************************/
-/* Interrupt Handling section                                              */
-/***************************************************************************/
-
-_X_EXPORT Bool
-xf86DisableInterrupts()
-{
-
-	return(TRUE);
-}
-
-_X_EXPORT void
-xf86EnableInterrupts()
-{
-
-	return;
-}
 
 #ifdef X_PRIVSEP
 /*
@@ -161,7 +147,7 @@ xf86PrivilegedInit(void)
 		xf86Msg(X_PROBED, 
 		    "no aperture driver access: only wsfb driver useable\n");
  	} else {
-		pciInit();
+		pci_system_init();
 	}
 	xf86OpenConsole();
 }

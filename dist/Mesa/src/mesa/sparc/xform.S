@@ -1,4 +1,3 @@
-/* $Id: xform.S,v 1.1.1.1 2006/11/25 18:54:17 matthieu Exp $ */
 
 	/* TODO
 	 *

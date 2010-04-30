@@ -15,14 +15,20 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: screen.c,v 1.10 2008/09/22 14:28:04 oga Exp $
+ * $Id: screen.c,v 1.26 2010/01/27 03:04:50 okan Exp $
  */
 
-#include "headers.h"
-#include "calmwm.h"
+#include <sys/param.h>
+#include <sys/queue.h>
 
-extern struct screen_ctx_q	 Screenq;
-extern struct screen_ctx	*Curscreen;
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
+#include "calmwm.h"
 
 struct screen_ctx *
 screen_fromroot(Window rootwin)
@@ -37,21 +43,12 @@ screen_fromroot(Window rootwin)
 	return (TAILQ_FIRST(&Screenq));
 }
 
-struct screen_ctx *
-screen_current(void)
-{
-	return (Curscreen);
-}
-
 void
-screen_updatestackingorder(void)
+screen_updatestackingorder(struct screen_ctx *sc)
 {
 	Window			*wins, w0, w1;
-	struct screen_ctx	*sc;
 	struct client_ctx	*cc;
 	u_int			 nwins, i, s;
-
-	sc = screen_current();
 
 	if (!XQueryTree(X_Dpy, sc->rootwin, &w0, &w1, &wins, &nwins))
 		return;
@@ -66,4 +63,71 @@ screen_updatestackingorder(void)
 	}
 
 	XFree(wins);
+}
+
+void
+screen_init_xinerama(struct screen_ctx *sc)
+{
+	XineramaScreenInfo	*info;
+	int			 no;
+
+	if (HasXinerama == 0 || XineramaIsActive(X_Dpy) == 0) {
+		HasXinerama = 0;
+		sc->xinerama_no = 0;
+	}
+
+	info = XineramaQueryScreens(X_Dpy, &no);
+	if (info == NULL) {
+		/* Is xinerama actually off, instead of a malloc failure? */
+		if (sc->xinerama == NULL)
+			HasXinerama = 0;
+		return;
+	}
+
+	if (sc->xinerama != NULL)
+		XFree(sc->xinerama);
+	sc->xinerama = info;
+	sc->xinerama_no = no;
+}
+
+/*
+ * Find which xinerama screen the coordinates (x,y) is on.
+ */
+XineramaScreenInfo *
+screen_find_xinerama(struct screen_ctx *sc, int x, int y)
+{
+	XineramaScreenInfo	*info;
+	int			 i;
+
+	for (i = 0; i < sc->xinerama_no; i++) {
+		info = &sc->xinerama[i];
+		if (x > info->x_org && x < info->x_org + info->width &&
+		    y > info->y_org && y < info->y_org + info->height)
+			return (info);
+	}
+	return (NULL);
+}
+
+void
+screen_update_geometry(struct screen_ctx *sc, int width, int height)
+{
+	long	 geom[2], workareas[CALMWM_NGROUPS][4];
+	int	 i;
+
+	sc->xmax = geom[0] = width;
+	sc->ymax = geom[1] = height;
+	XChangeProperty(X_Dpy, sc->rootwin, _NET_DESKTOP_GEOMETRY,
+	    XA_CARDINAL, 32, PropModeReplace, (unsigned char *)geom , 2);
+
+	/* x, y, width, height. */
+	for (i = 0; i < CALMWM_NGROUPS; i++) {
+		workareas[i][0] = sc->gap.left;
+		workareas[i][1] = sc->gap.top;
+		workareas[i][2] = width - (sc->gap.left + sc->gap.right);
+		workareas[i][3] = height - (sc->gap.top + sc->gap.bottom);
+	}
+
+	XChangeProperty(X_Dpy, sc->rootwin, _NET_WORKAREA,
+	    XA_CARDINAL, 32, PropModeReplace,
+	    (unsigned char *)workareas, CALMWM_NGROUPS * 4);
 }

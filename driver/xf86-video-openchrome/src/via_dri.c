@@ -34,7 +34,7 @@
 #include "xf86PciInfo.h"
 #include "xf86Pci.h"
 
-#define _XF86DRI_SERVER_
+#define _OPENCHROMEDRI_SERVER_
 #include "GL/glxtokens.h"
 #include "sarea.h"
 
@@ -588,7 +588,17 @@ VIADRIScreenInit(ScreenPtr pScreen)
 
     pDRIInfo = pVia->pDRIInfo;
     pDRIInfo->drmDriverName = VIAKernelDriverName;
-    pDRIInfo->clientDriverName = VIAClientDriverName;
+    switch (pVia->Chipset) {
+        case VIA_K8M890:
+        case VIA_P4M900:
+        case VIA_VX800:
+        case VIA_VX855:
+            pDRIInfo->clientDriverName = "swrast";
+            break;
+        default:
+            pDRIInfo->clientDriverName = VIAClientDriverName;
+            break;
+    }
     pDRIInfo->busIdString = xalloc(64);
     sprintf(pDRIInfo->busIdString, "PCI:%d:%d:%d",
 #ifdef XSERVER_LIBPCIACCESS
@@ -622,12 +632,12 @@ VIADRIScreenInit(ScreenPtr pScreen)
 #ifdef NOT_DONE
     /* FIXME: need to extend DRI protocol to pass this size back to client
      * for SAREA mapping that includes a device private record. */
-    pDRIInfo->SAREASize = ((sizeof(XF86DRISAREARec) + 0xfff) & 0x1000); /* round to page */
+    pDRIInfo->SAREASize = ((sizeof(OPENCHROMEDRISAREARec) + 0xfff) & 0x1000); /* round to page */
     /* + shared memory device private rec */
 #else
     /* For now the mapping works by using a fixed size defined
      * in the SAREA header. */
-    if (sizeof(XF86DRISAREARec) + sizeof(drm_via_sarea_t) > SAREA_MAX) {
+    if (sizeof(OPENCHROMEDRISAREARec) + sizeof(drm_via_sarea_t) > SAREA_MAX) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Data does not fit in SAREA\n");
         DRIDestroyInfoRec(pVia->pDRIInfo);
         pVia->pDRIInfo = NULL;
@@ -821,7 +831,7 @@ VIADRIFinishScreenInit(ScreenPtr pScreen)
     pVIADRI->height = pScrn->virtualY;
     pVIADRI->mem = pScrn->videoRam * 1024;
     pVIADRI->bytesPerPixel = (pScrn->bitsPerPixel + 7) / 8;
-    pVIADRI->sarea_priv_offset = sizeof(XF86DRISAREARec);
+    pVIADRI->sarea_priv_offset = sizeof(OPENCHROMEDRISAREARec);
     /* TODO */
     pVIADRI->scrnX = pVIADRI->width;
     pVIADRI->scrnY = pVIADRI->height;
@@ -878,13 +888,20 @@ VIADRIKernelInit(ScreenPtr pScreen, VIAPtr pVia)
 
     memset(&drmInfo, 0, sizeof(drm_via_init_t));
     drmInfo.func = VIA_INIT_MAP;
-    drmInfo.sarea_priv_offset = sizeof(XF86DRISAREARec);
+    drmInfo.sarea_priv_offset = sizeof(OPENCHROMEDRISAREARec);
     drmInfo.fb_offset = pVia->frameBufferHandle;
     drmInfo.mmio_offset = pVia->registerHandle;
-    if (pVia->IsPCI)
+
+    if (pVia->IsPCI) {
         drmInfo.agpAddr = (CARD32) NULL;
-    else
-        drmInfo.agpAddr = (CARD32) pVia->agpAddr;
+    } else {
+        /*For AMD64*/
+#ifndef __x86_64__
+	drmInfo.agpAddr = (CARD32)pVia->agpAddr;
+#else
+	drmInfo.agpAddr = (CARD64)pVia->agpAddr;
+#endif
+    }
 
     if ((drmCommandWrite(pVia->drmFD, DRM_VIA_MAP_INIT, &drmInfo,
                          sizeof(drm_via_init_t))) < 0)

@@ -1,28 +1,35 @@
-dnl $XTermId: configure.in,v 1.245 2008/07/27 15:03:56 tom Exp $
+dnl $XTermId: configure.in,v 1.256 2010/01/04 21:41:10 tom Exp $
 dnl
-dnl ---------------------------------------------------------------------------
+dnl -----------------------------------------------------------------------------
+dnl this file is part of xterm
 dnl
-dnl Copyright 1997-2007,2008 by Thomas E. Dickey
-dnl
+dnl Copyright 1997-2009,2010 by Thomas E. Dickey
+dnl 
 dnl                         All Rights Reserved
-dnl
-dnl Permission to use, copy, modify, and distribute this software and its
-dnl documentation for any purpose and without fee is hereby granted,
-dnl provided that the above copyright notice appear in all copies and that
-dnl both that copyright notice and this permission notice appear in
-dnl supporting documentation, and that the name of the above listed
-dnl copyright holder(s) not be used in advertising or publicity pertaining
-dnl to distribution of the software without specific, written prior
-dnl permission.
-dnl
-dnl THE ABOVE LISTED COPYRIGHT HOLDER(S) DISCLAIM ALL WARRANTIES WITH REGARD
-dnl TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-dnl AND FITNESS, IN NO EVENT SHALL THE ABOVE LISTED COPYRIGHT HOLDER(S) BE
-dnl LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-dnl WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-dnl ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-dnl OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-dnl
+dnl 
+dnl Permission is hereby granted, free of charge, to any person obtaining a
+dnl copy of this software and associated documentation files (the
+dnl "Software"), to deal in the Software without restriction, including
+dnl without limitation the rights to use, copy, modify, merge, publish,
+dnl distribute, sublicense, and/or sell copies of the Software, and to
+dnl permit persons to whom the Software is furnished to do so, subject to
+dnl the following conditions:
+dnl 
+dnl The above copyright notice and this permission notice shall be included
+dnl in all copies or substantial portions of the Software.
+dnl 
+dnl THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+dnl OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+dnl MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+dnl IN NO EVENT SHALL THE ABOVE LISTED COPYRIGHT HOLDER(S) BE LIABLE FOR ANY
+dnl CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+dnl TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+dnl SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+dnl 
+dnl Except as contained in this notice, the name(s) of the above copyright
+dnl holders shall not be used in advertising or otherwise to promote the
+dnl sale, use or other dealings in this Software without prior written
+dnl authorization.
 dnl ---------------------------------------------------------------------------
 dnl Process this file with autoconf to produce a configure script.
 dnl
@@ -285,7 +292,7 @@ LIBS="$LIBS $X_EXTRA_LIBS"
 # Check for openpty() in -lutil if the UNIX98-style pty functions are not
 # available. E.g. for GNU libc 2.0.
 case $host_os in #(vi
-freebsd*|netbsd*)	# 2004/8/15 - revisit this if/when grantpt is known to work.
+freebsd*|netbsd*|dragonfly*) # 2004/8/15 - revisit this if/when grantpt is known to work.
 	AC_CHECK_LIB(util,openpty)
 	;;
 *)
@@ -324,32 +331,41 @@ AC_ARG_WITH(terminal-type,
 AC_MSG_RESULT($default_TERM)
 AC_DEFINE_UNQUOTED(DFT_TERMTYPE,"$default_TERM")
 
-AC_MSG_CHECKING(for private terminfo-directory)
-AC_ARG_WITH(own-terminfo,
-	[  --with-own-terminfo=P   set default $TERMINFO (default: from environment)],
-	[TERMINFO_DIR=$withval],
-	[TERMINFO_DIR=${TERMINFO-none}])
-AC_MSG_RESULT($TERMINFO_DIR)
-if test "$TERMINFO_DIR" = yes ; then
-	AC_MSG_WARN(no value given)
-elif test "$TERMINFO_DIR" != none ; then
-	if test -d $TERMINFO_DIR ; then
-		AC_DEFINE_UNQUOTED(OWN_TERMINFO_DIR,"$TERMINFO_DIR")
+AC_CHECK_PROG(cf_tic_prog,tic,yes,no)
+if test "$cf_tic_prog" = yes ; then
+	AC_MSG_CHECKING(for private terminfo-directory)
+	AC_ARG_WITH(own-terminfo,
+		[  --with-own-terminfo=P   set default $TERMINFO (default: from environment)],
+		[TERMINFO_DIR=$withval],
+		[TERMINFO_DIR=${TERMINFO-none}])
+	AC_MSG_RESULT($TERMINFO_DIR)
+	if test "$TERMINFO_DIR" = yes ; then
+		AC_MSG_WARN(no value given)
+	elif test "$TERMINFO_DIR" != none ; then
+		if test -d $TERMINFO_DIR ; then
+			AC_DEFINE_UNQUOTED(OWN_TERMINFO_DIR,"$TERMINFO_DIR")
+		else
+			AC_MSG_WARN(not a directory)
+		fi
+	elif test "$prefix" != NONE ; then
+		TERMINFO_DIR='${prefix}/lib/terminfo'
+	elif test -d /usr/lib/terminfo ; then
+		TERMINFO_DIR=/usr/lib/terminfo
 	else
-		AC_MSG_WARN(not a directory)
+		TERMINFO_DIR=
 	fi
-elif test "$prefix" != NONE ; then
-	TERMINFO_DIR='${prefix}/lib/terminfo'
-elif test -d /usr/lib/terminfo ; then
-	TERMINFO_DIR=/usr/lib/terminfo
+	SET_TERMINFO=
+	if test -n "$TERMINFO_DIR" ; then
+		TERMINFO_DIR='$(DESTDIR)'$TERMINFO_DIR
+		SET_TERMINFO='TERMINFO=$(TERMINFO_DIR)'
+	fi
+	no_ticprog=
 else
+	no_ticprog="#"
 	TERMINFO_DIR=
+	SET_TERMINFO=
 fi
-SET_TERMINFO=
-if test -n "$TERMINFO_DIR" ; then
-	TERMINFO_DIR='$(DESTDIR)'$TERMINFO_DIR
-	SET_TERMINFO='TERMINFO=$(TERMINFO_DIR)'
-fi
+AC_SUBST(no_ticprog)
 AC_SUBST(TERMINFO_DIR)
 AC_SUBST(SET_TERMINFO)
 
@@ -565,6 +581,16 @@ if test "$enable_sun_fkeys" = no ; then
 	AC_DEFINE(OPT_SUN_FUNC_KEYS,0)
 fi
 
+AC_MSG_CHECKING(if you want saved-lines stored as a FIFO)
+CF_ARG_DISABLE(fifo-lines,
+	[  --enable-fifo-lines     disable FIFO-storage for saved-lines],
+	[enable_fifo_lines=no],
+	[enable_fifo_lines=yes])
+AC_MSG_RESULT($enable_fifo_lines)
+if test "$enable_fifo_lines" = yes ; then
+	AC_DEFINE(OPT_FIFO_LINES,1)
+fi
+
 AC_MSG_CHECKING(if you want support for internationalization)
 CF_ARG_DISABLE(i18n,
 	[  --disable-i18n          disable internationalization],
@@ -644,10 +670,10 @@ test "$enable_numlock" = no && AC_DEFINE(OPT_NUM_LOCK,0)
 
 AC_MSG_CHECKING(if you want support for get/set of base64 selection data)
 
-CF_ARG_ENABLE(paste64,
-	[  --enable-paste64        enable get/set base64 selection data],
-	[enable_paste64=yes],
-	[enable_paste64=no])
+CF_ARG_DISABLE(paste64,
+	[  --disable-paste64       disable get/set base64 selection data],
+	[enable_paste64=no],
+	[enable_paste64=yes])
 AC_MSG_RESULT($enable_paste64)
 if test "$enable_paste64" = yes ; then
 	AC_DEFINE(OPT_PASTE64,1)
@@ -688,7 +714,7 @@ if test "$enable_regex" = yes ; then
 	CF_WITH_PCRE
 	if test "$with_pcre" = no ; then
 		CF_REGEX
-		if test "X$cf_cv_regex" != "Xregex.h" ; then
+		if test "X$cf_cv_regex_hdrs" != "Xregex.h" ; then
 			AC_MSG_ERROR(Only POSIX or PCRE regular expressions are supported)
 		fi
 	fi
@@ -730,10 +756,10 @@ AC_MSG_RESULT($enable_tcap_fkeys)
 test "$enable_tcap_fkeys" = yes && AC_DEFINE(OPT_TCAP_FKEYS,1)
 
 AC_MSG_CHECKING(if you want to use termcap-query/report)
-CF_ARG_ENABLE(tcap-query,
-	[  --enable-tcap-query     compile-in termcap-query support],
-	[enable_tcap_query=yes],
-	[enable_tcap_query=no])
+CF_ARG_DISABLE(tcap-query,
+	[  --disable-tcap-query    disable compiled-in termcap-query support],
+	[enable_tcap_query=no],
+	[enable_tcap_query=yes])
 AC_MSG_RESULT($enable_tcap_query)
 test "$enable_tcap_query" = yes && AC_DEFINE(OPT_TCAP_QUERY,1)
 
@@ -797,6 +823,19 @@ CF_ARG_OPTION(wide-chars,
 	[enable_wchar=$enable_luit],
 	[$enable_luit])
 AC_MSG_RESULT($enable_wchar)
+
+AC_MSG_CHECKING(if you want only 16-bit character support)
+CF_ARG_ENABLE(16bit-chars,
+	[  --enable-16bit-chars    enable 16-bit character support],
+	[enable_16bit_chars=yes],
+	[enable_16bit_chars=no])
+AC_MSG_RESULT($enable_16bit_chars)
+
+if test "$enable_16bit_chars" = yes ; then
+	AC_DEFINE(OPT_WIDER_ICHAR,0)
+	enable_wchar=yes
+fi
+
 if test "$enable_wchar" = yes ; then
 	AC_DEFINE(OPT_WIDE_CHARS,1)
 	EXTRAHDRS="$EXTRAHDRS charclass.h precompose.h wcwidth.h"

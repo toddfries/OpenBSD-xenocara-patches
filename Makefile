@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.26 2008/06/12 21:58:28 matthieu Exp $
+# $OpenBSD: Makefile,v 1.35 2010/01/31 14:28:45 matthieu Exp $
 .include <bsd.own.mk>
 
 LOCALAPPD=/usr/local/lib/X11/app-defaults
@@ -7,14 +7,20 @@ REALAPPD=/etc/X11/app-defaults
 XCONFIG=${XSRCDIR}/etc/X11.${MACHINE}/xorg.conf
 RM?=rm
 
-.if ${MACHINE_ARCH} != "sh"
+.if ${MACHINE_ARCH} != "sh" && ${MACHINE_ARCH} != "vax"
 XSERVER= xserver
 .endif
 
-SUBDIR= proto data/bitmaps lib app data/xkbdata ${XSERVER} driver util doc
+.if ${USE_GCC3:L} == "yes"
+XSERVER+= kdrive
+.endif
+
+SUBDIR= proto font/util data/bitmaps lib app data/xkbdata \
+	${XSERVER} driver util doc
 .ifndef NOFONTS
 SUBDIR+= font
 .endif
+SUBDIR+= share/pciids
 SUBDIR+= distrib/notes
 
 NOOBJ=
@@ -89,8 +95,8 @@ release-clean:
 
 release-install:
 	@${MAKE} install
-.if ${MACHINE} == alpha || ${MACHINE} == hp300 || ${MACHINE} == mac68k || \
-    ${MACHINE} == macppc || ${MACHINE} == sparc || ${MACHINE} == sgi || \
+.if ${MACHINE} == alpha || ${MACHINE} == hp300 || ${MACHINE} == loongson || \
+    ${MACHINE} == mac68k || ${MACHINE} == macppc || ${MACHINE} == sgi || \
     ${MACHINE} == vax || ${MACHINE} == zaurus
 	@if [ -f $(DESTDIR)/etc/X11/xorg.conf ]; then \
 	 echo "Not overwriting existing" $(DESTDIR)/etc/X11/xorg.conf; \
@@ -99,6 +105,12 @@ release-install:
 		${XCONFIG} ${DESTDIR}/etc/X11 ; \
 	fi
 .endif
+	touch ${DESTDIR}/var/db/sysmerge/xetcsum
+	TMPSUM=`mktemp /tmp/_xetcsum.XXXXXXXXXX` || exit 1; \
+	sort distrib/sets/lists/xetc/{mi,md.${MACHINE}} > $${TMPSUM}; \
+	cd ${DESTDIR} && \
+		xargs cksum < $${TMPSUM} > ${DESTDIR}/var/db/sysmerge/xetcsum; \
+	rm -f $${TMPSUM}
 
 dist-rel:
 	${MAKE} RELEASEDIR=`pwd`/rel DESTDIR=`pwd`/dest dist 2>&1 | tee distlog
@@ -111,9 +123,9 @@ dist:
 
 distrib-dirs:
 .if defined(DESTDIR) && ${DESTDIR} != ""
-	mtree -qdef ${.CURDIR}/etc/mtree/BSD.x11.dist -p ${DESTDIR} -U
+	mtree -qdef /etc/mtree/BSD.x11.dist -p ${DESTDIR} -U
 .else
-	mtree -qdef ${.CURDIR}/etc/mtree/BSD.x11.dist -p / -U
+	mtree -qdef /etc/mtree/BSD.x11.dist -p / -U
 .endif
 
 

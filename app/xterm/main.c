@@ -1,4 +1,4 @@
-/* $XTermId: main.c,v 1.588 2008/09/14 15:20:31 Paul.Lampert Exp $ */
+/* $XTermId: main.c,v 1.602 2010/01/20 22:07:23 tom Exp $ */
 
 /*
  *				 W A R N I N G
@@ -15,7 +15,7 @@
 
 /***********************************************************
 
-Copyright 2002-2007,2008 by Thomas E. Dickey
+Copyright 2002-2009,2010 by Thomas E. Dickey
 
                         All Rights Reserved
 
@@ -380,7 +380,7 @@ extern struct utmp *getutid __((struct utmp * _Id));
 #include <util.h>		/* openpty() */
 #endif
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>		/* openpty() */
 #endif
 
@@ -448,16 +448,16 @@ extern char *ptsname(int);
 #endif
 
 #ifndef VMS
-static SIGNAL_T reapchild(int n);
+static SIGNAL_T reapchild(int /* n */ );
 static int spawnXTerm(XtermWidget /* xw */ );
-static void remove_termcap_entry(char *buf, char *str);
+static void remove_termcap_entry(char *, const char *);
 #ifdef USE_PTY_SEARCH
-static int pty_search(int *pty);
+static int pty_search(int * /* pty */ );
 #endif
 #endif /* ! VMS */
 
 static int get_pty(int *pty, char *from);
-static void resize_termcap(XtermWidget xw, char *newtc);
+static void resize_termcap(XtermWidget xw);
 static void set_owner(char *device, uid_t uid, gid_t gid, mode_t mode);
 
 static Bool added_utmp_entry = False;
@@ -640,7 +640,7 @@ static struct jtchars d_jtc =
 static Boolean override_tty_modes = False;
 /* *INDENT-OFF* */
 static struct _xttymodes {
-    char *name;
+    const char *name;
     size_t len;
     int set;
     int value;
@@ -888,9 +888,12 @@ static XtResource application_resources[] =
 #if OPT_TOOLBAR
     Bres(XtNtoolBar, XtCToolBar, toolBar, True),
 #endif
+#if OPT_MAXIMIZE
+    Bres(XtNmaximized, XtCMaximized, maximized, False),
+#endif
 };
 
-static char *fallback_resources[] =
+static String fallback_resources[] =
 {
     "*SimpleMenu*menuLabel.vertSpace: 100",
     "*SimpleMenu*HorizontalMargins: 16",
@@ -909,194 +912,198 @@ static char *fallback_resources[] =
    pass over the remaining options after XrmParseCommand is let loose. */
 /* *INDENT-OFF* */
 static XrmOptionDescRec optionDescList[] = {
-{"-geometry",	"*vt100.geometry",XrmoptionSepArg,	(caddr_t) NULL},
-{"-132",	"*c132",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+132",	"*c132",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-ah",		"*alwaysHighlight", XrmoptionNoArg,	(caddr_t) "on"},
-{"+ah",		"*alwaysHighlight", XrmoptionNoArg,	(caddr_t) "off"},
-{"-aw",		"*autoWrap",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+aw",		"*autoWrap",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-geometry",	"*vt100.geometry",XrmoptionSepArg,	(XPointer) NULL},
+{"-132",	"*c132",	XrmoptionNoArg,		(XPointer) "on"},
+{"+132",	"*c132",	XrmoptionNoArg,		(XPointer) "off"},
+{"-ah",		"*alwaysHighlight", XrmoptionNoArg,	(XPointer) "on"},
+{"+ah",		"*alwaysHighlight", XrmoptionNoArg,	(XPointer) "off"},
+{"-aw",		"*autoWrap",	XrmoptionNoArg,		(XPointer) "on"},
+{"+aw",		"*autoWrap",	XrmoptionNoArg,		(XPointer) "off"},
 #ifndef NO_ACTIVE_ICON
-{"-ai",		"*activeIcon",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+ai",		"*activeIcon",	XrmoptionNoArg,		(caddr_t) "on"},
+{"-ai",		"*activeIcon",	XrmoptionNoArg,		(XPointer) "off"},
+{"+ai",		"*activeIcon",	XrmoptionNoArg,		(XPointer) "on"},
 #endif /* NO_ACTIVE_ICON */
-{"-b",		"*internalBorder",XrmoptionSepArg,	(caddr_t) NULL},
-{"-bc",		"*cursorBlink",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+bc",		"*cursorBlink",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-bcf",	"*cursorOffTime",XrmoptionSepArg,	(caddr_t) NULL},
-{"-bcn",	"*cursorOnTime",XrmoptionSepArg,	(caddr_t) NULL},
-{"-bdc",	"*colorBDMode",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+bdc",	"*colorBDMode",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-cb",		"*cutToBeginningOfLine", XrmoptionNoArg, (caddr_t) "off"},
-{"+cb",		"*cutToBeginningOfLine", XrmoptionNoArg, (caddr_t) "on"},
-{"-cc",		"*charClass",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-cm",		"*colorMode",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+cm",		"*colorMode",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-cn",		"*cutNewline",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+cn",		"*cutNewline",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-cr",		"*cursorColor",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-cu",		"*curses",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+cu",		"*curses",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-dc",		"*dynamicColors",XrmoptionNoArg,	(caddr_t) "off"},
-{"+dc",		"*dynamicColors",XrmoptionNoArg,	(caddr_t) "on"},
-{"-fb",		"*boldFont",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-fbb",	"*freeBoldBox", XrmoptionNoArg,		(caddr_t)"off"},
-{"+fbb",	"*freeBoldBox", XrmoptionNoArg,		(caddr_t)"on"},
-{"-fbx",	"*forceBoxChars", XrmoptionNoArg,	(caddr_t)"off"},
-{"+fbx",	"*forceBoxChars", XrmoptionNoArg,	(caddr_t)"on"},
+{"-b",		"*internalBorder",XrmoptionSepArg,	(XPointer) NULL},
+{"-bc",		"*cursorBlink",	XrmoptionNoArg,		(XPointer) "on"},
+{"+bc",		"*cursorBlink",	XrmoptionNoArg,		(XPointer) "off"},
+{"-bcf",	"*cursorOffTime",XrmoptionSepArg,	(XPointer) NULL},
+{"-bcn",	"*cursorOnTime",XrmoptionSepArg,	(XPointer) NULL},
+{"-bdc",	"*colorBDMode",	XrmoptionNoArg,		(XPointer) "off"},
+{"+bdc",	"*colorBDMode",	XrmoptionNoArg,		(XPointer) "on"},
+{"-cb",		"*cutToBeginningOfLine", XrmoptionNoArg, (XPointer) "off"},
+{"+cb",		"*cutToBeginningOfLine", XrmoptionNoArg, (XPointer) "on"},
+{"-cc",		"*charClass",	XrmoptionSepArg,	(XPointer) NULL},
+{"-cm",		"*colorMode",	XrmoptionNoArg,		(XPointer) "off"},
+{"+cm",		"*colorMode",	XrmoptionNoArg,		(XPointer) "on"},
+{"-cn",		"*cutNewline",	XrmoptionNoArg,		(XPointer) "off"},
+{"+cn",		"*cutNewline",	XrmoptionNoArg,		(XPointer) "on"},
+{"-cr",		"*cursorColor",	XrmoptionSepArg,	(XPointer) NULL},
+{"-cu",		"*curses",	XrmoptionNoArg,		(XPointer) "on"},
+{"+cu",		"*curses",	XrmoptionNoArg,		(XPointer) "off"},
+{"-dc",		"*dynamicColors",XrmoptionNoArg,	(XPointer) "off"},
+{"+dc",		"*dynamicColors",XrmoptionNoArg,	(XPointer) "on"},
+{"-fb",		"*boldFont",	XrmoptionSepArg,	(XPointer) NULL},
+{"-fbb",	"*freeBoldBox", XrmoptionNoArg,		(XPointer)"off"},
+{"+fbb",	"*freeBoldBox", XrmoptionNoArg,		(XPointer)"on"},
+{"-fbx",	"*forceBoxChars", XrmoptionNoArg,	(XPointer)"off"},
+{"+fbx",	"*forceBoxChars", XrmoptionNoArg,	(XPointer)"on"},
 #ifndef NO_ACTIVE_ICON
-{"-fi",		"*iconFont",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-fi",		"*iconFont",	XrmoptionSepArg,	(XPointer) NULL},
 #endif /* NO_ACTIVE_ICON */
 #if OPT_RENDERFONT
-{"-fa",		"*faceName",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-fd",		"*faceNameDoublesize", XrmoptionSepArg,	(caddr_t) NULL},
-{"-fs",		"*faceSize",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-fa",		"*faceName",	XrmoptionSepArg,	(XPointer) NULL},
+{"-fd",		"*faceNameDoublesize", XrmoptionSepArg,	(XPointer) NULL},
+{"-fs",		"*faceSize",	XrmoptionSepArg,	(XPointer) NULL},
 #endif
 #if OPT_WIDE_CHARS
-{"-fw",		"*wideFont",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-fwb",	"*wideBoldFont", XrmoptionSepArg,	(caddr_t) NULL},
+{"-fw",		"*wideFont",	XrmoptionSepArg,	(XPointer) NULL},
+{"-fwb",	"*wideBoldFont", XrmoptionSepArg,	(XPointer) NULL},
 #endif
 #if OPT_INPUT_METHOD
-{"-fx",		"*ximFont",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-fx",		"*ximFont",	XrmoptionSepArg,	(XPointer) NULL},
 #endif
 #if OPT_HIGHLIGHT_COLOR
-{"-hc",		"*highlightColor", XrmoptionSepArg,	(caddr_t) NULL},
-{"-hm",		"*highlightColorMode", XrmoptionNoArg,	(caddr_t) "on"},
-{"+hm",		"*highlightColorMode", XrmoptionNoArg,	(caddr_t) "off"},
-{"-selfg",	"*highlightTextColor", XrmoptionSepArg,	(caddr_t) NULL},
-{"-selbg",	"*highlightColor", XrmoptionSepArg,	(caddr_t) NULL},
+{"-hc",		"*highlightColor", XrmoptionSepArg,	(XPointer) NULL},
+{"-hm",		"*highlightColorMode", XrmoptionNoArg,	(XPointer) "on"},
+{"+hm",		"*highlightColorMode", XrmoptionNoArg,	(XPointer) "off"},
+{"-selfg",	"*highlightTextColor", XrmoptionSepArg,	(XPointer) NULL},
+{"-selbg",	"*highlightColor", XrmoptionSepArg,	(XPointer) NULL},
 #endif
 #if OPT_HP_FUNC_KEYS
-{"-hf",		"*hpFunctionKeys",XrmoptionNoArg,	(caddr_t) "on"},
-{"+hf",		"*hpFunctionKeys",XrmoptionNoArg,	(caddr_t) "off"},
+{"-hf",		"*hpFunctionKeys",XrmoptionNoArg,	(XPointer) "on"},
+{"+hf",		"*hpFunctionKeys",XrmoptionNoArg,	(XPointer) "off"},
 #endif
-{"-hold",	"*hold",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+hold",	"*hold",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-hold",	"*hold",	XrmoptionNoArg,		(XPointer) "on"},
+{"+hold",	"*hold",	XrmoptionNoArg,		(XPointer) "off"},
 #if OPT_INITIAL_ERASE
-{"-ie",		"*ptyInitialErase", XrmoptionNoArg,	(caddr_t) "on"},
-{"+ie",		"*ptyInitialErase", XrmoptionNoArg,	(caddr_t) "off"},
+{"-ie",		"*ptyInitialErase", XrmoptionNoArg,	(XPointer) "on"},
+{"+ie",		"*ptyInitialErase", XrmoptionNoArg,	(XPointer) "off"},
 #endif
-{"-j",		"*jumpScroll",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+j",		"*jumpScroll",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-j",		"*jumpScroll",	XrmoptionNoArg,		(XPointer) "on"},
+{"+j",		"*jumpScroll",	XrmoptionNoArg,		(XPointer) "off"},
 #if OPT_C1_PRINT
-{"-k8",		"*allowC1Printable", XrmoptionNoArg,	(caddr_t) "on"},
-{"+k8",		"*allowC1Printable", XrmoptionNoArg,	(caddr_t) "off"},
+{"-k8",		"*allowC1Printable", XrmoptionNoArg,	(XPointer) "on"},
+{"+k8",		"*allowC1Printable", XrmoptionNoArg,	(XPointer) "off"},
 #endif
-{"-kt",		"*keyboardType", XrmoptionSepArg,	(caddr_t) NULL},
-{"+kt",		"*keyboardType", XrmoptionSepArg,	(caddr_t) NULL},
+{"-kt",		"*keyboardType", XrmoptionSepArg,	(XPointer) NULL},
+{"+kt",		"*keyboardType", XrmoptionSepArg,	(XPointer) NULL},
 /* parse logging options anyway for compatibility */
-{"-l",		"*logging",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+l",		"*logging",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-lf",		"*logFile",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-ls",		"*loginShell",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+ls",		"*loginShell",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-mb",		"*marginBell",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+mb",		"*marginBell",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-mc",		"*multiClickTime", XrmoptionSepArg,	(caddr_t) NULL},
-{"-mesg",	"*messages",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+mesg",	"*messages",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-ms",		"*pointerColor",XrmoptionSepArg,	(caddr_t) NULL},
-{"-nb",		"*nMarginBell",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-nul",	"*underLine",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+nul",	"*underLine",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-pc",		"*boldColors",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+pc",		"*boldColors",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-rw",		"*reverseWrap",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+rw",		"*reverseWrap",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-s",		"*multiScroll",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+s",		"*multiScroll",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-sb",		"*scrollBar",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+sb",		"*scrollBar",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-l",		"*logging",	XrmoptionNoArg,		(XPointer) "on"},
+{"+l",		"*logging",	XrmoptionNoArg,		(XPointer) "off"},
+{"-lf",		"*logFile",	XrmoptionSepArg,	(XPointer) NULL},
+{"-ls",		"*loginShell",	XrmoptionNoArg,		(XPointer) "on"},
+{"+ls",		"*loginShell",	XrmoptionNoArg,		(XPointer) "off"},
+{"-mb",		"*marginBell",	XrmoptionNoArg,		(XPointer) "on"},
+{"+mb",		"*marginBell",	XrmoptionNoArg,		(XPointer) "off"},
+{"-mc",		"*multiClickTime", XrmoptionSepArg,	(XPointer) NULL},
+{"-mesg",	"*messages",	XrmoptionNoArg,		(XPointer) "off"},
+{"+mesg",	"*messages",	XrmoptionNoArg,		(XPointer) "on"},
+{"-ms",		"*pointerColor",XrmoptionSepArg,	(XPointer) NULL},
+{"-nb",		"*nMarginBell",	XrmoptionSepArg,	(XPointer) NULL},
+{"-nul",	"*underLine",	XrmoptionNoArg,		(XPointer) "off"},
+{"+nul",	"*underLine",	XrmoptionNoArg,		(XPointer) "on"},
+{"-pc",		"*boldColors",	XrmoptionNoArg,		(XPointer) "on"},
+{"+pc",		"*boldColors",	XrmoptionNoArg,		(XPointer) "off"},
+{"-rw",		"*reverseWrap",	XrmoptionNoArg,		(XPointer) "on"},
+{"+rw",		"*reverseWrap",	XrmoptionNoArg,		(XPointer) "off"},
+{"-s",		"*multiScroll",	XrmoptionNoArg,		(XPointer) "on"},
+{"+s",		"*multiScroll",	XrmoptionNoArg,		(XPointer) "off"},
+{"-sb",		"*scrollBar",	XrmoptionNoArg,		(XPointer) "on"},
+{"+sb",		"*scrollBar",	XrmoptionNoArg,		(XPointer) "off"},
 #ifdef SCROLLBAR_RIGHT
-{"-leftbar",	"*rightScrollBar", XrmoptionNoArg,	(caddr_t) "off"},
-{"-rightbar",	"*rightScrollBar", XrmoptionNoArg,	(caddr_t) "on"},
+{"-leftbar",	"*rightScrollBar", XrmoptionNoArg,	(XPointer) "off"},
+{"-rightbar",	"*rightScrollBar", XrmoptionNoArg,	(XPointer) "on"},
 #endif
-{"-rvc",	"*colorRVMode",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+rvc",	"*colorRVMode",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-sf",		"*sunFunctionKeys", XrmoptionNoArg,	(caddr_t) "on"},
-{"+sf",		"*sunFunctionKeys", XrmoptionNoArg,	(caddr_t) "off"},
-{"-si",		"*scrollTtyOutput", XrmoptionNoArg,	(caddr_t) "off"},
-{"+si",		"*scrollTtyOutput", XrmoptionNoArg,	(caddr_t) "on"},
-{"-sk",		"*scrollKey",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+sk",		"*scrollKey",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-sl",		"*saveLines",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-rvc",	"*colorRVMode",	XrmoptionNoArg,		(XPointer) "off"},
+{"+rvc",	"*colorRVMode",	XrmoptionNoArg,		(XPointer) "on"},
+{"-sf",		"*sunFunctionKeys", XrmoptionNoArg,	(XPointer) "on"},
+{"+sf",		"*sunFunctionKeys", XrmoptionNoArg,	(XPointer) "off"},
+{"-si",		"*scrollTtyOutput", XrmoptionNoArg,	(XPointer) "off"},
+{"+si",		"*scrollTtyOutput", XrmoptionNoArg,	(XPointer) "on"},
+{"-sk",		"*scrollKey",	XrmoptionNoArg,		(XPointer) "on"},
+{"+sk",		"*scrollKey",	XrmoptionNoArg,		(XPointer) "off"},
+{"-sl",		"*saveLines",	XrmoptionSepArg,	(XPointer) NULL},
 #if OPT_SUNPC_KBD
-{"-sp",		"*sunKeyboard", XrmoptionNoArg,		(caddr_t) "on"},
-{"+sp",		"*sunKeyboard", XrmoptionNoArg,		(caddr_t) "off"},
+{"-sp",		"*sunKeyboard", XrmoptionNoArg,		(XPointer) "on"},
+{"+sp",		"*sunKeyboard", XrmoptionNoArg,		(XPointer) "off"},
 #endif
 #if OPT_TEK4014
-{"-t",		"*tekStartup",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+t",		"*tekStartup",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-t",		"*tekStartup",	XrmoptionNoArg,		(XPointer) "on"},
+{"+t",		"*tekStartup",	XrmoptionNoArg,		(XPointer) "off"},
 #endif
-{"-ti",		"*decTerminalID",XrmoptionSepArg,	(caddr_t) NULL},
-{"-tm",		"*ttyModes",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-tn",		"*termName",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-ti",		"*decTerminalID",XrmoptionSepArg,	(XPointer) NULL},
+{"-tm",		"*ttyModes",	XrmoptionSepArg,	(XPointer) NULL},
+{"-tn",		"*termName",	XrmoptionSepArg,	(XPointer) NULL},
 #if OPT_WIDE_CHARS
-{"-u8",		"*utf8",	XrmoptionNoArg,		(caddr_t) "2"},
-{"+u8",		"*utf8",	XrmoptionNoArg,		(caddr_t) "0"},
+{"-u8",		"*utf8",	XrmoptionNoArg,		(XPointer) "2"},
+{"+u8",		"*utf8",	XrmoptionNoArg,		(XPointer) "0"},
 #endif
 #if OPT_LUIT_PROG
-{"-lc",		"*locale",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+lc",		"*locale",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-lcc",	"*localeFilter",XrmoptionSepArg,	(caddr_t) NULL},
-{"-en",		"*locale",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-lc",		"*locale",	XrmoptionNoArg,		(XPointer) "on"},
+{"+lc",		"*locale",	XrmoptionNoArg,		(XPointer) "off"},
+{"-lcc",	"*localeFilter",XrmoptionSepArg,	(XPointer) NULL},
+{"-en",		"*locale",	XrmoptionSepArg,	(XPointer) NULL},
 #endif
-{"-uc",		"*cursorUnderLine", XrmoptionNoArg,	(caddr_t) "on"},
-{"+uc",		"*cursorUnderLine", XrmoptionNoArg,	(caddr_t) "off"},
-{"-ulc",	"*colorULMode",	XrmoptionNoArg,		(caddr_t) "off"},
-{"+ulc",	"*colorULMode",	XrmoptionNoArg,		(caddr_t) "on"},
-{"-ulit",       "*italicULMode", XrmoptionNoArg,        (caddr_t) "off"},
-{"+ulit",       "*italicULMode", XrmoptionNoArg,        (caddr_t) "on"},
-{"-ut",		"*utmpInhibit",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+ut",		"*utmpInhibit",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-im",		"*useInsertMode", XrmoptionNoArg,	(caddr_t) "on"},
-{"+im",		"*useInsertMode", XrmoptionNoArg,	(caddr_t) "off"},
-{"-vb",		"*visualBell",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+vb",		"*visualBell",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-pob",	"*popOnBell",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+pob",	"*popOnBell",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-uc",		"*cursorUnderLine", XrmoptionNoArg,	(XPointer) "on"},
+{"+uc",		"*cursorUnderLine", XrmoptionNoArg,	(XPointer) "off"},
+{"-ulc",	"*colorULMode",	XrmoptionNoArg,		(XPointer) "off"},
+{"+ulc",	"*colorULMode",	XrmoptionNoArg,		(XPointer) "on"},
+{"-ulit",       "*italicULMode", XrmoptionNoArg,        (XPointer) "off"},
+{"+ulit",       "*italicULMode", XrmoptionNoArg,        (XPointer) "on"},
+{"-ut",		"*utmpInhibit",	XrmoptionNoArg,		(XPointer) "on"},
+{"+ut",		"*utmpInhibit",	XrmoptionNoArg,		(XPointer) "off"},
+{"-im",		"*useInsertMode", XrmoptionNoArg,	(XPointer) "on"},
+{"+im",		"*useInsertMode", XrmoptionNoArg,	(XPointer) "off"},
+{"-vb",		"*visualBell",	XrmoptionNoArg,		(XPointer) "on"},
+{"+vb",		"*visualBell",	XrmoptionNoArg,		(XPointer) "off"},
+{"-pob",	"*popOnBell",	XrmoptionNoArg,		(XPointer) "on"},
+{"+pob",	"*popOnBell",	XrmoptionNoArg,		(XPointer) "off"},
 #if OPT_WIDE_CHARS
-{"-wc",		"*wideChars",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+wc",		"*wideChars",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-mk_width",	"*mkWidth",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+mk_width",	"*mkWidth",	XrmoptionNoArg,		(caddr_t) "off"},
-{"-cjk_width",	"*cjkWidth",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+cjk_width",	"*cjkWidth",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-wc",		"*wideChars",	XrmoptionNoArg,		(XPointer) "on"},
+{"+wc",		"*wideChars",	XrmoptionNoArg,		(XPointer) "off"},
+{"-mk_width",	"*mkWidth",	XrmoptionNoArg,		(XPointer) "on"},
+{"+mk_width",	"*mkWidth",	XrmoptionNoArg,		(XPointer) "off"},
+{"-cjk_width",	"*cjkWidth",	XrmoptionNoArg,		(XPointer) "on"},
+{"+cjk_width",	"*cjkWidth",	XrmoptionNoArg,		(XPointer) "off"},
 #endif
-{"-wf",		"*waitForMap",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+wf",		"*waitForMap",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-wf",		"*waitForMap",	XrmoptionNoArg,		(XPointer) "on"},
+{"+wf",		"*waitForMap",	XrmoptionNoArg,		(XPointer) "off"},
 #if OPT_ZICONBEEP
-{"-ziconbeep",	"*zIconBeep",	XrmoptionSepArg,	(caddr_t) NULL},
+{"-ziconbeep",	"*zIconBeep",	XrmoptionSepArg,	(XPointer) NULL},
 #endif
 #if OPT_SAME_NAME
-{"-samename",	"*sameName",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+samename",	"*sameName",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-samename",	"*sameName",	XrmoptionNoArg,		(XPointer) "on"},
+{"+samename",	"*sameName",	XrmoptionNoArg,		(XPointer) "off"},
 #endif
 #if OPT_SESSION_MGT
-{"-sm",		"*sessionMgt",	XrmoptionNoArg,		(caddr_t) "on"},
-{"+sm",		"*sessionMgt",	XrmoptionNoArg,		(caddr_t) "off"},
+{"-sm",		"*sessionMgt",	XrmoptionNoArg,		(XPointer) "on"},
+{"+sm",		"*sessionMgt",	XrmoptionNoArg,		(XPointer) "off"},
 #endif
 #if OPT_TOOLBAR
-{"-tb",		"*"XtNtoolBar,	XrmoptionNoArg,		(caddr_t) "on"},
-{"+tb",		"*"XtNtoolBar,	XrmoptionNoArg,		(caddr_t) "off"},
+{"-tb",		"*"XtNtoolBar,	XrmoptionNoArg,		(XPointer) "on"},
+{"+tb",		"*"XtNtoolBar,	XrmoptionNoArg,		(XPointer) "off"},
+#endif
+#if OPT_MAXIMIZE
+{"-maximized",	"*maximized",	XrmoptionNoArg,		(XPointer) "on"},
+{"+maximized",	"*maximized",	XrmoptionNoArg,		(XPointer) "off"},
 #endif
 /* options that we process ourselves */
-{"-help",	NULL,		XrmoptionSkipNArgs,	(caddr_t) NULL},
-{"-version",	NULL,		XrmoptionSkipNArgs,	(caddr_t) NULL},
-{"-class",	NULL,		XrmoptionSkipArg,	(caddr_t) NULL},
-{"-e",		NULL,		XrmoptionSkipLine,	(caddr_t) NULL},
-{"-into",	NULL,		XrmoptionSkipArg,	(caddr_t) NULL},
+{"-help",	NULL,		XrmoptionSkipNArgs,	(XPointer) NULL},
+{"-version",	NULL,		XrmoptionSkipNArgs,	(XPointer) NULL},
+{"-class",	NULL,		XrmoptionSkipArg,	(XPointer) NULL},
+{"-e",		NULL,		XrmoptionSkipLine,	(XPointer) NULL},
+{"-into",	NULL,		XrmoptionSkipArg,	(XPointer) NULL},
 /* bogus old compatibility stuff for which there are
    standard XtOpenApplication options now */
-{"%",		"*tekGeometry",	XrmoptionStickyArg,	(caddr_t) NULL},
-{"#",		".iconGeometry",XrmoptionStickyArg,	(caddr_t) NULL},
-{"-T",		".title",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-n",		"*iconName",	XrmoptionSepArg,	(caddr_t) NULL},
-{"-r",		"*reverseVideo",XrmoptionNoArg,		(caddr_t) "on"},
-{"+r",		"*reverseVideo",XrmoptionNoArg,		(caddr_t) "off"},
-{"-rv",		"*reverseVideo",XrmoptionNoArg,		(caddr_t) "on"},
-{"+rv",		"*reverseVideo",XrmoptionNoArg,		(caddr_t) "off"},
-{"-w",		".borderWidth", XrmoptionSepArg,	(caddr_t) NULL},
+{"%",		"*tekGeometry",	XrmoptionStickyArg,	(XPointer) NULL},
+{"#",		".iconGeometry",XrmoptionStickyArg,	(XPointer) NULL},
+{"-T",		".title",	XrmoptionSepArg,	(XPointer) NULL},
+{"-n",		"*iconName",	XrmoptionSepArg,	(XPointer) NULL},
+{"-r",		"*reverseVideo",XrmoptionNoArg,		(XPointer) "on"},
+{"+r",		"*reverseVideo",XrmoptionNoArg,		(XPointer) "off"},
+{"-rv",		"*reverseVideo",XrmoptionNoArg,		(XPointer) "on"},
+{"+rv",		"*reverseVideo",XrmoptionNoArg,		(XPointer) "off"},
+{"-w",		".borderWidth", XrmoptionSepArg,	(XPointer) NULL},
 };
 
 static OptionHelp xtermOptions[] = {
@@ -1252,10 +1259,13 @@ static OptionHelp xtermOptions[] = {
 #if OPT_SESSION_MGT
 { "-/+sm",                 "turn on/off the session-management support" },
 #endif
+#if OPT_MAXIMIZE
+{"-/+maximized",           "turn on/off maxmize on startup" },
+#endif
 { NULL, NULL }};
 /* *INDENT-ON* */
 
-static char *message[] =
+static const char *message[] =
 {
     "Fonts should be fixed width and, if both normal and bold are specified, should",
     "have the same size.  If only a normal font is specified, it will be used for",
@@ -1275,7 +1285,7 @@ decode_keyvalue(char **ptr, int termcap)
     char *string = *ptr;
     int value = -1;
 
-    TRACE(("...decode '%s'\n", string));
+    TRACE(("decode_keyvalue '%s'\n", string));
     if (*string == '^') {
 	switch (*++string) {
 	case '?':
@@ -1320,11 +1330,12 @@ decode_keyvalue(char **ptr, int termcap)
 	++string;
     }
     *ptr = string;
+    TRACE(("...decode_keyvalue %#x\n", value));
     return value;
 }
 
 static int
-abbrev(char *tst, char *cmp, size_t need)
+abbrev(const char *tst, const char *cmp, size_t need)
 {
     size_t len = strlen(tst);
     return ((len >= need) && (!strncmp(tst, cmp, len)));
@@ -1341,9 +1352,9 @@ Syntax(char *badOption)
 	    ProgramName, badOption);
 
     fprintf(stderr, "usage:  %s", ProgramName);
-    col = 8 + strlen(ProgramName);
+    col = 8 + (int) strlen(ProgramName);
     for (opt = list; opt->opt; opt++) {
-	int len = 3 + strlen(opt->opt);		/* space [ string ] */
+	int len = 3 + (int) strlen(opt->opt);	/* space [ string ] */
 	if (col + len > 79) {
 	    fprintf(stderr, "\r\n   ");		/* 3 spaces */
 	    col = 3;
@@ -1369,7 +1380,7 @@ Help(void)
 {
     OptionHelp *opt;
     OptionHelp *list = sortedOpts(xtermOptions, optionDescList, XtNumber(optionDescList));
-    char **cpp;
+    const char **cpp;
 
     printf("%s usage:\n    %s [-options ...] [-e command args]\n\n",
 	   xtermVersion(), ProgramName);
@@ -1453,7 +1464,7 @@ DeleteWindow(Widget w,
 	    hide_vt_window();
 	else
 	    do_hangup(w, (XtPointer) 0, (XtPointer) 0);
-    } else if (term->screen.Vshow)
+    } else if (TScreenOf(term)->Vshow)
 	hide_tek_window();
     else
 #endif
@@ -1521,7 +1532,7 @@ my_pty_id(char *device)
     char *leaf = x_basename(name);
 
     if (name == leaf) {		/* no '/' in the name */
-	int len = strlen(leaf);
+	int len = (int) strlen(leaf);
 	if (PTYCHARLEN < len)
 	    leaf = leaf + (len - PTYCHARLEN);
     }
@@ -1562,7 +1573,7 @@ ParseSccn(char *option)
 	if (leaf - option > 0
 	    && isdigit(CharOf(*leaf))
 	    && sscanf(leaf, "%d", &am_slave) == 1) {
-	    size_t len = leaf - option - 1;
+	    size_t len = (size_t) (leaf - option - 1);
 	    /*
 	     * If we have a slash, we only care about the part after the slash,
 	     * which is a file-descriptor.  The part before the slash can be
@@ -1803,7 +1814,7 @@ main(int argc, char *argv[]ENVP_ARG)
     TRACE_ARGV("Before XtOpenApplication", argv);
     if (argc > 1) {
 	int n;
-	unsigned unique = 2;
+	size_t unique = 2;
 	Bool quit = True;
 
 	for (n = 1; n < argc; n++) {
@@ -2232,10 +2243,10 @@ main(int argc, char *argv[]ENVP_ARG)
 	    int n;
 	    char **c;
 	    for (n = 0, c = command_to_exec; *c; n++, c++) ;
-	    c = TypeMallocN(char *, n + 3 + u);
+	    c = TypeMallocN(char *, (unsigned) (n + 3 + u));
 	    if (c == NULL)
 		SysError(ERROR_LUMALLOC);
-	    memcpy(c + 2 + u, command_to_exec, (n + 1) * sizeof(char *));
+	    memcpy(c + 2 + u, command_to_exec, (unsigned) (n + 1) * sizeof(char *));
 	    c[0] = term->misc.localefilter;
 	    if (u) {
 		c[1] = "-encoding";
@@ -2296,7 +2307,7 @@ main(int argc, char *argv[]ENVP_ARG)
 
 	buf[0] = '\0';
 	sprintf(buf, "%lx\n", XtWindow(SHELL_OF(CURRENT_EMU())));
-	write(screen->respond, buf, strlen(buf));
+	IGNORE_RC(write(screen->respond, buf, strlen(buf)));
     }
 #ifdef AIXV3
 #if (OSMAJORVERSION < 4)
@@ -2384,29 +2395,33 @@ main(int argc, char *argv[]ENVP_ARG)
 #if OPT_COLOR_RES
     TRACE(("checking resource values rv %s fg %s, bg %s\n",
 	   BtoS(term->misc.re_verse0),
-	   NonNull(term->screen.Tcolors[TEXT_FG].resource),
-	   NonNull(term->screen.Tcolors[TEXT_BG].resource)));
+	   NonNull(TScreenOf(term)->Tcolors[TEXT_FG].resource),
+	   NonNull(TScreenOf(term)->Tcolors[TEXT_BG].resource)));
 
     if ((reversed && term->misc.re_verse0)
-	&& ((term->screen.Tcolors[TEXT_FG].resource
-	     && !isDefaultForeground(term->screen.Tcolors[TEXT_FG].resource))
-	    || (term->screen.Tcolors[TEXT_BG].resource
-		&& !isDefaultBackground(term->screen.Tcolors[TEXT_BG].resource))
+	&& ((TScreenOf(term)->Tcolors[TEXT_FG].resource
+	     && !isDefaultForeground(TScreenOf(term)->Tcolors[TEXT_FG].resource))
+	    || (TScreenOf(term)->Tcolors[TEXT_BG].resource
+		&& !isDefaultBackground(TScreenOf(term)->Tcolors[TEXT_BG].resource))
 	))
 	ReverseVideo(term);
 #endif /* OPT_COLOR_RES */
 
+#if OPT_MAXIMIZE
+    if (resource.maximized)
+	RequestMaximize(term, True);
+#endif
     for (;;) {
 #if OPT_TEK4014
 	if (TEK4014_ACTIVE(term))
 	    TekRun();
 	else
 #endif
-	    VTRun();
+	    VTRun(term);
     }
 }
 
-#if defined(__osf__) || (defined(__GLIBC__) && !defined(USE_USG_PTYS)) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
+#if defined(__osf__) || (defined(__GLIBC__) && !defined(USE_USG_PTYS)) || defined(__DragonFly__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 #define USE_OPENPTY 1
 static int opened_tty = -1;
 #endif
@@ -2702,7 +2717,7 @@ pty_search(int *pty)
  */
 
 #if OPT_TEK4014
-static char *tekterm[] =
+static const char *tekterm[] =
 {
     "tek4014",
     "tek4015",			/* 4014 with APL character set support */
@@ -2721,7 +2736,7 @@ static char *tekterm[] =
  * The VT420 has up to 48 lines on the screen.
  */
 
-static char *vtterm[] =
+static const char *vtterm[] =
 {
 #ifdef USE_X11TERM
     "x11term",			/* for people who want special term name */
@@ -2838,7 +2853,9 @@ HsSysError(int error)
 	       handshake.fatal_error,
 	       handshake.buffer));
 	TRACE_HANDSHAKE("writing", &handshake);
-	write(cp_pipe[1], (char *) &handshake, sizeof(handshake));
+	IGNORE_RC(write(cp_pipe[1],
+			(const char *) &handshake,
+			sizeof(handshake)));
     } else {
 	fprintf(stderr,
 		"%s: fatal pty error errno=%d, error=%d device \"%s\"\n",
@@ -2867,7 +2884,9 @@ first_map_occurred(void)
 	if (pc_pipe[1] >= 0) {
 	    TRACE(("first_map_occurred: %dx%d\n", handshake.rows, handshake.cols));
 	    TRACE_HANDSHAKE("writing", &handshake);
-	    write(pc_pipe[1], (char *) &handshake, sizeof(handshake));
+	    IGNORE_RC(write(pc_pipe[1],
+			    (const char *) &handshake,
+			    sizeof(handshake)));
 	    close(cp_pipe[0]);
 	    close(pc_pipe[1]);
 	}
@@ -3026,7 +3045,7 @@ spawnXTerm(XtermWidget xw)
 
     char *ptr, *shname, *shname_minus;
     int i, no_dev_tty = False;
-    char **envnew;		/* new environment */
+    const char **envnew;	/* new environment */
     char buf[64];
     char *TermName = NULL;
 #ifdef TTYSIZE_STRUCT
@@ -3232,7 +3251,7 @@ spawnXTerm(XtermWidget xw)
 				   False);
 
     if (!TEK4014_ACTIVE(xw))
-	VTInit();		/* realize now so know window size for tty driver */
+	VTInit(xw);		/* realize now so know window size for tty driver */
 #if defined(TIOCCONS) || defined(SRIOCSREDIR)
     if (Console) {
 	/*
@@ -3250,12 +3269,10 @@ spawnXTerm(XtermWidget xw)
 #if OPT_TEK4014
     if (TEK4014_ACTIVE(xw)) {
 	envnew = tekterm;
-	newtc = TekScreenOf(tekWidget)->tcapbuf;
     } else
 #endif
     {
 	envnew = vtterm;
-	newtc = screen->tcapbuf;
     }
 
     /*
@@ -3265,23 +3282,30 @@ spawnXTerm(XtermWidget xw)
      * entry is not found.
      */
     ok_termcap = True;
-    if (!get_termcap(TermName = resource.term_name, newtc)) {
-	char *last = NULL;
-	TermName = *envnew;
+    if (!get_termcap(xw, TermName = resource.term_name)) {
+	const char *last = NULL;
+	char *next;
+
+	TermName = x_strdup(*envnew);
 	ok_termcap = False;
 	while (*envnew != NULL) {
-	    if ((last == NULL || strcmp(last, *envnew))
-		&& get_termcap(*envnew, newtc)) {
-		TermName = *envnew;
-		ok_termcap = True;
-		break;
+	    if (last == NULL || strcmp(last, *envnew)) {
+		next = x_strdup(*envnew);
+		if (get_termcap(xw, next)) {
+		    free(TermName);
+		    TermName = next;
+		    ok_termcap = True;
+		    break;
+		} else {
+		    free(next);
+		}
 	    }
 	    last = *envnew;
 	    envnew++;
 	}
     }
     if (ok_termcap) {
-	resize_termcap(xw, newtc);
+	resize_termcap(xw);
     }
 
     /*
@@ -3298,12 +3322,13 @@ spawnXTerm(XtermWidget xw)
     } else if (resource.ptyInitialErase) {
 	;
     } else if (ok_termcap) {
-	char temp[1024], *p = temp;
-	char *s = tgetstr(TERMCAP_ERASE, &p);
+	char *s = get_tcap_erase(xw);
 	TRACE(("...extracting initial_erase value from termcap\n"));
 	if (s != 0) {
+	    char *save = s;
 	    initial_erase = decode_keyvalue(&s, True);
 	    setInitialErase = True;
+	    free(save);
 	}
     }
     TRACE(("...initial_erase:%d\n", initial_erase));
@@ -3331,8 +3356,8 @@ spawnXTerm(XtermWidget xw)
 	TTYSIZE_ROWS(ts) = 38;
 	TTYSIZE_COLS(ts) = 81;
 #if defined(USE_STRUCT_WINSIZE)
-	ts.ws_xpixel = TFullWidth(&(tekWidget->screen));
-	ts.ws_ypixel = TFullHeight(&(tekWidget->screen));
+	ts.ws_xpixel = TFullWidth(TekScreenOf(tekWidget));
+	ts.ws_ypixel = TFullHeight(TekScreenOf(tekWidget));
 #endif
     } else
 #endif
@@ -3433,8 +3458,8 @@ spawnXTerm(XtermWidget xw)
 		    TTYSIZE_ROWS(ts) = 24;
 		    TTYSIZE_COLS(ts) = 80;
 #ifdef USE_STRUCT_WINSIZE
-		    ts.ws_xpixel = TFullWidth(&(tekWidget->screen));
-		    ts.ws_ypixel = TFullHeight(&(tekWidget->screen));
+		    ts.ws_xpixel = TFullWidth(TekScreenOf(tekWidget));
+		    ts.ws_ypixel = TFullHeight(TekScreenOf(tekWidget));
 #endif
 		} else
 #endif /* OPT_TEK4014 */
@@ -3553,8 +3578,9 @@ spawnXTerm(XtermWidget xw)
 			handshake.error = errno;
 			strcpy(handshake.buffer, ttydev);
 			TRACE_HANDSHAKE("writing", &handshake);
-			write(cp_pipe[1], (char *) &handshake,
-			      sizeof(handshake));
+			IGNORE_RC(write(cp_pipe[1],
+					(const char *) &handshake,
+					sizeof(handshake)));
 
 			/* get reply from parent */
 			i = read(pc_pipe[0], (char *) &handshake,
@@ -3866,7 +3892,7 @@ spawnXTerm(XtermWidget xw)
 
 	    xtermSetenv("TERM", TermName);
 	    if (!TermName)
-		*newtc = 0;
+		*get_tcap_buffer(xw) = 0;
 
 	    sprintf(buf, "%lu",
 		    ((unsigned long) XtWindow(SHELL_OF(CURRENT_EMU()))));
@@ -3900,7 +3926,7 @@ spawnXTerm(XtermWidget xw)
 		for (i = 0; i <= 2; i++)
 		    if (i != ttyfd) {
 			(void) close(i);
-			(void) dup(ttyfd);
+			IGNORE_RC(dup(ttyfd));
 		    }
 #ifndef ATT
 		/* and close the tty */
@@ -4082,7 +4108,7 @@ spawnXTerm(XtermWidget xw)
 	    {
 		if (tslot > 0 && pw && !resource.utmpInhibit &&
 		    (i = open(etc_utmp, O_WRONLY)) >= 0) {
-		    bzero((char *) &utmp, sizeof(utmp));
+		    memset(&utmp, 0, sizeof(utmp));
 		    (void) strncpy(utmp.ut_line,
 				   my_pty_name(ttydev),
 				   sizeof(utmp.ut_line));
@@ -4132,7 +4158,7 @@ spawnXTerm(XtermWidget xw)
 
 #ifdef USE_LASTLOGX
 	    if (xw->misc.login_shell) {
-		bzero((char *) &lastlogx, sizeof(lastlogx));
+		memset(&lastlogx, 0, sizeof(lastlogx));
 		(void) strncpy(lastlogx.ll_line,
 			       my_pty_name(ttydev),
 			       sizeof(lastlogx.ll_line));
@@ -4148,7 +4174,7 @@ spawnXTerm(XtermWidget xw)
 		size_t size = sizeof(struct lastlog);
 		off_t offset = (screen->uid * size);
 
-		bzero((char *) &lastlog, size);
+		memset(&lastlog, 0, size);
 		(void) strncpy(lastlog.ll_line,
 			       my_pty_name(ttydev),
 			       sizeof(lastlog.ll_line));
@@ -4209,7 +4235,9 @@ spawnXTerm(XtermWidget xw)
 		handshake.error = 0;
 		(void) strcpy(handshake.buffer, ttydev);
 		TRACE_HANDSHAKE("writing", &handshake);
-		(void) write(cp_pipe[1], (char *) &handshake, sizeof(handshake));
+		IGNORE_RC(write(cp_pipe[1],
+				(const char *) &handshake,
+				sizeof(handshake)));
 
 		if (resource.wait_for_map) {
 		    i = read(pc_pipe[0], (char *) &handshake,
@@ -4258,34 +4286,36 @@ spawnXTerm(XtermWidget xw)
 	    xtermSetenv("TERMINFO", OWN_TERMINFO_DIR);
 #endif
 #else /* USE_SYSV_ENVVARS */
-	    resize_termcap(xw, newtc);
-	    if (xw->misc.titeInhibit && !xw->misc.tiXtraScroll) {
-		remove_termcap_entry(newtc, "ti=");
-		remove_termcap_entry(newtc, "te=");
-	    }
-	    /*
-	     * work around broken termcap entries */
-	    if (resource.useInsertMode) {
-		remove_termcap_entry(newtc, "ic=");
-		/* don't get duplicates */
-		remove_termcap_entry(newtc, "im=");
-		remove_termcap_entry(newtc, "ei=");
-		remove_termcap_entry(newtc, "mi");
-		if (*newtc)
-		    strcat(newtc, ":im=\\E[4h:ei=\\E[4l:mi:");
-	    }
-	    if (*newtc) {
+	    if (*(newtc = get_tcap_buffer(xw)) != '\0') {
+		resize_termcap(xw);
+		if (xw->misc.titeInhibit && !xw->misc.tiXtraScroll) {
+		    remove_termcap_entry(newtc, "ti=");
+		    remove_termcap_entry(newtc, "te=");
+		}
+		/*
+		 * work around broken termcap entries */
+		if (resource.useInsertMode) {
+		    remove_termcap_entry(newtc, "ic=");
+		    /* don't get duplicates */
+		    remove_termcap_entry(newtc, "im=");
+		    remove_termcap_entry(newtc, "ei=");
+		    remove_termcap_entry(newtc, "mi");
+		    if (*newtc)
+			strcat(newtc, ":im=\\E[4h:ei=\\E[4l:mi:");
+		}
+		if (*newtc) {
 #if OPT_INITIAL_ERASE
-		unsigned len;
-		remove_termcap_entry(newtc, TERMCAP_ERASE "=");
-		len = strlen(newtc);
-		if (len != 0 && newtc[len - 1] == ':')
-		    len--;
-		sprintf(newtc + len, ":%s=\\%03o:",
-			TERMCAP_ERASE,
-			CharOf(initial_erase));
+		    unsigned len;
+		    remove_termcap_entry(newtc, TERMCAP_ERASE "=");
+		    len = strlen(newtc);
+		    if (len != 0 && newtc[len - 1] == ':')
+			len--;
+		    sprintf(newtc + len, ":%s=\\%03o:",
+			    TERMCAP_ERASE,
+			    CharOf(initial_erase));
 #endif
-		xtermSetenv("TERMCAP", newtc);
+		    xtermSetenv("TERMCAP", newtc);
+		}
 	    }
 #endif /* USE_SYSV_ENVVARS */
 
@@ -4313,7 +4343,7 @@ spawnXTerm(XtermWidget xw)
 		if (((ptr = x_getenv("SHELL")) == NULL) &&
 		    ((pw == NULL && (pw = getpwuid(screen->uid)) == NULL) ||
 		     *(ptr = pw->pw_shell) == 0)) {
-		    ptr = "/bin/sh";
+		    ptr = x_strdup("/bin/sh");
 		}
 	    } else {
 		xtermSetenv("SHELL", explicit_shname);
@@ -4376,7 +4406,7 @@ spawnXTerm(XtermWidget xw)
 		if (xw->misc.login_shell) {
 		    int u;
 		    u = (term->misc.use_encoding ? 2 : 0);
-		    command_to_exec_with_luit[u + 1] = "-argv0";
+		    command_to_exec_with_luit[u + 1] = x_strdup("-argv0");
 		    command_to_exec_with_luit[u + 2] = shname_minus;
 		    command_to_exec_with_luit[u + 3] = NULL;
 		}
@@ -4439,13 +4469,17 @@ spawnXTerm(XtermWidget xw)
 				ProgramName, strerror(errno));
 			handshake.status = PTY_NOMORE;
 			TRACE_HANDSHAKE("writing", &handshake);
-			write(pc_pipe[1], (char *) &handshake, sizeof(handshake));
+			IGNORE_RC(write(pc_pipe[1],
+					(const char *) &handshake,
+					sizeof(handshake)));
 			exit(ERROR_PTYS);
 		    }
 		    handshake.status = PTY_NEW;
 		    (void) strcpy(handshake.buffer, ttydev);
 		    TRACE_HANDSHAKE("writing", &handshake);
-		    write(pc_pipe[1], (char *) &handshake, sizeof(handshake));
+		    IGNORE_RC(write(pc_pipe[1],
+				    (const char *) &handshake,
+				    sizeof(handshake)));
 		    break;
 
 		case PTY_FATALERROR:
@@ -4630,7 +4664,7 @@ Exit(int n)
 	TRACE_IDS;
 #endif
 	if ((wfd = open(etc_utmp, O_WRONLY)) >= 0) {
-	    bzero((char *) &utmp, sizeof(utmp));
+	    memset(&utmp, 0, sizeof(utmp));
 	    lseek(wfd, (long) (tslot * sizeof(utmp)), 0);
 	    write(wfd, (char *) &utmp, sizeof(utmp));
 	    close(wfd);
@@ -4683,7 +4717,7 @@ Exit(int n)
     if (n == 0) {
 	TRACE(("Freeing memory leaks\n"));
 	if (term != 0) {
-	    Display *dpy = term->screen.display;
+	    Display *dpy = TScreenOf(term)->display;
 
 	    if (toplevel) {
 		XtDestroyWidget(toplevel);
@@ -4713,8 +4747,10 @@ Exit(int n)
 
 /* ARGSUSED */
 static void
-resize_termcap(XtermWidget xw, char *newtc)
+resize_termcap(XtermWidget xw)
 {
+    char *newtc = get_tcap_buffer(xw);
+
 #ifndef USE_SYSV_ENVVARS
     if (!TEK4014_ACTIVE(xw) && *newtc) {
 	TScreen *screen = TScreenOf(xw);
@@ -4742,14 +4778,14 @@ resize_termcap(XtermWidget xw, char *newtc)
 	}
 	ptr1 += 3;
 	ptr2 += 3;
-	strncpy(newtc, oldtc, i = ptr1 - oldtc);
+	strncpy(newtc, oldtc, i = (size_t) (ptr1 - oldtc));
 	temp = newtc + i;
 	sprintf(temp, "%d", (li_first
 			     ? MaxRows(screen)
 			     : MaxCols(screen)));
 	temp += strlen(temp);
 	ptr1 = strchr(ptr1, ':');
-	strncpy(temp, ptr1, i = ptr2 - ptr1);
+	strncpy(temp, ptr1, i = (size_t) (ptr2 - ptr1));
 	temp += i;
 	sprintf(temp, "%d", (li_first
 			     ? MaxCols(screen)
@@ -4811,7 +4847,7 @@ reapchild(int n GCC_UNUSED)
 #endif
 
     do {
-	if (pid == term->screen.pid) {
+	if (pid == TScreenOf(term)->pid) {
 #ifdef DEBUG
 	    if (debug)
 		fputs("Exiting\n", stderr);
@@ -4827,7 +4863,7 @@ reapchild(int n GCC_UNUSED)
 #endif /* !VMS */
 
 static void
-remove_termcap_entry(char *buf, char *str)
+remove_termcap_entry(char *buf, const char *str)
 {
     char *base = buf;
     char *first = base;
@@ -4921,12 +4957,12 @@ GetBytesAvailable(int fd)
     return (int) arg;
 #elif defined(__CYGWIN__)
     fd_set set;
-    struct timeval timeout =
+    struct timeval select_timeout =
     {0, 0};
 
     FD_ZERO(&set);
     FD_SET(fd, &set);
-    if (Select(fd + 1, &set, NULL, NULL, &timeout) > 0)
+    if (Select(fd + 1, &set, NULL, NULL, &select_timeout) > 0)
 	return 1;
     else
 	return 0;

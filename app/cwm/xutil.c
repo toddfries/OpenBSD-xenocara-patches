@@ -15,13 +15,22 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: xutil.c,v 1.9 2008/07/22 20:26:12 oga Exp $
+ * $Id: xutil.c,v 1.30 2010/04/11 16:51:26 okan Exp $
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
 
-unsigned int ign_mods[] = { 0, LockMask, Mod2Mask, Mod2Mask | LockMask };
+static unsigned int ign_mods[] = { 0, LockMask, Mod2Mask, Mod2Mask | LockMask };
 
 int
 xu_ptr_grab(Window win, int mask, Cursor curs)
@@ -110,29 +119,29 @@ xu_key_ungrab(Window win, int mask, int keysym)
 }
 
 void
-xu_sendmsg(struct client_ctx *cc, Atom atm, long val)
+xu_sendmsg(Window win, Atom atm, long val)
 {
 	XEvent	 e;
 
 	memset(&e, 0, sizeof(e));
 	e.xclient.type = ClientMessage;
-	e.xclient.window = cc->win;
+	e.xclient.window = win;
 	e.xclient.message_type = atm;
 	e.xclient.format = 32;
 	e.xclient.data.l[0] = val;
 	e.xclient.data.l[1] = CurrentTime;
 
-	XSendEvent(X_Dpy, cc->win, False, 0, &e);
+	XSendEvent(X_Dpy, win, False, 0, &e);
 }
 
 int
-xu_getprop(struct client_ctx *cc, Atom atm, Atom type, long len, u_char **p)
+xu_getprop(Window win, Atom atm, Atom type, long len, u_char **p)
 {
 	Atom	 realtype;
 	u_long	 n, extra;
 	int	 format;
 
-	if (XGetWindowProperty(X_Dpy, cc->win, atm, 0L, len, False, type,
+	if (XGetWindowProperty(X_Dpy, win, atm, 0L, len, False, type,
 	    &realtype, &format, &n, &extra, p) != Success || *p == NULL)
 		return (-1);
 
@@ -145,12 +154,9 @@ xu_getprop(struct client_ctx *cc, Atom atm, Atom type, long len, u_char **p)
 int
 xu_getstate(struct client_ctx *cc, int *state)
 {
-	Atom	 wm_state;
 	long	*p = NULL;
 
-	wm_state = XInternAtom(X_Dpy, "WM_STATE", False);
-
-	if (xu_getprop(cc, wm_state, wm_state, 2L, (u_char **)&p) <= 0)
+	if (xu_getprop(cc->win, WM_STATE, WM_STATE, 2L, (u_char **)&p) <= 0)
 		return (-1);
 
 	*state = (int)*p;
@@ -162,16 +168,87 @@ xu_getstate(struct client_ctx *cc, int *state)
 void
 xu_setstate(struct client_ctx *cc, int state)
 {
-	Atom	 wm_state;
 	long	 dat[2];
 
-	/* XXX cache */
-	wm_state = XInternAtom(X_Dpy, "WM_STATE", False);
-
-	dat[0] = (long)state;
-	dat[1] = (long)None;
+	dat[0] = state;
+	dat[1] = None;
 
 	cc->state = state;
-	XChangeProperty(X_Dpy, cc->win, wm_state, wm_state, 32,
+	XChangeProperty(X_Dpy, cc->win, WM_STATE, WM_STATE, 32,
 	    PropModeReplace, (unsigned char *)dat, 2);
+}
+
+Atom		cwm_atoms[CWM_NO_ATOMS];
+char 		*atoms[CWM_NO_ATOMS] = {
+	"WM_STATE",
+	"WM_DELETE_WINDOW",
+	"WM_TAKE_FOCUS",
+	"WM_PROTOCOLS",
+	"_MOTIF_WM_HINTS",
+	"UTF8_STRING",
+	"_NET_SUPPORTED",
+	"_NET_SUPPORTING_WM_CHECK",
+	"_NET_WM_NAME",
+	"_NET_ACTIVE_WINDOW",
+	"_NET_CLIENT_LIST",
+	"_NET_NUMBER_OF_DESKTOPS",
+	"_NET_CURRENT_DESKTOP",
+	"_NET_DESKTOP_VIEWPORT",
+	"_NET_DESKTOP_GEOMETRY",
+	"_NET_VIRTUAL_ROOTS",
+	"_NET_SHOWING_DESKTOP",
+	"_NET_DESKTOP_NAMES",
+	"_NET_WM_DESKTOP",
+	"_NET_WORKAREA",
+};
+
+void
+xu_getatoms(void)
+{
+	XInternAtoms(X_Dpy, atoms, CWM_NO_ATOMS, False, cwm_atoms);
+}
+
+void
+xu_setwmname(struct screen_ctx *sc)
+{
+	/*
+	 * set up the _NET_SUPPORTED hint with all netwm atoms that we
+	 * know about.
+	 */
+	XChangeProperty(X_Dpy, sc->rootwin, _NET_SUPPORTED, XA_ATOM, 32,
+	    PropModeReplace,  (unsigned char *)&_NET_SUPPORTED,
+	    CWM_NO_ATOMS - CWM_NETWM_START);
+	/*
+	 * netwm spec says that to prove that the hint is not stale you must
+	 * provide _NET_SUPPORTING_WM_CHECK containing a window (we use the
+	 * menu window). The property must be set on the root window and the
+	 * window itself, the window also must have _NET_WM_NAME set with the
+	 * window manager name.
+	 */
+	XChangeProperty(X_Dpy, sc->rootwin, _NET_SUPPORTING_WM_CHECK,
+	    XA_WINDOW, 32, PropModeReplace, (unsigned char *)&sc->menuwin, 1);
+	XChangeProperty(X_Dpy, sc->menuwin, _NET_SUPPORTING_WM_CHECK,
+	    XA_WINDOW, 32, PropModeReplace, (unsigned char *)&sc->menuwin, 1);
+	XChangeProperty(X_Dpy, sc->menuwin, _NET_WM_NAME, UTF8_STRING,
+	    8, PropModeReplace, WMNAME, strlen(WMNAME));
+}
+
+unsigned long
+xu_getcolor(struct screen_ctx *sc, char *name)
+{
+	XColor	 color, tmp;
+
+	if (!XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, sc->which),
+	    name, &color, &tmp)) {
+		warnx("XAllocNamedColor error: '%s'", name);
+		return 0;
+	}
+
+	return color.pixel;
+}
+
+void
+xu_freecolor(struct screen_ctx *sc, unsigned long pixel)
+{
+	XFreeColors(X_Dpy, DefaultColormap(X_Dpy, sc->which), &pixel, 1, 0L);
 }

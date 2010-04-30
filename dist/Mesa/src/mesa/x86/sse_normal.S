@@ -1,4 +1,3 @@
-/* $Id: sse_normal.S,v 1.1.1.1 2006/11/25 18:54:21 matthieu Exp $ */
 
 /*
  * Mesa 3-D graphics library
@@ -32,6 +31,7 @@
   */
 
 #ifdef USE_SSE_ASM
+#include "assyntax.h"
 #include "matypes.h"
 #include "norm_args.h"
 

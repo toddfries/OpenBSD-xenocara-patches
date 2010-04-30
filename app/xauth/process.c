@@ -484,6 +484,9 @@ get_displayname_auth(char *displayname, AuthList **authl)
     cp = strchr(displayname, '/');
     if (cp && strncmp (cp, "/unix:", 6) == 0)
       prelen = (cp - displayname);
+    
+    if (strncmp (displayname, "/tmp/launch", 11) == 0)
+        displayname = strrchr(displayname, '/') + 1;
 
     if (!parse_displayname (displayname + ((prelen > 0) ? prelen + 1 : 0),
 			    &family, &host, &dpynum, &scrnum, &rest)) {
@@ -957,7 +960,7 @@ fprintfhex(register FILE *fp, int len, char *cp)
     char *hex;
 
     hex = bintohex(len, cp);
-    fprintf(fp, hex);
+    fprintf(fp, "%s", hex);
     free(hex);
 }
 
@@ -1497,6 +1500,7 @@ do_extract(char *inputfilename, int lineno, int argc, char **argv)
 
     ed.fp = NULL;
     ed.filename = argv[1];
+    ed.used_stdout = False;
     ed.numeric = (argv[0][0] == 'n');
     ed.nwritten = 0;
     ed.cmd = argv[0];

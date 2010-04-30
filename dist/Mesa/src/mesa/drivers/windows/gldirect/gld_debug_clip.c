@@ -1,4 +1,3 @@
-/* $Id: gld_debug_clip.c,v 1.1.1.1 2006/11/25 18:51:58 matthieu Exp $ */
 
 /*
  * Mesa 3-D graphics library

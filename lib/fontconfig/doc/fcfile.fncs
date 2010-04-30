@@ -1,5 +1,5 @@
 /*
- * $Id: fcfile.fncs,v 1.1.1.2 2006/12/31 14:57:47 matthieu Exp $
+ * fontconfig/doc/fcfile.fncs
  *
  * Copyright © 2003 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -28,15 +28,30 @@
 @TYPE2@		FcStrSet *			@ARG2@		dirs	
 @TYPE3@		FcFileCache *			@ARG3@		cache	
 @TYPE4@		FcBlanks *			@ARG4@		blanks	
-@TYPE5@		const char *			@ARG5@		file	
-@TYPE6@		FcBool% 				@ARG6@		force	
+@TYPE5@		const FcChar8 *			@ARG5@		file	
+@TYPE6@		FcBool% 			@ARG6@		force
 @PURPOSE@	scan a font file
 @DESC@
 Scans a single file and adds all fonts found to <parameter>set</parameter>.
 If <parameter>force</parameter> is FcTrue, then the file is scanned even if
 associated information is found in <parameter>cache</parameter>.  If
 <parameter>file</parameter> is a directory, it is added to
-<parameter>dirs</parameter>.
+<parameter>dirs</parameter>. Whether fonts are found depends on fontconfig
+policy as well as the current configuration. Internally, fontconfig will
+ignore BDF and PCF fonts which are not in Unicode (or the effectively
+equivalent ISO Latin-1) encoding as those are not usable by Unicode-based
+applications. The configuration can ignore fonts based on filename or
+contents of the font file itself. Returns FcFalse if any of the fonts cannot be
+added (due to allocation failure). Otherwise returns FcTrue.
+@@
+
+@RET@		FcBool
+@FUNC@		FcFileIsDir
+@TYPE1@		const FcChar8 *			@ARG1@		file
+@PURPOSE@	check whether a file is a directory
+@DESC@
+Returns FcTrue if <parameter>file</parameter> is a directory, otherwise
+returns FcFalse.
 @@
 
 @RET@		FcBool 	
@@ -45,34 +60,29 @@ associated information is found in <parameter>cache</parameter>.  If
 @TYPE2@		FcStrSet *			@ARG2@		dirs	
 @TYPE3@		FcFileCache *			@ARG3@		cache	
 @TYPE4@		FcBlanks *			@ARG4@		blanks	
-@TYPE5@		const char *			@ARG5@		dir	
-@TYPE6@		FcBool% 				@ARG6@		force	
-@PURPOSE@	scan a font directory
+@TYPE5@		const FcChar8 *			@ARG5@		dir	
+@TYPE6@		FcBool% 			@ARG6@		force
+@PURPOSE@	scan a font directory without caching it
 @DESC@
-Scans an entire directory and adds all fonts found to
-<parameter>set</parameter>.  If <parameter>force</parameter> is FcTrue, then
-the directory and all files within it are scanned even if information is
-present in the per-directory cache file or <parameter>cache</parameter>.  Any
-subdirectories found are added to <parameter>dirs</parameter>.
+If <parameter>cache</parameter> is not zero or if <parameter>force</parameter>
+is FcFalse, this function currently returns FcFalse.  Otherwise, it scans an
+entire directory and adds all fonts found to <parameter>set</parameter>.
+Any subdirectories found are added to <parameter>dirs</parameter>.  Calling
+this function does not create any cache files.  Use FcDirCacheRead() if
+caching is desired.
 @@
 
 @RET@		FcBool 	
 @FUNC@		FcDirSave 
 @TYPE1@		FcFontSet *			@ARG1@		set	
 @TYPE2@		FcStrSet *			@ARG2@		dirs	
-@TYPE3@		const char *			@ARG3@		dir	
-@PURPOSE@	save a directory cache
+@TYPE3@		const FcChar8 *			@ARG3@		dir	
+@PURPOSE@	DEPRECATED: formerly used to save a directory cache
 @DESC@
-Creates the per-directory cache file for <parameter>dir</parameter> and
-populates it with the fonts in <parameter>set</parameter> and subdirectories
-in <parameter>dirs</parameter>.
+This function now does nothing aside from returning FcFalse. It used to creates the
+per-directory cache file for <parameter>dir</parameter> and populates it
+with the fonts in <parameter>set</parameter> and subdirectories in
+<parameter>dirs</parameter>. All of this functionality is now automatically
+managed by FcDirCacheLoad and FcDirCacheRead.
 @@
 
-@RET@		FcBool 	
-@FUNC@		FcDirCacheValid 
-@TYPE1@		const FcChar8 *			@ARG1@		cache_file	
-@PURPOSE@	check directory cache timestamp
-@DESC@
-Returns FcTrue if <parameter>cache_file</parameter> is no older than the
-directory containing it, else FcFalse.
-@@

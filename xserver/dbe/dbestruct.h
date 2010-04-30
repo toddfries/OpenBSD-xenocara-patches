@@ -37,16 +37,36 @@
 /* INCLUDES */
 
 #define NEED_DBE_PROTOCOL
+#ifdef HAVE_X11_EXTENSIONS_DBEPROTO_H
+#include <X11/extensions/dbeproto.h>
+#else
 #include <X11/extensions/Xdbeproto.h>
+#endif
 #include "windowstr.h"
+#include "privates.h"
 
+
+#ifdef HAVE_X11_EXTENSIONS_DBEPROTO_H
+typedef struct
+{
+    VisualID    visual;    /* one visual ID that supports double-buffering */
+    int         depth;     /* depth of visual in bits                      */
+    int         perflevel; /* performance level of visual                  */
+}
+XdbeVisualInfo;
+
+typedef struct
+{
+    int                 count;          /* number of items in visual_depth   */
+    XdbeVisualInfo      *visinfo;       /* list of visuals & depths for scrn */
+}
+XdbeScreenVisualInfo;
+#endif
 
 /* DEFINES */
 
-#define DBE_SCREEN_PRIV(pScreen) \
-    ((dbeScreenPrivIndex < 0) ? \
-     NULL : \
-     ((DbeScreenPrivPtr)((pScreen)->devPrivates[dbeScreenPrivIndex].ptr)))
+#define DBE_SCREEN_PRIV(pScreen) ((DbeScreenPrivPtr) \
+    dixLookupPrivate(&(pScreen)->devPrivates, dbeScreenPrivKey))
 
 #define DBE_SCREEN_PRIV_FROM_DRAWABLE(pDrawable) \
     DBE_SCREEN_PRIV((pDrawable)->pScreen)
@@ -63,10 +83,8 @@
 #define DBE_SCREEN_PRIV_FROM_GC(pGC)\
     DBE_SCREEN_PRIV((pGC)->pScreen)
 
-#define DBE_WINDOW_PRIV(pWindow)\
-    ((dbeWindowPrivIndex < 0) ? \
-     NULL : \
-     ((DbeWindowPrivPtr)(pWindow->devPrivates[dbeWindowPrivIndex].ptr)))
+#define DBE_WINDOW_PRIV(pWin) ((DbeWindowPrivPtr) \
+    dixLookupPrivate(&(pWin)->devPrivates, dbeWindowPrivKey))
 
 /* Initial size of the buffer ID array in the window priv. */
 #define DBE_INIT_MAX_IDS	2
@@ -77,6 +95,7 @@
 /* Marker for free elements in the buffer ID array. */
 #define DBE_FREE_ID_ELEMENT	0
 
+extern void DbeExtensionInit (void);
 
 /* TYPEDEFS */
 
@@ -142,7 +161,7 @@ typedef struct _DbeWindowPrivRec
 
     /* Device-specific private information.
      */
-    DevUnion		*devPrivates;
+    PrivateRec		*devPrivates;
 
 } DbeWindowPrivRec, *DbeWindowPrivPtr;
 
@@ -155,18 +174,13 @@ typedef struct _DbeWindowPrivRec
 
 typedef struct _DbeScreenPrivRec
 {
-    /* Info for creating window privs */
-    int          winPrivPrivLen;    /* Length of privs in DbeWindowPrivRec   */
-    unsigned int *winPrivPrivSizes; /* Array of private record sizes         */
-    unsigned int totalWinPrivSize;  /* PrivRec + size of all priv priv ptrs  */
-
     /* Resources created by DIX to be used by DDX */
     RESTYPE	dbeDrawableResType;
     RESTYPE	dbeWindowPrivResType;
 
     /* Private indices created by DIX to be used by DDX */
-    int		dbeScreenPrivIndex;
-    int		dbeWindowPrivIndex;
+    DevPrivateKey dbeScreenPrivKey;
+    DevPrivateKey dbeWindowPrivKey;
 
     /* Wrapped functions
      * It is the responsibilty of the DDX layer to wrap PositionWindow().
@@ -179,17 +193,6 @@ typedef struct _DbeScreenPrivRec
     Bool	(*SetupBackgroundPainter)(
 		WindowPtr /*pWin*/,
 		GCPtr /*pGC*/
-);
-    DbeWindowPrivPtr (*AllocWinPriv)(
-		ScreenPtr /*pScreen*/
-);
-    int		(*AllocWinPrivPrivIndex)(
-		void
-);
-    Bool	(*AllocWinPrivPriv)(
-		ScreenPtr /*pScreen*/,
-		int /*index*/,
-		unsigned /*amount*/
 );
 
     /* Per-screen DDX routines */
@@ -223,7 +226,7 @@ typedef struct _DbeScreenPrivRec
 
     /* Device-specific private information.
      */
-    DevUnion	*devPrivates;
+    PrivateRec	*devPrivates;
 
 } DbeScreenPrivRec, *DbeScreenPrivPtr;
 

@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.11 2008/03/25 23:41:50 matthieu Exp $
+# $OpenBSD: Makefile,v 1.14 2009/09/05 15:58:09 matthieu Exp $
 .include <bsd.xconf.mk>
 
 SUBDIR=	icons resize
@@ -12,19 +12,26 @@ BINMODE=	2755
 CPPFLAGS+=	-I${.CURDIR} -I${X11BASE}/include \
 		-I${X11BASE}/include/freetype2 \
 		-DHAVE_CONFIG_H -DCSRG_BASED \
-		-DFUNCPROTO=15 -DNARROWPROTO -DXFREE86_FT2 -DUTMP
+		-DFUNCPROTO=15 -DNARROWPROTO -DXFREE86_FT2 -DUTMP \
+		-DDEF_ALLOW_FONT=False -DDEF_ALLOW_TCAP=False \
+		-DDEF_ALLOW_WINDOW=False
 LDADD+=		-L${X11BASE}/lib -lXaw -lXpm -lXt -lSM -lICE \
 		-lXmu -lXft -lXrender -lX11 -lXext -lXau -lXdmcp \
 		-lfontconfig -lexpat -lfreetype -lutil -ltermcap -lz
 
 SRCS=	TekPrsTbl.c Tekproc.c VTPrsTbl.c button.c cachedGCs.c \
 	charclass.c xtermcap.c charproc.c charsets.c cursor.c \
-	data.c doublechr.c fontutils.c input.c main.c menu.c \
+	data.c doublechr.c fontutils.c input.c linedata.c main.c menu.c \
 	misc.c precompose.c print.c ptydata.c wcwidth.c screen.c \
-	scrollbar.c tabs.c util.c xstrings.c
+	scrollback.c scrollbar.c tabs.c util.c xstrings.c
 
 MANDIR=		${X11BASE}/man/cat
 XETC?=		/etc/X11
+
+.if ${MACHINE_ARCH} == "arm"
+charproc.o:	charproc.c
+	${CC} -g -c ${CPPFLAGS} ${.CURDIR}/charproc.c
+.endif
 
 xterm.1tbl: xterm.man
 	sed -e 's#__vendorversion__#"X Window System"#g' \

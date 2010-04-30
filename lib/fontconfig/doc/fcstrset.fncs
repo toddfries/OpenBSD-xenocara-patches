@@ -1,5 +1,5 @@
 /*
- * $Id: fcstrset.fncs,v 1.1.1.1 2006/11/25 18:42:14 matthieu Exp $
+ * fontconfig/doc/fcstrset.fncs
  *
  * Copyright © 2003 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -39,6 +39,17 @@ Create an empty set.
 @DESC@
 Returns whether <parameter>s</parameter> is a member of
 <parameter>set</parameter>.
+@@
+
+@RET@		FcBool
+@FUNC@		FcStrSetEqual
+@TYPE1@		FcStrSet *			@ARG1@		set_a
+@TYPE2@		FcStrSet *			@ARG2@		set_b
+@PURPOSE@	check sets for equality
+@DESC@
+Returns whether <parameter>set_a</parameter> contains precisely the same
+strings as <parameter>set_b</parameter>. Ordering of strings within the two
+sets is not considered.
 @@
 
 @RET@		FcBool

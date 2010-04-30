@@ -1,6 +1,7 @@
 /*
  *  calmwm - the calm window manager
  *
+ *  Copyright (c) 2004 Marius Aamodt Eriksen <marius@monkey.org>
  *  Copyright (c) 2008 rivo nurges <rix@estpak.ee>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -15,24 +16,167 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: mousefunc.c,v 1.4 2008/07/11 15:18:29 okan Exp $
+ * $Id: mousefunc.c,v 1.19 2009/12/15 04:10:42 okan Exp $
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
+
+static int	mousefunc_sweep_calc(struct client_ctx *, int, int, int, int);
+static void	mousefunc_sweep_draw(struct client_ctx *);
+
+static int
+mousefunc_sweep_calc(struct client_ctx *cc, int x, int y, int mx, int my)
+{
+	int	 width = cc->geom.width, height = cc->geom.height;
+
+	cc->geom.width = abs(x - mx) - cc->bwidth;
+	cc->geom.height = abs(y - my) - cc->bwidth;
+
+	client_applysizehints(cc);
+
+	cc->geom.x = x <= mx ? x : x - cc->geom.width;
+	cc->geom.y = y <= my ? y : y - cc->geom.height;
+
+	return (width != cc->geom.width || height != cc->geom.height);
+}
+
+static void
+mousefunc_sweep_draw(struct client_ctx *cc)
+{
+	struct screen_ctx	*sc = cc->sc;
+	char			 asize[10]; /* fits "nnnnxnnnn\0" */
+	int			 width, height, width_size, width_name;
+
+	snprintf(asize, sizeof(asize), "%dx%d",
+	    (cc->geom.width - cc->geom.basew) / cc->geom.incw,
+	    (cc->geom.height - cc->geom.baseh) / cc->geom.inch);
+	width_size = font_width(sc, asize, strlen(asize)) + 4;
+	width_name = font_width(sc, cc->name, strlen(cc->name)) + 4;
+	width = MAX(width_size, width_name);
+	height = font_ascent(sc) + font_descent(sc) + 1;
+
+	XMoveResizeWindow(X_Dpy, sc->menuwin, cc->geom.x, cc->geom.y,
+	    width, height * 2);
+	XMapWindow(X_Dpy, sc->menuwin);
+	XReparentWindow(X_Dpy, sc->menuwin, cc->win, 0, 0);
+	XClearWindow(X_Dpy, sc->menuwin);
+	font_draw(sc, cc->name, strlen(cc->name), sc->menuwin,
+	    2, font_ascent(sc) + 1);
+	font_draw(sc, asize, strlen(asize), sc->menuwin,
+	    width / 2 - width_size / 2, height + font_ascent(sc) + 1);
+}
 
 void
 mousefunc_window_resize(struct client_ctx *cc, void *arg)
 {
-	grab_sweep(cc);
-	client_resize(cc);
+	XEvent			 ev;
+	Time			 time = 0;
+	struct screen_ctx	*sc = cc->sc;
+	int			 x = cc->geom.x, y = cc->geom.y;
+
+	client_raise(cc);
+	client_ptrsave(cc);
+
+	if (xu_ptr_grab(cc->win, MouseMask, Cursor_resize) < 0)
+		return;
+
+	xu_ptr_setpos(cc->win, cc->geom.width, cc->geom.height);
+	mousefunc_sweep_draw(cc);
+
+	for (;;) {
+		XMaskEvent(X_Dpy, MouseMask|ExposureMask, &ev);
+
+		switch (ev.type) {
+		case Expose:
+			client_draw_border(cc);
+			break;
+		case MotionNotify:
+			if (mousefunc_sweep_calc(cc, x, y,
+			    ev.xmotion.x_root, ev.xmotion.y_root))
+				/* Recompute window output */
+				mousefunc_sweep_draw(cc);
+
+			/* don't sync more than 60 times / second */
+			if ((ev.xmotion.time - time) > (1000 / 60)) {
+				time = ev.xmotion.time;
+				XSync(X_Dpy, False);
+				client_resize(cc);
+			}
+			break;
+		case ButtonRelease:
+			if (time) {
+				XSync(X_Dpy, False);
+				client_resize(cc);
+			}
+			XUnmapWindow(X_Dpy, sc->menuwin);
+			XReparentWindow(X_Dpy, sc->menuwin, sc->rootwin, 0, 0);
+			xu_ptr_ungrab();
+
+			/* Make sure the pointer stays within the window. */
+			if (cc->ptr.x > cc->geom.width)
+				cc->ptr.x = cc->geom.width - cc->bwidth;
+			if (cc->ptr.y > cc->geom.height)
+				cc->ptr.y = cc->geom.height - cc->bwidth;
+			client_ptrwarp(cc);
+
+			return;
+		}
+	}
+	/* NOTREACHED */
 }
 
 void
 mousefunc_window_move(struct client_ctx *cc, void *arg)
 {
-	grab_drag(cc);
-	client_move(cc);
+	XEvent			 ev;
+	Time			 time = 0;
+	int			 px, py;
+
+	client_raise(cc);
+
+	if (xu_ptr_grab(cc->win, MouseMask, Cursor_move) < 0)
+		return;
+
+	xu_ptr_getpos(cc->win, &px, &py);
+
+	for (;;) {
+		XMaskEvent(X_Dpy, MouseMask|ExposureMask, &ev);
+
+		switch (ev.type) {
+		case Expose:
+			client_draw_border(cc);
+			break;
+		case MotionNotify:
+			cc->geom.x = ev.xmotion.x_root - px;
+			cc->geom.y = ev.xmotion.y_root - py;
+
+			/* don't sync more than 60 times / second */
+			if ((ev.xmotion.time - time) > (1000 / 60)) {
+				time = ev.xmotion.time;
+				XSync(X_Dpy, False);
+				client_move(cc);
+			}
+			break;
+		case ButtonRelease:
+			if (time) {
+				XSync(X_Dpy, False);
+				client_move(cc);
+			}
+			xu_ptr_ungrab();
+			return;
+		}
+	}
+	/* NOTREACHED */
 }
 
 void
@@ -63,25 +207,23 @@ mousefunc_menu_group(struct client_ctx *cc, void *arg)
 void
 mousefunc_menu_unhide(struct client_ctx *cc, void *arg)
 {
+	struct screen_ctx	*sc;
 	struct client_ctx	*old_cc;
 	struct menu		*mi;
 	struct menu_q		 menuq;
 	char			*wname;
 
+	sc = cc->sc;
 	old_cc = client_current();
 
 	TAILQ_INIT(&menuq);
 	TAILQ_FOREACH(cc, &Clientq, entry)
 		if (cc->flags & CLIENT_HIDDEN) {
-			if (cc->label != NULL)
-				wname = cc->label;
-			else
-				wname = cc->name;
-
+			wname = (cc->label) ? cc->label : cc->name;
 			if (wname == NULL)
 				continue;
 
-			XCALLOC(mi, struct menu);
+			mi = xcalloc(1, sizeof(*mi));
 			strlcpy(mi->text, wname, sizeof(mi->text));
 			mi->ctx = cc;
 			TAILQ_INSERT_TAIL(&menuq, mi, entry);
@@ -90,7 +232,7 @@ mousefunc_menu_unhide(struct client_ctx *cc, void *arg)
 	if (TAILQ_EMPTY(&menuq))
 		return;
 
-	mi = menu_filter(&menuq, NULL, NULL, 0, NULL, NULL);
+	mi = menu_filter(sc, &menuq, NULL, NULL, 0, NULL, NULL);
 	if (mi != NULL) {
 		cc = (struct client_ctx *)mi->ctx;
 		client_unhide(cc);
@@ -109,13 +251,16 @@ mousefunc_menu_unhide(struct client_ctx *cc, void *arg)
 void
 mousefunc_menu_cmd(struct client_ctx *cc, void *arg)
 {
-	struct menu	*mi;
-	struct menu_q	 menuq;
-	struct cmd	*cmd;
+	struct screen_ctx	*sc;
+	struct menu		*mi;
+	struct menu_q		 menuq;
+	struct cmd		*cmd;
+
+	sc = cc->sc;
 
 	TAILQ_INIT(&menuq);
 	TAILQ_FOREACH(cmd, &Conf.cmdq, entry) {
-		XCALLOC(mi, struct menu);
+		mi = xcalloc(1, sizeof(*mi));
 		strlcpy(mi->text, cmd->label, sizeof(mi->text));
 		mi->ctx = cmd;
 		TAILQ_INSERT_TAIL(&menuq, mi, entry);
@@ -123,7 +268,7 @@ mousefunc_menu_cmd(struct client_ctx *cc, void *arg)
 	if (TAILQ_EMPTY(&menuq))
 		return;
 
-	mi = menu_filter(&menuq, NULL, NULL, 0, NULL, NULL);
+	mi = menu_filter(sc, &menuq, NULL, NULL, 0, NULL, NULL);
 	if (mi != NULL)
 		u_spawn(((struct cmd *)mi->ctx)->image);
 	else

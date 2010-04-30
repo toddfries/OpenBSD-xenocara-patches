@@ -1,4 +1,3 @@
-/* $XFree86: xc/lib/GL/mesa/src/drv/radeon/radeon_screen.h,v 1.5 2002/12/16 16:18:58 dawes Exp $ */
 /**************************************************************************
 
 Copyright 2000, 2001 ATI Technologies Inc., Ontario, Canada, and
@@ -78,13 +77,12 @@ typedef struct {
    int texSize[RADEON_NR_TEX_HEAPS];
    int logTexGranularity[RADEON_NR_TEX_HEAPS];
 
-   radeonRegionRec mmio;
    radeonRegionRec status;
    radeonRegionRec gartTextures;
 
    drmBufMapPtr buffers;
 
-   __volatile__ u_int32_t *scratch;
+   __volatile__ uint32_t *scratch;
 
    __DRIscreenPrivate *driScreen;
    unsigned int sarea_priv_offset;
@@ -103,6 +101,10 @@ typedef struct {
 
    /* Configuration cache with default values for all contexts */
    driOptionCache optionCache;
+
+   const __DRIextension *extensions[8];
+
+   int num_gb_pipes;
 } radeonScreenRec, *radeonScreenPtr;
 
 #define IS_R100_CLASS(screen) \

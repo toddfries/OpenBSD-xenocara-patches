@@ -35,8 +35,6 @@
 /*
  * flist.c++
  *
- * $Date: 2007/11/24 17:27:04 $ $Revision: 1.1.1.2 $
- * $Header: /cvs/xenocara/dist/Mesa/src/glu/sgi/libnurbs/internals/flist.cc,v 1.1.1.2 2007/11/24 17:27:04 matthieu Exp $
  */
 
 #include "glimports.h"

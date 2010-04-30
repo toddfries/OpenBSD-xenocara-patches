@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.19 2008/07/16 20:24:39 brad Exp $
+# $OpenBSD: Makefile,v 1.25 2009/05/25 18:40:11 matthieu Exp $
 .include <bsd.xconf.mk>
 
 .if ${XENOCARA_BUILD_DRI:L} == "yes"
@@ -11,10 +11,11 @@ MESA=	${.CURDIR}/../../dist/Mesa/src/mesa
 GL=	${.CURDIR}/../../dist/Mesa/src/GL
 GLX=	${.CURDIR}/../../dist/Mesa/src/glx/x11
 MESA_INCLUDE=	${.CURDIR}/../../dist/Mesa/include
+MESA_DRI=	${.CURDIR}/../../dist/Mesa/src/mesa/drivers/dri
 
 MESA_MAJOR=	7
-MESA_MINOR=	0
-MESA_TINY=	3
+MESA_MINOR=	4
+MESA_TINY=	2
 
 DRI_DRIVER_INSTALL_DIR=	${X11BASE}/lib/modules/dri
 
@@ -36,23 +37,18 @@ CPPFLAGS+= \
 	-I${MESA_INCLUDE} \
 	-I${MESA_INCLUDE}/GL/internal \
 	-I${MESA} \
-	-I${MESA}/main \
-	-I${MESA}/math \
 	-I${MESA}/glapi \
-	-I${MESA}/tnl \
-	-I${MESA}/shader \
-	-I${MESA}/shader/grammar \
-	-I${MESA}/shader/slang \
 	-I${GLX} \
 	-I${X11BASE}/include \
-	-I${X11BASE}/include/drm \
+	-I/usr/include/dev/pci/drm \
 	-DGLX_INDIRECT_RENDERING \
 	-DPTHREADS \
 	-DHAVE_ALIAS \
 	-D_REENTRANT
 
 .if ${XENOCARA_BUILD_DRI:L} == "yes"
-CPPFLAGS+=	-DGLX_DIRECT_RENDERING
+CPPFLAGS+=	-DGLX_DIRECT_RENDERING -DXF86VIDMODE \
+	-DDEFAULT_DRIVER_DIR=\"${DRI_DRIVER_INSTALL_DIR}\"
 .endif
 
 .if ${MACHINE_ARCH} == "i386"
@@ -75,6 +71,7 @@ INCS= \
 GLAPI_SOURCES= \
 	dispatch.c \
 	glapi.c \
+	glapi_getproc.c \
 	glthread.c \
 	$(ASM_API)
 
@@ -90,38 +87,25 @@ ASM_API = glapi_x86-64.S
 SPARC_API = glapi_sparc.S
 .endif
 
-COMMON_DRIVER_SOURCES = \
-	driverfuncs.c
-
-X11_DRIVER_SOURCES = 	\
-	glxapi.c	\
-	fakeglx.c	\
-	xfonts.c	\
-	xm_api.c	\
-	xm_buffer.c	\
-	xm_dd.c	\
-	xm_glide.c	\
-	xm_line.c	\
-	xm_span.c	\
-	xm_tri.c
-
 GLX_SOURCES= \
 	glcontextmodes.c \
 	clientattrib.c \
 	compsize.c \
 	glxeval.c \
 	glxcmds.c \
+	glxcurrent.c \
 	glxext.c \
 	glxextensions.c \
 	indirect.c \
 	indirect_init.c \
 	indirect_size.c \
 	indirect_window_pos.c \
+	indirect_texture_compression.c \
 	indirect_transpose_matrix.c \
 	indirect_vertex_array.c \
 	indirect_vertex_program.c \
 	glxpixel.c \
-	pixelstore.c \
+	glxpixelstore.c \
 	render2.c \
 	renderpix.c \
 	single2.c \
@@ -130,14 +114,18 @@ GLX_SOURCES= \
 	xfont.c \
 	glx_pbuffer.c \
 	glx_query.c \
-	glx_texture_compression.c \
+	drisw_glx.c \
+	dri_common.c \
 	dri_glx.c \
-	XF86dri.c
+	XF86dri.c \
+	glxhash.c \
+	dri2_glx.c \
+	dri2.c
 
 SRCS = $(GLX_SOURCES)	\
 	$(GLAPI_SOURCES) 
 
-includes:
+includes: _SUBDIRUSE
 	cd ${MESA_INCLUDE}/GL; for i in ${INCS}; do \
 	    j="cmp -s $$i ${DESTDIR}${INCSDIR}/GL/$$i || \
 		${INSTALL} ${INSTALL_COPY} -o ${BINOWN} -g ${BINGRP} -m 444 \
@@ -164,17 +152,43 @@ glxeval.c: ${GLX}/eval.c
 glxpixel.c: ${GLX}/pixel.c
 	ln -s ${GLX}/pixel.c $@
 
-CLEANFILES+= glxeval.c glxpixel.c
+glxpixelstore.c: ${GLX}/pixelstore.c
+	ln -s ${GLX}/pixelstore.c $@
+
+CLEANFILES+= glxeval.c glxpixel.c glxpixelstore.c
 
 gl.pc: ${MESA}/gl.pc.in Makefile
 	sed -e 's,@INSTALL_DIR@,$(X11BASE),' \
-	    -e 's,@LIB_DIR@,lib,' \
+	    -e 's,@INSTALL_LIB_DIR@,${LIBDIR},' \
+	    -e 's,@INSTALL_INC_DIR@,${INCSDIR},' \
+	    -e 's,@GL_PC_REQ_PRIV@,libdrm >= 2.4.3 dri2proto >= 1.99.3 x11 xext xxf86vm xdamage xfixes,' \
+	    -e 's,@GL_PC_LIB_PRIV@,-L${LIBDIR} -lXxf86vm -lXext -lXdamage -lXfixes -lX11 -lXau -lXdmcp,' \
+	    -e 's,@GL_PC_CFLAGS@,-I${INCSDIR},' \
 	    -e 's,@VERSION@,$(MESA_MAJOR).$(MESA_MINOR).$(MESA_TINY),' \
 	< ${MESA}/gl.pc.in > gl.pc
 
-afterinstall: gl.pc
+.if ${XENOCARA_BUILD_DRI:L} == "yes"
+DRI_PC=dri.pc
+
+dri.pc: ${MESA_DRI}/dri.pc.in Makefile
+	sed -e 's,@INSTALL_DIR@,${X11BASE},' \
+	    -e 's,@INSTALL_LIB_DIR@,${LIBDIR},' \
+	    -e 's,@INSTALL_INC_DIR@,${INCSDIR},' \
+	    -e 's,@DRI_DRIVER_DIR@,${DRI_DRIVER_INSTALL_DIR},' \
+	    -e 's,@VERSION@,$(MESA_MAJOR).$(MESA_MINOR).$(MESA_TINY),' \
+	    -e 's,@DRI_PC_REQ_PRIV@,,' \
+	< ${MESA_DRI}/dri.pc.in > dri.pc
+.endif
+
+afterinstall: gl.pc ${DRI_PC}
 	$(INSTALL) -c -m 644 -o root -g wheel gl.pc \
 		${DESTDIR}${LIBDIR}/pkgconfig
+.if ${XENOCARA_BUILD_DRI:L} == "yes"
+	$(INSTALL) -c -m 644 -o root -g wheel dri.pc \
+		${DESTDIR}${LIBDIR}/pkgconfig
+.endif
+
+CLEANFILES+= gl.pc ${DRI_PC}
 
 .if ${MACHINE_ARCH} == i386
 .PATH: ${MESA}/x86
@@ -189,22 +203,8 @@ afterinstall: gl.pc
 .if ${MACHINE_ARCH} == amd64
 .PATH: ${MESA}/x86-64
 .endif
-.PATH: ${MESA}/glapi
 .PATH: ${MESA}/main
-.PATH: ${MESA}/math
-.PATH: ${MESA}/swrast
-.PATH: ${MESA}/swrast_setup
-.PATH: ${MESA}/tnl
-.PATH: ${MESA}/shader
-.PATH: ${MESA}/shader/grammar
-.PATH: ${MESA}/shader/slang
-.PATH: ${MESA}/shader/slang/MachineIndependent
-.PATH: ${MESA}/shader/slang/MachineIndependent/preprocessor
-.PATH: ${MESA}/shader/slang/OGLCompilersDLL
-.PATH: ${MESA}/shader/slang/OSDependent/Linux
-.PATH: ${MESA}/vbo
-.PATH: ${MESA}/drivers/common
-.PATH: ${MESA}/drivers/x11
+.PATH: ${MESA}/glapi
 .PATH: ${GLX}
 
 .include <bsd.subdir.mk>

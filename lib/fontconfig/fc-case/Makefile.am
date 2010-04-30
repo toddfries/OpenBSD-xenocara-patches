@@ -13,9 +13,9 @@
 # representations about the suitability of this software for any purpose.  It
 # is provided "as is" without express or implied warranty.
 #
-# KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
 # INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
-# EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
 # CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 # TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -26,7 +26,7 @@ CC = @CC_FOR_BUILD@
 EXEEXT = @EXEEXT_FOR_BUILD@
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
-INCLUDES=-I${top_srcdir}/src -I${top_srcdir} $(FREETYPE_CFLAGS) $(WARN_CFLAGS)
+INCLUDES=-I${top_srcdir}/src -I${top_srcdir} $(WARN_CFLAGS)
 
 TMPL=fccase.tmpl.h
 STMPL=${top_srcdir}/fc-case/${TMPL}
@@ -35,8 +35,6 @@ TARG=fccase.h
 noinst_PROGRAMS=fc-case
 
 noinst_HEADERS=$(TARG)
-
-noinst_MANS=fc-case.man
 
 fc_case_SRCS= \
 	fc-case.c \
@@ -49,8 +47,9 @@ SCASEFOLDING=${top_srcdir}/fc-case/CaseFolding.txt
 EXTRA_DIST=$(TMPL) $(CASEFOLDING)
 
 $(TARG): $(STMPL) fc-case$(EXEEXT) $(SCASEFOLDING)
-	rm -f $(TARG)
-	./fc-case$(EXEEXT) $(SCASEFOLDING) < $(STMPL) > $(TARG)
+	$(AM_V_GEN) $(RM) $(TARG); \
+	./fc-case$(EXEEXT) $(SCASEFOLDING) < $(STMPL) > $(TARG).tmp && \
+	mv $(TARG).tmp $(TARG)
 
 ALIAS_FILES = fcalias.h fcaliastail.h
 

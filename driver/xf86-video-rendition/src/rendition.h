@@ -1,4 +1,3 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/rendition/rendition.h,v 1.5 2000/02/25 21:03:02 dawes Exp $ */
 
 #ifndef __RENDITION_H__
 #define __RENDITION_H__
@@ -14,9 +13,6 @@
 
 /* Everything using inb/outb, etc needs "compiler.h" */
 #include "compiler.h"
-
-/* This is used for module versioning */
-#include "xf86Version.h"
 
 /* Drivers for PCI hardware need this */
 #include "xf86PciInfo.h"
@@ -41,11 +37,13 @@
 /* All drivers using the mi colormap manipulation need this */
 #include "micmap.h"
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 /* Needed by Resources Access Control (RAC) */
 #include "xf86RAC.h"
 
 /* Several predefined resource lists */
 #include "xf86Resources.h"
+#endif
 
 /* Needed by the Shadow Framebuffer */
 #include "shadowfb.h"

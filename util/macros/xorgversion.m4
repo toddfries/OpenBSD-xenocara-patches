@@ -32,7 +32,7 @@ dnl
  
 AC_DEFUN([XORG_RELEASE_VERSION],[
 	AC_ARG_WITH(release-version,
-			AC_HELP_STRING([--with-release-version=STRING],
+			AS_HELP_STRING([--with-release-version=STRING],
 				[Use release version string in package name]),
 			[RELEASE_VERSION="$withval"],
 			[RELEASE_VERSION=""])
@@ -59,3 +59,19 @@ AC_DEFUN([XORG_RELEASE_VERSION],[
 		[$PVP],
 		[Patch version of this package])
 ])
+
+# XORG_CHANGELOG()
+# ----------------
+# Minimum version: 1.2.0
+#
+# Defines the variable CHANGELOG_CMD as the command to generate
+# ChangeLog from git.
+#
+#
+AC_DEFUN([XORG_CHANGELOG], [
+CHANGELOG_CMD="(GIT_DIR=\$(top_srcdir)/.git git log > \$(top_srcdir)/.changelog.tmp && \
+mv \$(top_srcdir)/.changelog.tmp \$(top_srcdir)/ChangeLog) \
+|| (rm -f \$(top_srcdir)/.changelog.tmp; touch \$(top_srcdir)/ChangeLog; \
+echo 'git directory not found: installing possibly empty changelog.' >&2)"
+AC_SUBST([CHANGELOG_CMD])
+]) # XORG_CHANGELOG

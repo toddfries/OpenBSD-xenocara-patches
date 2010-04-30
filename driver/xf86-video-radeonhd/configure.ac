@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.57)
 AC_INIT([xf86-video-radeonhd],
-        1.2.1,
+        1.3.0,
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg&component=Driver/radeonhd],
         xf86-video-radeonhd)
 
@@ -14,10 +14,34 @@ AM_INIT_AUTOMAKE([dist-bzip2])
 
 AM_MAINTAINER_MODE
 
+AC_CONFIG_FILES([shave shave-libtool])
+
+
 # Program checks.
 AC_DISABLE_STATIC
-AC_PROG_LIBTOOL
 AC_PROG_CC
+
+dnl Define SED var without requiring AC_PROG_SED (new in autoconf-2.59b)
+m4_ifdef([AC_PROG_SED], [AC_PROG_SED], [AC_SUBST([SED], [${SED-sed}])])
+
+AC_MSG_CHECKING([whether $SED can substitute tabs and newlines for text])
+dnl One tab, a letter and two newlines
+cat>sed-test.1<<EOF
+	y
+
+EOF
+echo x | sed 's/x/\ty\n/' > sed-test.2
+if cmp -s sed-test.1 sed-test.2; then
+	AC_MSG_RESULT([yes])
+else
+	AC_MSG_RESULT([no])
+fi
+AM_CONDITIONAL([HAVE_SED_WITH_REASONABLE_SUBSTITUTION], [cmp -s sed-test.1 sed-test.2])
+rm -f sed-test.1 sed-test.2
+
+CXX=no
+F77=no
+AC_PROG_LIBTOOL
 
 
 AH_TOP([#ifndef _CONFIG_H])
@@ -27,15 +51,21 @@ AH_BOTTOM([#endif])
 
 AC_ARG_WITH(xorg-module-dir,
             AC_HELP_STRING([--with-xorg-module-dir=DIR],
-                           [Default xorg module directory [[default=$libdir/xorg/modules]]]),
+                           [Default xorg module directory (default $libdir/xorg/modules)]),
             [moduledir="$withval"],
             [moduledir="$libdir/xorg/modules"])
 
 AC_ARG_ENABLE(exa,
               AC_HELP_STRING([--disable-exa],
-	                     [Disable EXA support [[default enabled]]]),
+	                     [Disable EXA support (default enabled)]),
               [EXA="$enableval"],
               [EXA=yes])
+
+AC_ARG_ENABLE(dri,
+              AC_HELP_STRING([--disable-dri],
+	                     [Disable DRI support (default enabled)]),
+              [DRI="$enableval"],
+              [DRI=yes])
 
 # Extensions checks.
 m4_pattern_forbid([XORG_DRIVER_CHECK_EXT])dnl
@@ -43,14 +73,18 @@ XORG_DRIVER_CHECK_EXT(RANDR, randrproto)
 XORG_DRIVER_CHECK_EXT(RENDER, renderproto)
 XORG_DRIVER_CHECK_EXT(XV, videoproto)
 XORG_DRIVER_CHECK_EXT(DPMSExtension, xextproto)
-XORG_DRIVER_CHECK_EXT(XSERVER_LIBPCIACCESS, pciaccess)
 # @@@@ We don't do DGA any more
 
 # pkg-config packages checks
 # @@@@ need to check for the right server version once RandR 1.2 is in.
 # @@@ do we really need fontsproto here?
 PKG_CHECK_MODULES(XORG, [xorg-server xproto fontsproto $REQUIRED_MODULES])
+PKG_CHECK_MODULES(XEXT, [xextproto >= 7.0.99.1],
+                  HAVE_XEXTPROTO_71="yes"; AC_DEFINE(HAVE_XEXTPROTO_71, 1, [xextproto 7.1 available]),
+                  HAVE_XEXTPROTO_71="no")
+AM_CONDITIONAL(HAVE_XEXTPROTO_71, [ test "$HAVE_XEXTPROTO_71" = "yes" ])
 sdkdir=$(pkg-config --variable=sdkdir xorg-server)
+
 
 # Header files checks.
 AC_HEADER_STDC
@@ -74,6 +108,15 @@ AM_CONDITIONAL([HAVE_PCI_PCI_H], [test "x$have_pci_pci_h" = "xyes"])
 # Properly handle EXA.
 CPPFLAGS="$SAVED_CPPFLAGS $XORG_CFLAGS"
 CFLAGS="$SAVED_CFLAGS"
+
+AC_CHECK_DECL(XSERVER_LIBPCIACCESS,
+              [XSERVER_LIBPCIACCESS=yes],[XSERVER_LIBPCIACCESS=no],
+              [#include "xorg-server.h"])
+if test "x$XSERVER_LIBPCIACCESS" = xyes; then
+	PKG_CHECK_MODULES([PCIACCESS], [pciaccess])
+	XORG_CFLAGS="$XORG_CFLAGS $PCIACCESS_CFLAGS"
+fi
+AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # basic exa check.
 AC_MSG_CHECKING([whether to enable EXA support])
@@ -105,6 +148,40 @@ fi
 
 AM_CONDITIONAL(USE_EXA, test "x$USE_EXA" = xyes)
 
+# Handle RandR1.2
+AC_CHECK_HEADER(xf86RandR12.h, [have_randr12="yes"], [have_randr12="no"], [#include <xf86.h>])
+if test "x$have_randr12" = xyes; then
+	AC_DEFINE(RANDR_12_SUPPORT, 1, [Build RandR 1.2 Support])
+fi
+
+AC_MSG_CHECKING([whether to enable RandR1.2 support])
+AC_MSG_RESULT($have_randr12)
+
+# Handle DRI
+CPPFLAGS="$SAVED_CPPFLAGS $XORG_CFLAGS"
+CFLAGS="$SAVED_CFLAGS $XORG_CFLAGS"
+
+# basic dri check.
+USE_DRI=no
+if test "x$DRI" = xyes; then
+	USE_DRI="yes"
+	AC_CHECK_DECL(XF86DRI,, [USE_DRI=no], [#include <xorg-server.h>])
+	PKG_CHECK_MODULES(DRI, [libdrm >= 2.2 xf86driproto glproto],, [USE_DRI=no])
+fi
+
+if test "x$USE_DRI" = xyes; then
+	AC_CHECK_HEADER(GL/gl.h, [USE_DRI="yes"], [USE_DRI="no"])
+fi
+
+AC_MSG_CHECKING([whether to enable DRI support])
+AC_MSG_RESULT($USE_DRI)
+test "x$USE_DRI" = xyes && AC_DEFINE(USE_DRI, 1, [Build support for DRI])
+AM_CONDITIONAL(USE_DRI, test "x$USE_DRI" = xyes)
+
+AC_CHECK_FILE([${sdkdir}/damage.h],
+	[AC_DEFINE(DAMAGE,1,[Use Damage extension])], [])
+
+# check for xf86_ansic.h
 CFLAGS="$SAVED_CFLAGS"
 CPPFLAGS="$SAVED_CPPFLAGS"
 
@@ -132,6 +209,28 @@ AC_CHECK_MEMBER([MonRec.maxPixClock],
 if test "x$MONREC_HAS_BANDWIDTH" = xyes; then
         AC_DEFINE(MONREC_HAS_BANDWIDTH, 1, [MonRec has member maxPixClock])
 fi
+
+# Check whether xf86CrtcFuncsRec has a set_mode_major member.
+AC_CHECK_MEMBER([xf86CrtcFuncsRec.set_mode_major],
+         [XF86CRTCFUNCS_HAS_SETMODEMAJOR=yes], [XF86CRTCFUNCS_HAS_SETMODEMAJOR=no],
+         [#include "${sdkdir}/xorg-server.h"
+#include "${sdkdir}/xf86.h"
+#include "${sdkdir}/xf86Crtc.h"])
+if test "x$XF86CRTCFUNCS_HAS_SETMODEMAJOR" = xyes; then
+        AC_DEFINE(XF86CRTCFUNCS_HAS_SETMODEMAJOR, 1, [xf86CrtcFuncsRec has member set_mode_major])
+fi
+
+AC_CHECK_DECL(xf86RotateFreeShadow,
+              [AC_DEFINE(HAVE_FREE_SHADOW, 1, [have RotateFreeShadow API])],
+              [],
+              [#include <xorg-server.h>
+               #include <windowstr.h>
+               #include <xf86Crtc.h>])
+
+AC_CHECK_DECL(pci_device_enable,
+              [AC_DEFINE(HAVE_PCI_DEVICE_ENABLE, 1, [Have pci_device_enable prototype])],
+              [],
+              [#include <pciaccess.h>])
 
 CFLAGS="$SAVED_CFLAGS"
 
@@ -209,20 +308,21 @@ for w in \
   -Wpointer-arith -Woverlength-strings -Wvolatile-register-var \
   -Winit-self -Wbad-function-cast \
   -Wstrict-prototypes -Wold-style-definition \
-  -Wnested-externs -Wdisabled-optimization ;
+  -Wnested-externs -Wdisabled-optimization \
+  -Wno-unknown-pragmas ;
 do
   AC_PROG_CC_FLAG($w,[WARN_CFLAGS="$WARN_CFLAGS $w"],)
 done
 
-# Due to AtomBIOS spitting out too much with -pedantic
+# atombios.h prohibits -std=c99 due to unnamed unions
 PEDANTIC_CFLAGS=""
-for w in -pedantic -Wno-long-long -Wno-variadic-macros ; do
+for w in -Wno-long-long -Wno-variadic-macros ; do
   AC_PROG_CC_FLAG($w,[PEDANTIC_CFLAGS="$PEDANTIC_CFLAGS $w"],)
 done
 
 # AtomBios special flags
 ATOMBIOS_CFLAGS=""
-for w in -std=c99 -Wno-unknown-pragmas ; do
+for w in -Wno-unknown-pragmas ; do
   AC_PROG_CC_FLAG($w,[ATOMBIOS_CFLAGS="$ATOMBIOS_CFLAGS $w"],)
 done
 
@@ -242,6 +342,7 @@ esac
 AC_SUBST([PCIUTILS_CFLAGS])
 AC_SUBST([PCIUTILS_LIBS])
 AC_SUBST([XORG_CFLAGS])
+AC_SUBST([DRI_CFLAGS])
 AC_SUBST([WARN_CFLAGS])
 AC_SUBST([PEDANTIC_CFLAGS])
 AC_SUBST([ATOMBIOS_CFLAGS])
@@ -271,9 +372,16 @@ AC_DEFINE_UNQUOTED([PACKAGE_VERSION_PATCHLEVEL],
 		[Patchlevel Version])
 fi
 
+SHAVE_INIT(.,enable)
+
 AC_OUTPUT([
 	Makefile
 	man/Makefile
 	src/Makefile
 	utils/conntest/Makefile
 ])
+if test "x$USE_DRI" != xyes ; then
+  echo ""
+  echo "NOTE: DRI support is disabled"
+  echo ""
+fi

@@ -19,7 +19,6 @@ Version
 
     Last Modified Date: July 30, 2006
     Author Revision: 0.2
-    $Date: 2006/11/25 18:49:28 $ $Revision: 1.1.1.1 $
 
 Number
 

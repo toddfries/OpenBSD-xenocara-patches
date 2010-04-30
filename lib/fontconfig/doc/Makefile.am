@@ -1,4 +1,6 @@
 #
+# fontconfig/doc/Makefile.am
+#
 # Copyright © 2003 Keith Packard
 #
 # Permission to use, copy, modify, distribute, and sell this software and its
@@ -11,9 +13,9 @@
 # representations about the suitability of this software for any purpose.  It
 # is provided "as is" without express or implied warranty.
 #
-# KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
 # INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
-# EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
 # CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 # TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -40,13 +42,17 @@ FNCS_TMPL = ${DOC_SRC}/func.sgml
 DOC_FUNCS_FNCS=\
 	fcatomic.fncs \
 	fcblanks.fncs \
+	fccache.fncs \
 	fccharset.fncs \
 	fcconfig.fncs \
 	fcconstant.fncs \
+	fcdircache.fncs \
 	fcfile.fncs \
 	fcfontset.fncs \
+	fcformat.fncs \
 	fcfreetype.fncs \
 	fcinit.fncs \
+	fclangset.fncs \
 	fcmatrix.fncs \
 	fcobjectset.fncs \
 	fcobjecttype.fncs \
@@ -58,13 +64,17 @@ DOC_FUNCS_FNCS=\
 DOC_FUNCS_SGML=\
 	fcatomic.sgml \
 	fcblanks.sgml \
+	fccache.sgml \
 	fccharset.sgml \
 	fcconfig.sgml \
 	fcconstant.sgml \
+	fcdircache.sgml \
 	fcfile.sgml \
 	fcfontset.sgml \
+	fcformat.sgml \
 	fcfreetype.sgml \
 	fcinit.sgml \
+	fclangset.sgml \
 	fcmatrix.sgml \
 	fcobjectset.sgml \
 	fcobjecttype.sgml \
@@ -79,12 +89,14 @@ man3_MANS=$(DOCMAN3)
 noinst_PROGRAMS=edit-sgml
 edit_sgml_SOURCES=edit-sgml.c
 
-docdir=@DOCDIR@
-
 DOC_FILES=$(TXT) $(PDF) $(HTML_FILES)
 LOCAL_DOCS=$(man3_MANS) $(man5_MANS) $(DOC_FILES) $(HTML_DIR)/*.html
 
-EXTRA_DIST=$(LOCAL_DOCS) $(SGML) $(DOC_FUNCS_FNCS) func.sgml confdir.sgml.in
+check_SCRIPTS=check-missing-doc
+TESTS_ENVIRONMENT=top_srcdir=${top_srcdir} sh
+TESTS=check-missing-doc
+
+EXTRA_DIST=$(LOCAL_DOCS) $(SGML) $(DOC_FUNCS_FNCS) $(check_SCRIPTS) func.sgml confdir.sgml.in
 
 SUFFIXES=.fncs .sgml .txt .html
 
@@ -106,9 +118,11 @@ $(man3_MANS): func.refs
 
 func.refs: local-fontconfig-devel.sgml $(DOC_FUNCS_SGML) version.sgml confdir.sgml
 	$(RM) func.refs
-	$(DOC2MAN) local-fontconfig-devel.sgml
-	mv manpage.refs func.refs
-	$(RM) manpage.links
+	$(DOC2MAN) -o devel-man local-fontconfig-devel.sgml && \
+	mv devel-man/manpage.refs func.refs && \
+	mv devel-man/*.3 . && \
+	$(RM) devel-man/manpage.* && \
+	rmdir devel-man
 
 local-fontconfig-devel.sgml: fontconfig-devel.sgml
 	$(LN_S) $< $@
@@ -117,8 +131,8 @@ $(DOC_FUNCS_SGML): edit-sgml$(EXEEXT) $(FNCS_TMPL)
 
 fonts-conf.5: local-fontconfig-user.sgml version.sgml confdir.sgml
 	$(RM) $@
-	$(DOC2MAN) local-fontconfig-user.sgml
-	$(RM) manpage.refs manpage.links
+	$(DOC2MAN) local-fontconfig-user.sgml && \
+	$(RM) manpage.*
 	
 local-fontconfig-user.sgml: fontconfig-user.sgml
 	$(LN_S) $< $@
@@ -131,7 +145,7 @@ clean-local:
 
 $(HTML_DIR): local-fontconfig-devel.sgml $(DOC_FUNCS_SGML) version.sgml confdir.sgml
 	$(RM) -r $(HTML_DIR)
-	$(DOC2HTML) -o $(HTML_DIR) local-fontconfig-devel.sgml
+	$(DOC2HTML) -V '%use-id-as-filename%' -o $(HTML_DIR) local-fontconfig-devel.sgml
 
 fontconfig-devel.txt: local-fontconfig-devel.sgml $(DOC_FUNCS_SGML) version.sgml confdir.sgml
 	$(RM) $@

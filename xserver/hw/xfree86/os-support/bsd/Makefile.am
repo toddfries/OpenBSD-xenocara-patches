@@ -1,7 +1,5 @@
 noinst_LTLIBRARIES = libbsd.la
 
-# FIXME: Add USB mouse support?
-
 # APM support.
 if BSD_KQUEUE_APM
 APM_SOURCES = $(srcdir)/bsd_kqueue_apm.c
@@ -48,7 +46,8 @@ ARCH_SOURCES = hp300_video.c \
 endif 
 
 if HPPA_VIDEO
-ARCH_SOURCES = hppa_video.c
+ARCH_SOURCES = hppa_video.c \
+	$(srcdir)/../shared/ioperm_noop.c
 endif
 
 if I386_VIDEO
@@ -79,14 +78,11 @@ AM_CFLAGS = -DUSESTDRES $(XORG_CFLAGS) $(DIX_CFLAGS)
 INCLUDES = $(XORG_INCS)
 
 libbsd_la_SOURCES = \
-	$(srcdir)/../shared/libc_wrapper.c \
 	$(srcdir)/../shared/posix_tty.c \
 	$(srcdir)/../shared/sigio.c \
-	$(srcdir)/../shared/stdPci.c \
 	$(srcdir)/../shared/vidmem.c \
 	bsd_VTsw.c \
 	bsd_init.c \
-	bsd_mouse.c \
 	bsd_bell.c \
 	$(ARCH_SOURCES) \
 	$(AGP_SOURCES) \
@@ -98,16 +94,4 @@ libbsd_la_SOURCES = \
 
 # FIXME: Add these files to the build as needed
 EXTRA_DIST = \
-	bsd_apm.c \
-	bsd_jstk.c \
-	bsd_kqueue_apm.c \
-	bsdResource.c \
-	memrange.h \
-	libusb/data.c \
-	libusb/descr.c \
-	libusb/parse.c \
-	libusb/usage.c \
-	libusb/usb.3 \
-	libusb/usb.h \
-	libusb/usb_hid_usages \
-	libusb/usbvar.h
+	memrange.h

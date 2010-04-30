@@ -22,13 +22,13 @@
  * Authors:  Alan Hourihane, <alanh@fairlite.demon.co.uk>
  *           Matthew Grossman, <mattg@oz.net> - acceleration and misc fixes
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tga/tga_driver.c,v 1.60tsi Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include <string.h>
+#include <unistd.h>
 
 /* everybody includes these */
 #include "xf86.h"
@@ -38,12 +38,10 @@
 #include "xf86PciInfo.h"
 #include "xf86Pci.h"
 
-/* module versioning */
-#include "xf86Version.h"
-
-/* RAC stuff */
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 #include "xf86Resources.h"
-
+#include "xf86RAC.h"
+#endif
 /*  #include "vgaHW.h" */
 
 /* software cursor */
@@ -56,9 +54,6 @@
 #include "micmap.h"
 
 #include "fb.h"
-
-/* more RAC stuff */
-#include "xf86RAC.h"
 
 /* Gamma Correction? */
 #include "xf86cmap.h"
@@ -73,8 +68,13 @@
 #endif
 
 #include "globals.h"
+#ifdef HAVE_XEXTPROTO_71
+#include <X11/extensions/dpmsconst.h>
+#else
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
+#endif
+
 
 #include "xf86xv.h"
 #include <X11/extensions/Xv.h>
@@ -118,9 +118,9 @@ void TGASync(ScrnInfoPtr pScrn);
 #define TGA_VERSION 4000
 #define TGA_NAME "TGA"
 #define TGA_DRIVER_NAME "tga"
-#define TGA_MAJOR_VERSION 1
-#define TGA_MINOR_VERSION 1
-#define TGA_PATCHLEVEL 0
+#define TGA_MAJOR_VERSION PACKAGE_VERSION_MAJOR
+#define TGA_MINOR_VERSION PACKAGE_VERSION_MINOR
+#define TGA_PATCHLEVEL PACKAGE_VERSION_PATCHLEVEL
 
 /* 
  * This contains the functions needed by the server after loading the driver
@@ -180,33 +180,6 @@ static RamDacSupportedInfoRec BTramdacs[] = {
     { -1 }
 };
 
-static const char *ramdacSymbols[] = {
-    "BTramdacProbe",
-    "RamDacCreateInfoRec",
-    "RamDacDestroyInfoRec",
-    "RamDacFreeRec",
-    "RamDacGetHWIndex",
-    "RamDacHandleColormaps",
-    "RamDacInit",
-    "xf86CreateCursorInfoRec",
-    "xf86InitCursor",
-    NULL
-};
-
-static const char *xaaSymbols[] = {
-    "XAACreateInfoRec",
-    "XAADestroyInfoRec",
-    "XAAGetGCIndex",
-    "XAAInit",
-    NULL
-};
-
-static const char *fbSymbols[] = {
-    "fbPictureInit",
-    "fbScreenInit",
-    NULL
-};
-
 #ifdef XFree86LOADER
 
 static MODULESETUPPROTO(tgaSetup);
@@ -235,13 +208,6 @@ tgaSetup(pointer module, pointer opts, int *errmaj, int *errmin)
     if (!setupDone) {
 	setupDone = TRUE;
 	xf86AddDriver(&TGA, module, 0);
-
-	/*
-	 * Modules that this driver always requires can be loaded here
-	 * by calling LoadSubModule().
-	 */
-
-	LoaderRefSymLists(ramdacSymbols, fbSymbols, xaaSymbols, NULL);
 
 	/*
 	 * The return value must be non-NULL on success even though there
@@ -371,6 +337,7 @@ TGAProbe(DriverPtr drv, int flags)
      * All of the cards this driver supports are PCI, so the "probing" just
      * amounts to checking the PCI data that the server has already collected.
      */
+#ifndef XSERVER_LIBPCIACCESS
     if (xf86GetPciVideoInfo() == NULL) {
 	/*
 	 * We won't let anything in the config file override finding no
@@ -378,6 +345,7 @@ TGAProbe(DriverPtr drv, int flags)
 	 */
 	return FALSE;
     }
+#endif
 
     numUsed = xf86MatchPciInstances(TGA_NAME, PCI_VENDOR_DIGITAL,
 		   TGAChipsets, TGAPciChipsets, devSections, numDevSections,
@@ -481,8 +449,6 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
     if (!xf86LoadSubModule(pScrn, "ramdac"))
 	return FALSE;
 
-    xf86LoaderReqSymLists(ramdacSymbols, NULL);
-
     /* Allocate the TGARec driverPrivate */
     if (!TGAGetRec(pScrn)) {
 	return FALSE;
@@ -503,7 +469,9 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
     /* This is the general case */
     for (i = 0; i < pScrn->numEntities; i++) {
 	pTga->pEnt = xf86GetEntityInfo(pScrn->entityList[i]);
+#ifndef XSERVER_LIBPCIACCESS
 	if (pTga->pEnt->resources) return FALSE;
+#endif
 	pTga->Chipset = pTga->pEnt->chipset;
 	pScrn->chipset = (char *)xf86TokenToString(TGAChipsets,
 						   pTga->pEnt->chipset);
@@ -512,9 +480,11 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
 	if (pTga->pEnt->location.type == BUS_PCI) {
 	    pciPtr = xf86GetPciInfoForEntity(pTga->pEnt->index);
 	    pTga->PciInfo = pciPtr;
+#ifndef XSERVER_LIBPCIACCESS
 	    pTga->PciTag = pciTag(pTga->PciInfo->bus, 
 				  pTga->PciInfo->device,
 				  pTga->PciInfo->func);
+#endif
 	}
 	else
 	    return FALSE;
@@ -538,8 +508,10 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
     from = X_PROBED;
     xf86DrvMsg(pScrn->scrnIndex, from, "Chipset: \"%s\"\n", pScrn->chipset);
 
+#ifndef XSERVER_LIBPCIACCESS
     pTga->PciTag = pciTag(pTga->PciInfo->bus, pTga->PciInfo->device,
 			  pTga->PciInfo->func);
+#endif
 
  
 
@@ -672,7 +644,7 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
 	pTga->CardAddress = pTga->pEnt->device->MemBase;
 	from = X_CONFIG;
     } else {
-      pTga->CardAddress = pTga->PciInfo->memBase[0] & 0xFFC00000;/*??*/
+      pTga->CardAddress = PCI_REGION_BASE(pTga->PciInfo, 0, REGION_MEM) & 0xFFC00000;/*??*/
     }
 
     pTga->FbAddress = pTga->CardAddress;
@@ -708,17 +680,53 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
       switch (pTga->Chipset)
 	{
 	case PCI_CHIP_TGA2:
+#ifndef XSERVER_LIBPCIACCESS
 	  Base = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO_32BIT,
 			       pTga->PciTag, pTga->IOAddress, 0x1000);
+
+#else
+	  {
+	      void** result = (void**)&Base;
+	      int err = pci_device_map_range(pTga->PciInfo,
+					     pTga->IOAddress,
+					     0x1000,
+					     PCI_DEV_MAP_FLAG_WRITABLE,
+					     result);
+	      if (err)
+		  return FALSE;
+	  }
+#endif
 	  pTga->CardType = (*(unsigned int *)((char *)Base+TGA_REVISION_REG) >> 21) & 0x3;
 	  pTga->CardType ^= (pTga->CardType == 1) ? 0 : 3;
+
+#ifndef XSERVER_LIBPCIACCESS
 	  xf86UnMapVidMem(pScrn->scrnIndex, Base, 0x1000);
+#else
+	  pci_device_unmap_range(pTga->PciInfo, Base, 0x1000);
+#endif
 	  break;
 	case PCI_CHIP_DEC21030:
+#ifndef XSERVER_LIBPCIACCESS
 	  Base = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO_32BIT,
 			       pTga->PciTag, pTga->FbAddress, 4);
+#else
+	  {
+	      void** result = (void**)&Base;
+	      int err = pci_device_map_range(pTga->PciInfo,
+					     pTga->FbAddress,
+					     0x4,
+					     PCI_DEV_MAP_FLAG_WRITABLE,
+					     result);
+	      if (err)
+		  return FALSE;
+	  }
+#endif
 	  pTga->CardType = (*(unsigned int *)Base >> 12) & 0xf;
+#ifndef XSERVER_LIBPCIACCESS
 	  xf86UnMapVidMem(pScrn->scrnIndex, Base, 4);
+#else
+	  pci_device_unmap_range(pTga->PciInfo, Base, 4);
+#endif
 	  break;
 	}
     }
@@ -757,6 +765,7 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
     xf86DrvMsg(pScrn->scrnIndex, from, "MMIO registers at 0x%lX\n",
 	       (unsigned long)pTga->IOAddress);
 
+#ifndef XSERVER_LIBPCIACCESS
     /* RAC stuff: we don't have any resources we need to reserve,
        but we should do this here anyway */
     if (xf86RegisterResources(pTga->pEnt->index, NULL, ResExclusive)) {
@@ -765,8 +774,7 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
       TGAFreeRec(pScrn);
       return FALSE;
     }
-
-    
+#endif
 
     /* HW bpp matches reported bpp */
     pTga->HwBpp = pScrn->bitsPerPixel;
@@ -798,15 +806,12 @@ TGAPreInit(ScrnInfoPtr pScrn, int flags)
 	return FALSE;
     }
 
-    xf86LoaderReqSymLists(fbSymbols, NULL);
-
     /* Load XAA if needed */
     if (!pTga->NoAccel || pTga->HWCursor) {
 	if (!xf86LoadSubModule(pScrn, "xaa")) {
 	    TGAFreeRec(pScrn);
 	    return FALSE;
 	}
-	xf86LoaderReqSymLists(xaaSymbols, NULL);
     }
 
     
@@ -1008,34 +1013,87 @@ TGAMapMem(ScrnInfoPtr pScrn)
 
     /* TGA doesn't need a sparse memory mapping, because all register
        accesses are doublewords */
-    
+
+#ifndef XSERVER_LIBPCIACCESS    
     pTga->IOBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO_32BIT,
 				      pTga->PciTag,
 				      pTga->IOAddress, 0x100000);
+#else
+    {
+	void** result = (void**)&pTga->IOBase;
+	int err = pci_device_map_range(pTga->PciInfo,
+				       pTga->IOAddress,
+				       0x100000,
+				       PCI_DEV_MAP_FLAG_WRITABLE,
+				       result);
+	if (err)
+	    return FALSE;
+    }
+#endif
     if (pTga->IOBase == NULL)
 	return FALSE;
 
+#ifndef XSERVER_LIBPCIACCESS
     pTga->FbBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
 				 pTga->PciTag,
 				 (unsigned long)pTga->FbAddress,
 				 pTga->FbMapSize);
+#else
+    {
+	void** result = (void**)&pTga->FbBase;
+	int err = pci_device_map_range(pTga->PciInfo,
+				       pTga->FbAddress,
+				       pTga->FbMapSize,
+				       PCI_DEV_MAP_FLAG_WRITABLE |
+				       PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				       result);
+	if (err)
+	    return FALSE;
+    }
+#endif
     if (pTga->FbBase == NULL)
 	return FALSE;
 
     if (pTga->Chipset == PCI_CHIP_DEC21030)
 	return TRUE;
 
+#ifndef XSERVER_LIBPCIACCESS
     pTga->ClkBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO_32BIT,
 			pTga->PciTag,
 			(unsigned long)pTga->CardAddress + TGA2_CLOCK_OFFSET,
 			0x10000);
+#else
+    {
+	void** result = (void**)&pTga->ClkBase;
+	int err = pci_device_map_range(pTga->PciInfo,
+				       pTga->CardAddress + TGA2_CLOCK_OFFSET,
+				       0x10000,
+				       PCI_DEV_MAP_FLAG_WRITABLE,
+				       result);
+	if (err)
+	    return FALSE;
+    }
+#endif
     if (pTga->ClkBase == NULL)
 	return FALSE;
 
+#ifndef XSERVER_LIBPCIACCESS
     pTga->DACBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO_32BIT,
 			pTga->PciTag,
 			(unsigned long)pTga->CardAddress + TGA2_RAMDAC_OFFSET,
 			0x10000);
+#else
+    {
+	void** result = (void**)&pTga->DACBase;
+	int err = pci_device_map_range(pTga->PciInfo,
+				       pTga->CardAddress + TGA2_RAMDAC_OFFSET,
+				       0x10000,
+				       PCI_DEV_MAP_FLAG_WRITABLE,
+				       result);
+	if (err)
+	    return FALSE;
+    }
+#endif
     if (pTga->DACBase == NULL)
 	return FALSE;
 
@@ -1053,10 +1111,25 @@ TGAMapMem(ScrnInfoPtr pScrn)
      * framebuffer memory in front of the normal mmap to prevent
      * SEGVs from happening.
      */
+#ifndef XSERVER_LIBPCIACCESS
     pTga->HACKBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
 				 pTga->PciTag,
 				 (unsigned long)pTga->FbAddress - getpagesize(),
 				 getpagesize());
+#else
+    {
+	void** result = (void**)&pTga->DACBase;
+	int err = pci_device_map_range(pTga->PciInfo,
+				       pTga->FbAddress - getpagesize(),
+				       getpagesize(),
+				       PCI_DEV_MAP_FLAG_WRITABLE |
+				       PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				       result);
+	if (err)
+	    return FALSE;
+    }
+#endif
+
     if (pTga->HACKBase == NULL)
 	return FALSE;
 
@@ -1075,22 +1148,42 @@ TGAUnmapMem(ScrnInfoPtr pScrn)
 
     pTga = TGAPTR(pScrn);
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer)pTga->IOBase, 0x100000);
+#else
+    pci_device_unmap_range(pTga->PciInfo, pTga->IOBase, 0x100000);
+#endif
     pTga->IOBase = NULL;
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer)pTga->FbBase, pTga->FbMapSize);
+#else
+    pci_device_unmap_range(pTga->PciInfo, pTga->FbBase, pTga->FbMapSize);
+#endif
     pTga->FbBase = NULL;
 
     if (pTga->Chipset == PCI_CHIP_DEC21030)
 	return TRUE;
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer)pTga->ClkBase, 0x10000);
+#else
+    pci_device_unmap_range(pTga->PciInfo, pTga->ClkBase, 0x10000);
+#endif
     pTga->ClkBase = NULL;
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer)pTga->DACBase, 0x10000);
+#else
+    pci_device_unmap_range(pTga->PciInfo, pTga->DACBase, 0x10000);
+#endif
     pTga->DACBase = NULL;
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer)pTga->HACKBase, getpagesize());
+#else
+    pci_device_unmap_range(pTga->PciInfo, pTga->HACKBase, getpagesize());
+#endif
     pTga->HACKBase = NULL;
 
     return TRUE;

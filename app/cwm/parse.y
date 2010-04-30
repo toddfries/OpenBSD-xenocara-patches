@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.13 2008/06/16 19:09:48 mk Exp $ */
+/*	$OpenBSD: parse.y,v 1.25 2010/01/27 03:04:50 okan Exp $ */
 
 /*
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -21,7 +21,11 @@
 
 %{
 
+#include <sys/param.h>
+#include <sys/queue.h>
+
 #include <ctype.h>
+#include <err.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -29,7 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "headers.h"
 #include "calmwm.h"
 
 TAILQ_HEAD(files, file)		 files = TAILQ_HEAD_INITIALIZER(files);
@@ -54,8 +57,6 @@ int			 findeol(void);
 
 static struct conf	*conf;
 
-extern char		*shortcut_to_name[];
-
 typedef struct {
 	union {
 		int64_t			 number;
@@ -68,7 +69,10 @@ typedef struct {
 
 %token	FONTNAME STICKY GAP MOUSEBIND
 %token	AUTOGROUP BIND COMMAND IGNORE
-%token	YES NO
+%token	YES NO BORDERWIDTH MOVEAMOUNT
+%token	COLOR
+%token	ACTIVEBORDER INACTIVEBORDER
+%token	GROUPBORDER UNGROUPBORDER
 %token	ERROR
 %token	<v.string>		STRING
 %token	<v.number>		NUMBER
@@ -79,6 +83,7 @@ typedef struct {
 grammar		: /* empty */
 		| grammar '\n'
 		| grammar main '\n'
+		| grammar color '\n'
 		| grammar error '\n'		{ file->errors++; }
 		;
 
@@ -109,41 +114,31 @@ main		: FONTNAME STRING		{
 			else
 				conf->flags |= CONF_STICKY_GROUPS;
 		}
+		| BORDERWIDTH NUMBER {
+			conf->bwidth = $2;
+		}
+		| MOVEAMOUNT NUMBER {
+			conf->mamount = $2;
+		}
 		| COMMAND STRING string		{
 			conf_cmd_add(conf, $3, $2, 0);
 			free($2);
 			free($3);
 		}
 		| AUTOGROUP NUMBER STRING	{
-			struct autogroupwin *aw;
-			char *p;
-
 			if ($2 < 0 || $2 > 9) {
 				free($3);
 				yyerror("autogroup number out of range: %d", $2);
 				YYERROR;
 			}
 
-			XCALLOC(aw, struct autogroupwin);
-
-			if ((p = strchr($3, ',')) == NULL) {
-				aw->name = NULL;
-				aw->class = xstrdup($3);
-			} else {
-				*(p++) = '\0';
-				aw->name = xstrdup($3);
-				aw->class = xstrdup(p);
-			}
-			aw->group = xstrdup(shortcut_to_name[$2]);
-
-			TAILQ_INSERT_TAIL(&conf->autogroupq, aw, entry);
-
+			group_make_autogroup(conf, $3, $2);
 			free($3);
 		}
 		| IGNORE STRING {
 			struct winmatch	*wm;
 
-			XCALLOC(wm, struct winmatch);
+			wm = xcalloc(1, sizeof(*wm));
 			strlcpy(wm->title, $2, sizeof(wm->title));
 			TAILQ_INSERT_TAIL(&conf->ignoreq, wm, entry);
 
@@ -155,15 +150,36 @@ main		: FONTNAME STRING		{
 			free($3);
 		}
 		| GAP NUMBER NUMBER NUMBER NUMBER {
-			conf->gap_top = $2;
-			conf->gap_bottom = $3;
-			conf->gap_left = $4;
-			conf->gap_right = $5;
+			conf->gap.top = $2;
+			conf->gap.bottom = $3;
+			conf->gap.left = $4;
+			conf->gap.right = $5;
 		}
 		| MOUSEBIND STRING string	{
 			conf_mousebind(conf, $2, $3);
 			free($2);
 			free($3);
+		}
+		;
+
+color		: COLOR colors
+		;
+
+colors		: ACTIVEBORDER STRING {
+			free(conf->color[CWM_COLOR_BORDOR_ACTIVE].name);
+			conf->color[CWM_COLOR_BORDOR_ACTIVE].name = $2;
+		}
+		| INACTIVEBORDER STRING {
+			free(conf->color[CWM_COLOR_BORDER_INACTIVE].name);
+			conf->color[CWM_COLOR_BORDER_INACTIVE].name = $2;
+		}
+		| GROUPBORDER STRING {
+			free(conf->color[CWM_COLOR_BORDER_GROUP].name);
+			conf->color[CWM_COLOR_BORDER_GROUP].name = $2;
+		}
+		| UNGROUPBORDER STRING {
+			free(conf->color[CWM_COLOR_BORDER_UNGROUP].name);
+			conf->color[CWM_COLOR_BORDER_UNGROUP].name = $2;
 		}
 		;
 %%
@@ -198,15 +214,22 @@ lookup(char *s)
 {
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
+		{ "activeborder",	ACTIVEBORDER},
 		{ "autogroup",		AUTOGROUP},
 		{ "bind",		BIND},
+		{ "borderwidth",	BORDERWIDTH},
+		{ "color",		COLOR},
 		{ "command",		COMMAND},
 		{ "fontname",		FONTNAME},
 		{ "gap",		GAP},
+		{ "groupborder",	GROUPBORDER},
 		{ "ignore",		IGNORE},
+		{ "inactiveborder",	INACTIVEBORDER},
 		{ "mousebind",		MOUSEBIND},
+		{ "moveamount",		MOVEAMOUNT},
 		{ "no",			NO},
 		{ "sticky",		STICKY},
+		{ "ungroupborder",	UNGROUPBORDER},
 		{ "yes",		YES}
 	};
 	const struct keywords	*p;
@@ -462,56 +485,12 @@ popfile(void)
 	return (EOF);
 }
 
-void
-conf_clear(struct conf *c)
-{
-	struct autogroupwin	*ag;
-	struct keybinding	*kb;
-	struct winmatch		*wm;
-	struct cmd		*cmd;
-	struct mousebinding	*mb;
-
-	while (cmd = TAILQ_FIRST(&c->cmdq)) {
-		TAILQ_REMOVE(&c->cmdq, cmd, entry);
-		free(cmd);
-	}
-
-	while (kb = TAILQ_FIRST(&c->keybindingq)) {
-		TAILQ_REMOVE(&c->keybindingq, kb, entry);
-		free(kb);
-	}
-
-	while (ag = TAILQ_FIRST(&c->autogroupq)) {
-		TAILQ_REMOVE(&c->autogroupq, ag, entry);
-		free(ag->class);
-		if (ag->name)
-			free(ag->name);
-		free(ag->group);
-		free(ag);
-	}
-
-	while (wm = TAILQ_FIRST(&c->ignoreq)) {
-		TAILQ_REMOVE(&c->ignoreq, wm, entry);
-		free(wm);
-	}
-
-	while (mb = TAILQ_FIRST(&c->mousebindingq)) {
-		TAILQ_REMOVE(&c->mousebindingq, mb, entry);
-		free(mb);
-	}
-
-	if (c->DefaultFontName != NULL &&
-	    c->DefaultFontName != DEFAULTFONTNAME)
-		free(c->DefaultFontName);
-}
-
-
 int
 parse_config(const char *filename, struct conf *xconf)
 {
 	int			 errors = 0;
 
-	XCALLOC(conf, struct conf);
+	conf = xcalloc(1, sizeof(*conf));
 
 	if ((file = pushfile(filename)) == NULL) {
 		free(conf);
@@ -536,32 +515,36 @@ parse_config(const char *filename, struct conf *xconf)
 		struct winmatch		*wm;
 		struct cmd		*cmd;
 		struct mousebinding	*mb;
+		int			 i;
 
 		conf_clear(xconf);
 
 		xconf->flags = conf->flags;
+		xconf->bwidth = conf->bwidth;
+		xconf->mamount = conf->mamount;
+		xconf->gap = conf->gap;
 
-		while (cmd = TAILQ_FIRST(&conf->cmdq)) {
+		while ((cmd = TAILQ_FIRST(&conf->cmdq)) != NULL) {
 			TAILQ_REMOVE(&conf->cmdq, cmd, entry);
 			TAILQ_INSERT_TAIL(&xconf->cmdq, cmd, entry);
 		}
 
-		while (kb = TAILQ_FIRST(&conf->keybindingq)) {
+		while ((kb = TAILQ_FIRST(&conf->keybindingq)) != NULL) {
 			TAILQ_REMOVE(&conf->keybindingq, kb, entry);
 			TAILQ_INSERT_TAIL(&xconf->keybindingq, kb, entry);
 		}
 
-		while (ag = TAILQ_FIRST(&conf->autogroupq)) {
+		while ((ag = TAILQ_FIRST(&conf->autogroupq)) != NULL) {
 			TAILQ_REMOVE(&conf->autogroupq, ag, entry);
 			TAILQ_INSERT_TAIL(&xconf->autogroupq, ag, entry);
 		}
 
-		while (wm = TAILQ_FIRST(&conf->ignoreq)) {
+		while ((wm = TAILQ_FIRST(&conf->ignoreq)) != NULL) {
 			TAILQ_REMOVE(&conf->ignoreq, wm, entry);
 			TAILQ_INSERT_TAIL(&xconf->ignoreq, wm, entry);
 		}
 
-		while (mb = TAILQ_FIRST(&conf->mousebindingq)) {
+		while ((mb = TAILQ_FIRST(&conf->mousebindingq)) != NULL) {
 			TAILQ_REMOVE(&conf->mousebindingq, mb, entry);
 			TAILQ_INSERT_TAIL(&xconf->mousebindingq, mb, entry);
 		}
@@ -571,9 +554,10 @@ parse_config(const char *filename, struct conf *xconf)
 		strlcpy(xconf->lockpath, conf->lockpath,
 		    sizeof(xconf->lockpath));
 
-		xconf->DefaultFontName = conf->DefaultFontName;
+		for (i = 0; i < CWM_COLOR_MAX; i++)
+			xconf->color[i].name = conf->color[i].name;
 
-		bcopy(&(conf->gap_top), &(xconf->gap_top), sizeof(int) * 4);
+		xconf->DefaultFontName = conf->DefaultFontName;
 	}
 
 	free(conf);

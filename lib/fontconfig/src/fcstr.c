@@ -1,5 +1,5 @@
 /*
- * $RCSId: xc/lib/fontconfig/src/fcstr.c,v 1.10 2002/08/31 22:17:32 keithp Exp $
+ * fontconfig/src/fcstr.c
  *
  * Copyright © 2000 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -323,6 +323,26 @@ FcStrContainsIgnoreBlanksAndCase (const FcChar8 *s1, const FcChar8 *s2)
     return 0;
 }
 
+static FcBool
+FcCharIsPunct (const FcChar8 c)
+{
+    if (c < '0')
+	return FcTrue;
+    if (c <= '9')
+	return FcFalse;
+    if (c < 'A')
+	return FcTrue;
+    if (c <= 'Z')
+	return FcFalse;
+    if (c < 'a')
+	return FcTrue;
+    if (c <= 'z')
+	return FcFalse;
+    if (c <= '~')
+	return FcTrue;
+    return FcFalse;
+}
+
 /*
  * Is the head of s1 equal to s2?
  */
@@ -358,6 +378,34 @@ FcStrContainsIgnoreCase (const FcChar8 *s1, const FcChar8 *s2)
 	if (FcStrIsAtIgnoreCase (s1, s2))
 	    return s1;
 	s1++;
+    }
+    return 0;
+}
+
+/*
+ * Does s1 contain an instance of s2 on a word boundary (ignoring case)?
+ */
+
+const FcChar8 *
+FcStrContainsWord (const FcChar8 *s1, const FcChar8 *s2)
+{
+    FcBool  wordStart = FcTrue;
+    int	    s1len = strlen ((char *) s1);
+    int	    s2len = strlen ((char *) s2);
+	
+    while (s1len >= s2len)
+    {
+	if (wordStart && 
+	    FcStrIsAtIgnoreCase (s1, s2) &&
+	    (s1len == s2len || FcCharIsPunct (s1[s2len])))
+	{
+	    return s1;
+	}
+	wordStart = FcFalse;
+	if (FcCharIsPunct (*s1))
+	    wordStart = FcTrue;
+	s1++;
+	s1len--;
     }
     return 0;
 }
@@ -662,11 +710,18 @@ FcUtf16Len (const FcChar8   *string,
 void
 FcStrBufInit (FcStrBuf *buf, FcChar8 *init, int size)
 {
-    buf->buf = init;
+    if (init)
+    {
+	buf->buf = init;
+	buf->size = size;
+    } else
+    {
+	buf->buf = buf->buf_static;
+	buf->size = sizeof (buf->buf_static);
+    }
     buf->allocated = FcFalse;
     buf->failed = FcFalse;
     buf->len = 0;
-    buf->size = size;
 }
 
 void
@@ -685,7 +740,10 @@ FcStrBufDone (FcStrBuf *buf)
 {
     FcChar8 *ret;
 
-    ret = malloc (buf->len + 1);
+    if (buf->failed)
+	ret = NULL;
+    else
+	ret = malloc (buf->len + 1);
     if (ret)
     {
 	FcMemAlloc (FC_MEM_STRING, buf->len + 1);
@@ -696,6 +754,17 @@ FcStrBufDone (FcStrBuf *buf)
     return ret;
 }
 
+FcChar8 *
+FcStrBufDoneStatic (FcStrBuf *buf)
+{
+    FcStrBufChar (buf, '\0');
+
+    if (buf->failed)
+	return NULL;
+
+    return buf->buf;
+}
+
 FcBool
 FcStrBufChar (FcStrBuf *buf, FcChar8 c)
 {
@@ -703,6 +772,9 @@ FcStrBufChar (FcStrBuf *buf, FcChar8 c)
     {
 	FcChar8	    *new;
 	int	    size;
+
+	if (buf->failed)
+	    return FcFalse;
 
 	if (buf->allocated)
 	{
@@ -854,6 +926,9 @@ FcStrCanonAbsoluteFilename (const FcChar8 *s)
 	    if (slash)
 	    {
 		switch (s - slash) {
+		case 1:
+		    f -= 1;	/* squash // and trim final / from file */
+		    break;
 		case 2:
 		    if (!strncmp ((char *) slash, "/.", 2))
 		    {
@@ -892,7 +967,13 @@ FcConvertDosPath (char *str)
   char *dest = str;
   char *end = str + len;
   char last = 0;
-  
+
+  if (*p == '\\')
+    {
+      *p = '/';
+      p++;
+      dest++;
+    }
   while (p < end)
     {
       if (*p == '\\')
@@ -917,10 +998,8 @@ FcStrCanonFilename (const FcChar8 *s)
 {
 #ifdef _WIN32
     FcChar8 full[FC_MAX_FILE_LEN + 2];
-    FcChar8 basename[FC_MAX_FILE_LEN + 2];
     int size = GetFullPathName (s, sizeof (full) -1,
-				full,
-				basename);
+				full, NULL);
 
     if (size == 0)
 	perror ("GetFullPathName");
@@ -977,11 +1056,14 @@ _FcStrSetAppend (FcStrSet *set, FcChar8 *s)
 	if (!strs)
 	    return FcFalse;
 	FcMemAlloc (FC_MEM_STRSET, (set->size + 2) * sizeof (FcChar8 *));
-	set->size = set->size + 1;
 	if (set->num)
 	    memcpy (strs, set->strs, set->num * sizeof (FcChar8 *));
 	if (set->strs)
+	{
+	    FcMemFree (FC_MEM_STRSET, (set->size + 1) * sizeof (FcChar8 *));
 	    free (set->strs);
+	}
+	set->size = set->size + 1;
 	set->strs = strs;
     }
     set->strs[set->num++] = s;
@@ -1070,9 +1152,11 @@ FcStrSetDestroy (FcStrSet *set)
     
 	for (i = 0; i < set->num; i++)
 	    FcStrFree (set->strs[i]);
-	FcMemFree (FC_MEM_STRSET, (set->size) * sizeof (FcChar8 *));
 	if (set->strs)
+	{
+	    FcMemFree (FC_MEM_STRSET, (set->size + 1) * sizeof (FcChar8 *));
 	    free (set->strs);
+	}
 	FcMemFree (FC_MEM_STRSET, sizeof (FcStrSet));
 	free (set);
     }

@@ -27,14 +27,18 @@
 
 #include "xf86.h"
 #include "xf86_OSproc.h"
+
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6 
 #include "xf86Resources.h"
+#endif
+
 #include "compiler.h"
 #include "xf86PciInfo.h"
 #include "xf86Pci.h"
 #include "xf86fbman.h"
 #include "regionstr.h"
 
-#ifdef XF86DRI
+#ifdef OPENCHROMEDRI
 
 #include "via.h"
 #include "via_drm.h"
@@ -114,11 +118,7 @@ static int viaXvMCInterceptXvAttribute(ScrnInfoPtr pScrn, Atom attribute,
 static int viaXvMCInterceptPutImage(ScrnInfoPtr, short, short, short, short,
                                     short, short, short, short, int,
                                     unsigned char *, short, short, Bool,
-                                    RegionPtr, pointer
-#ifdef USE_NEW_XVABI
-                                    , DrawablePtr
-#endif
-        );
+                                    RegionPtr, pointer, DrawablePtr);
 static int viaXvMCInterceptXvGetAttribute(ScrnInfoPtr pScrn, Atom attribute,
                                           INT32 * value, pointer data);
 
@@ -325,6 +325,8 @@ ViaInitXVMC(ScreenPtr pScreen)
 
     if ((pVia->Chipset == VIA_KM400) ||
         (pVia->Chipset == VIA_CX700) ||
+        (pVia->Chipset == VIA_VX800) ||
+        (pVia->Chipset == VIA_VX855) ||
         (pVia->Chipset == VIA_K8M890) ||
         (pVia->Chipset == VIA_P4M900)) {
         xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
@@ -415,6 +417,9 @@ ViaCleanupXVMC(ScrnInfoPtr pScrn, XF86VideoAdaptorPtr * XvAdaptors,
         cleanupViaXvMC(vXvMC, XvAdaptors, XvAdaptorCount);
     }
     for (i = 0; i < XvAdaptorCount; ++i) {
+        if (!XvAdaptors[i])
+            continue;
+
         for (j = 0; j < XvAdaptors[i]->nPorts; ++j) {
             viaPortPrivPtr pPriv = XvAdaptors[i]->pPortPrivates[j].ptr;
 
@@ -488,7 +493,7 @@ ViaXvMCCreateContext(ScrnInfoPtr pScrn, XvMCContextPtr pContext,
     contextRec->mmioOffset = vXvMC->mmioBase;
     contextRec->mmioSize = VIA_MMIO_REGSIZE;
     contextRec->sAreaSize = pDRIInfo->SAREASize;
-    contextRec->sAreaPrivOffset = sizeof(XF86DRISAREARec);
+    contextRec->sAreaPrivOffset = sizeof(OPENCHROMEDRISAREARec);
     contextRec->major = VIAXVMC_MAJOR;
     contextRec->minor = VIAXVMC_MINOR;
     contextRec->pl = VIAXVMC_PL;
@@ -923,11 +928,7 @@ viaXvMCInterceptPutImage(ScrnInfoPtr pScrn, short src_x, short src_y,
                          short src_h, short drw_w, short drw_h,
                          int id, unsigned char *buf, short width,
                          short height, Bool sync, RegionPtr clipBoxes,
-                         pointer data
-#ifdef USE_NEW_XVABI
-                         , DrawablePtr pDraw
-#endif
-        )
+                         pointer data, DrawablePtr pDraw)
 {
     viaPortPrivPtr pPriv = (viaPortPrivPtr) data;
     ViaXvMCXVPriv *vx = (ViaXvMCXVPriv *) pPriv->xvmc_priv;
@@ -984,11 +985,7 @@ viaXvMCInterceptPutImage(ScrnInfoPtr pScrn, short src_x, short src_y,
     }
     return vx->PutImage(pScrn, src_x, src_y, drw_x, drw_y, src_w, src_h,
                         drw_w, drw_h, id, buf, width, height, sync, clipBoxes,
-                        data
-#ifdef USE_NEW_XVABI
-                        , pDraw
-#endif
-            );
+                        data, pDraw);
 }
 
 unsigned long
@@ -999,4 +996,4 @@ viaXvMCPutImageSize(ScrnInfoPtr pScrn)
     return 0;
 }
 
-#endif /* XF86DRI */
+#endif /* OPENCHROMEDRI */

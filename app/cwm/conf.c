@@ -15,10 +15,20 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: conf.c,v 1.50 2008/07/22 20:51:54 oga Exp $
+ * $Id: conf.c,v 1.76 2010/01/27 03:04:50 okan Exp $
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/stat.h>
+
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
 
 #ifndef timespeccmp
@@ -28,7 +38,8 @@
 	    ((tsp)->tv_sec cmp (usp)->tv_sec))
 #endif
 
-extern struct screen_ctx	*Curscreen;
+static void	 conf_mouseunbind(struct conf *, struct mousebinding *);
+static void	 conf_unbind(struct conf *, struct keybinding *);
 
 /* Add an command menu entry to the end of the menu */
 void
@@ -41,8 +52,7 @@ conf_cmd_add(struct conf *c, char *image, char *label, int flags)
 	else if (strcmp(label, "lock") == 0)
 		strlcpy(c->lockpath, image, sizeof(c->lockpath));
 	else {
-		struct cmd *cmd;
-		XMALLOC(cmd, struct cmd);
+		struct cmd *cmd = xmalloc(sizeof(*cmd));
 		cmd->flags = flags;
 		strlcpy(cmd->image, image, sizeof(cmd->image));
 		strlcpy(cmd->label, label, sizeof(cmd->label));
@@ -51,31 +61,129 @@ conf_cmd_add(struct conf *c, char *image, char *label, int flags)
 }
 
 void
-conf_font(struct conf *c)
+conf_gap(struct conf *c, struct screen_ctx *sc)
 {
-	struct screen_ctx	*sc;
+	sc->gap = c->gap;
+}
 
-	sc = screen_current();
+void
+conf_font(struct conf *c, struct screen_ctx *sc)
+{
+	sc->font = font_make(sc, c->DefaultFontName);
+	sc->fontheight = font_ascent(sc) + font_descent(sc) + 1;
+}
 
-	c->DefaultFont = font_make(sc, Conf.DefaultFontName);
-	c->FontHeight = font_ascent() + font_descent() + 1;
+void
+conf_color(struct conf *c, struct screen_ctx *sc)
+{
+	int	 i;
+
+	for (i = 0; i < CWM_COLOR_MAX; i++) {
+		xu_freecolor(sc, sc->color[i].pixel);
+		sc->color[i].pixel = xu_getcolor(sc, c->color[i].name);
+	}
 }
 
 void
 conf_reload(struct conf *c)
 {
+	struct screen_ctx	*sc;
+	struct client_ctx	*cc;
+
 	if (parse_config(c->conf_path, c) == -1) {
 		warnx("config file %s has errors, not reloading", c->conf_path);
 		return;
 	}
 
-	conf_font(c);
+	TAILQ_FOREACH(cc, &Clientq, entry)
+		client_draw_border(cc);
+	TAILQ_FOREACH(sc, &Screenq, entry) {
+		conf_gap(c, sc);
+		conf_color(c, sc);
+		conf_font(c, sc);
+	}
 }
+
+static struct {
+	char	*key;
+	char	*func;
+} kb_binds[] = {
+	{ "CM-Return",	"terminal" },
+	{ "CM-Delete",	"lock" },
+	{ "M-question",	"exec" },
+	{ "CM-w",	"exec_wm" },
+	{ "M-period",	"ssh" },
+	{ "M-Return",	"hide" },
+	{ "M-Down",	"lower" },
+	{ "M-Up",	"raise" },
+	{ "M-slash",	"search" },
+	{ "C-slash",	"menusearch" },
+	{ "M-Tab",	"cycle" },
+	{ "MS-Tab",	"rcycle" },
+	{ "CM-n",	"label" },
+	{ "CM-x",	"delete" },
+	{ "CM-0",	"nogroup" },
+	{ "CM-1",	"group1" },
+	{ "CM-2",	"group2" },
+	{ "CM-3",	"group3" },
+	{ "CM-4",	"group4" },
+	{ "CM-5",	"group5" },
+	{ "CM-6",	"group6" },
+	{ "CM-7",	"group7" },
+	{ "CM-8",	"group8" },
+	{ "CM-9",	"group9" },
+	{ "M-Right",	"cyclegroup" },
+	{ "M-Left",	"rcyclegroup" },
+	{ "CM-g",	"grouptoggle" },
+	{ "CM-f",	"maximize" },
+	{ "CM-equal",	"vmaximize" },
+	{ "CMS-equal",	"hmaximize" },
+	{ "CMS-r",	"reload" },
+	{ "CMS-q",	"quit" },
+	{ "M-h",	"moveleft" },
+	{ "M-j",	"movedown" },
+	{ "M-k",	"moveup" },
+	{ "M-l",	"moveright" },
+	{ "M-H",	"bigmoveleft" },
+	{ "M-J",	"bigmovedown" },
+	{ "M-K",	"bigmoveup" },
+	{ "M-L",	"bigmoveright" },
+	{ "CM-h",	"resizeleft" },
+	{ "CM-j",	"resizedown" },
+	{ "CM-k",	"resizeup" },
+	{ "CM-l",	"resizeright" },
+	{ "CM-H",	"bigresizeleft" },
+	{ "CM-J",	"bigresizedown" },
+	{ "CM-K",	"bigresizeup" },
+	{ "CM-L",	"bigresizeright" },
+	{ "C-Left",	"ptrmoveleft" },
+	{ "C-Down",	"ptrmovedown" },
+	{ "C-Up",	"ptrmoveup" },
+	{ "C-Right",	"ptrmoveright" },
+	{ "CS-Left",	"bigptrmoveleft" },
+	{ "CS-Down",	"bigptrmovedown" },
+	{ "CS-Up",	"bigptrmoveup" },
+	{ "CS-Right",	"bigptrmoveright" },
+},
+m_binds[] = {
+	{ "1",		"menu_unhide" },
+	{ "2",		"menu_group" },
+	{ "3",		"menu_cmd" },
+	{ "M-1",	"window_move" },
+	{ "CM-1",	"window_grouptoggle" },
+	{ "M-2",	"window_resize" },
+	{ "M-3",	"window_lower" },
+	{ "CMS-3",	"window_hide" },
+};
 
 void
 conf_init(struct conf *c)
 {
+	int	i;
+
 	c->flags = 0;
+	c->bwidth = CONF_BWIDTH;
+	c->mamount = CONF_MAMOUNT;
 
 	TAILQ_INIT(&c->ignoreq);
 	TAILQ_INIT(&c->cmdq);
@@ -83,79 +191,74 @@ conf_init(struct conf *c)
 	TAILQ_INIT(&c->autogroupq);
 	TAILQ_INIT(&c->mousebindingq);
 
-	conf_bindname(c, "CM-Return", "terminal");
-	conf_bindname(c, "CM-Delete", "lock");
-	conf_bindname(c, "M-question", "exec");
-	conf_bindname(c, "CM-w", "exec_wm");
-	conf_bindname(c, "M-period", "ssh");
-	conf_bindname(c, "M-Return", "hide");
-	conf_bindname(c, "M-Down", "lower");
-	conf_bindname(c, "M-Up", "raise");
-	conf_bindname(c, "M-slash", "search");
-	conf_bindname(c, "C-slash", "menusearch");
-	conf_bindname(c, "M-Tab", "cycle");
-	conf_bindname(c, "MS-Tab", "rcycle");
-	conf_bindname(c, "CM-n", "label");
-	conf_bindname(c, "CM-x", "delete");
-	conf_bindname(c, "CM-0", "nogroup");
-	conf_bindname(c, "CM-1", "group1");
-	conf_bindname(c, "CM-2", "group2");
-	conf_bindname(c, "CM-3", "group3");
-	conf_bindname(c, "CM-4", "group4");
-	conf_bindname(c, "CM-5", "group5");
-	conf_bindname(c, "CM-6", "group6");
-	conf_bindname(c, "CM-7", "group7");
-	conf_bindname(c, "CM-8", "group8");
-	conf_bindname(c, "CM-9", "group9");
-	conf_bindname(c, "M-Right", "cyclegroup");
-	conf_bindname(c, "M-Left", "rcyclegroup");
-	conf_bindname(c, "CM-g", "grouptoggle");
-	conf_bindname(c, "CM-f", "maximize");
-	conf_bindname(c, "CM-equal", "vmaximize");
-	conf_bindname(c, "CMS-r", "reload");
-	conf_bindname(c, "CMS-q", "quit");
+	for (i = 0; i < sizeof(kb_binds) / sizeof(kb_binds[0]); i++)
+		conf_bindname(c, kb_binds[i].key, kb_binds[i].func);
 
-	conf_bindname(c, "M-h", "moveleft");
-	conf_bindname(c, "M-j", "movedown");
-	conf_bindname(c, "M-k", "moveup");
-	conf_bindname(c, "M-l", "moveright");
-	conf_bindname(c, "M-H", "bigmoveleft");
-	conf_bindname(c, "M-J", "bigmovedown");
-	conf_bindname(c, "M-K", "bigmoveup");
-	conf_bindname(c, "M-L", "bigmoveright");
-
-	conf_bindname(c, "CM-h", "resizeleft");
-	conf_bindname(c, "CM-j", "resizedown");
-	conf_bindname(c, "CM-k", "resizeup");
-	conf_bindname(c, "CM-l", "resizeright");
-	conf_bindname(c, "CM-H", "bigresizeleft");
-	conf_bindname(c, "CM-J", "bigresizedown");
-	conf_bindname(c, "CM-K", "bigresizeup");
-	conf_bindname(c, "CM-L", "bigresizeright");
-
-	conf_bindname(c, "C-Left", "ptrmoveleft");
-	conf_bindname(c, "C-Down", "ptrmovedown");
-	conf_bindname(c, "C-Up", "ptrmoveup");
-	conf_bindname(c, "C-Right", "ptrmoveright");
-	conf_bindname(c, "CS-Left", "bigptrmoveleft");
-	conf_bindname(c, "CS-Down", "bigptrmovedown");
-	conf_bindname(c, "CS-Up", "bigptrmoveup");
-	conf_bindname(c, "CS-Right", "bigptrmoveright");
-
-	conf_mousebind(c, "1", "menu_unhide");
-	conf_mousebind(c, "2", "menu_group");
-	conf_mousebind(c, "3", "menu_cmd");
-	conf_mousebind(c, "M-1", "window_move");
-	conf_mousebind(c, "CM-1", "window_grouptoggle");
-	conf_mousebind(c, "M-2", "window_resize");
-	conf_mousebind(c, "M-3", "window_lower");
-	conf_mousebind(c, "CMS-3", "window_hide");
+	for (i = 0; i < sizeof(m_binds) / sizeof(m_binds[0]); i++)
+		conf_mousebind(c, m_binds[i].key, m_binds[i].func);
 
 	/* Default term/lock */
 	strlcpy(c->termpath, "xterm", sizeof(c->termpath));
 	strlcpy(c->lockpath, "xlock", sizeof(c->lockpath));
 
+	c->color[CWM_COLOR_BORDOR_ACTIVE].name =
+	    xstrdup(CONF_COLOR_ACTIVEBORDER);
+	c->color[CWM_COLOR_BORDER_INACTIVE].name =
+	    xstrdup(CONF_COLOR_INACTIVEBORDER);
+	c->color[CWM_COLOR_BORDER_GROUP].name =
+	    xstrdup(CONF_COLOR_GROUPBORDER);
+	c->color[CWM_COLOR_BORDER_UNGROUP].name =
+	    xstrdup(CONF_COLOR_UNGROUPBORDER);
+	c->color[CWM_COLOR_FG_MENU].name =
+	    xstrdup(CONF_COLOR_MENUFG);
+	c->color[CWM_COLOR_BG_MENU].name =
+	    xstrdup(CONF_COLOR_MENUBG);
+
 	c->DefaultFontName = xstrdup(DEFAULTFONTNAME);
+}
+
+void
+conf_clear(struct conf *c)
+{
+	struct autogroupwin	*ag;
+	struct keybinding	*kb;
+	struct winmatch		*wm;
+	struct cmd		*cmd;
+	struct mousebinding	*mb;
+	int			 i;
+
+	while ((cmd = TAILQ_FIRST(&c->cmdq)) != NULL) {
+		TAILQ_REMOVE(&c->cmdq, cmd, entry);
+		xfree(cmd);
+	}
+
+	while ((kb = TAILQ_FIRST(&c->keybindingq)) != NULL) {
+		TAILQ_REMOVE(&c->keybindingq, kb, entry);
+		xfree(kb);
+	}
+
+	while ((ag = TAILQ_FIRST(&c->autogroupq)) != NULL) {
+		TAILQ_REMOVE(&c->autogroupq, ag, entry);
+		xfree(ag->class);
+		if (ag->name)
+			xfree(ag->name);
+		xfree(ag);
+	}
+
+	while ((wm = TAILQ_FIRST(&c->ignoreq)) != NULL) {
+		TAILQ_REMOVE(&c->ignoreq, wm, entry);
+		xfree(wm);
+	}
+
+	while ((mb = TAILQ_FIRST(&c->mousebindingq)) != NULL) {
+		TAILQ_REMOVE(&c->mousebindingq, mb, entry);
+		xfree(mb);
+	}
+
+	for (i = 0; i < CWM_COLOR_MAX; i++)
+		xfree(c->color[i].name);
+
+	xfree(c->DefaultFontName);
 }
 
 void
@@ -189,105 +292,128 @@ conf_client(struct client_ctx *cc)
 	char		*wname = cc->name;
 	int		 ignore = 0;
 
-	/* Can wname be NULL? */
-	if (wname != NULL) {
-		TAILQ_FOREACH(wm, &Conf.ignoreq, entry) {
-			if (strncasecmp(wm->title, wname, strlen(wm->title))
-			    == 0) {
-				ignore = 1;
-				break;
-			}
+	TAILQ_FOREACH(wm, &Conf.ignoreq, entry) {
+		if (strncasecmp(wm->title, wname, strlen(wm->title)) == 0) {
+			ignore = 1;
+			break;
 		}
-	} else
-		ignore = 1;
+	}
 
-	cc->bwidth = ignore ? 0 : 3;
+	cc->bwidth = ignore ? 0 : Conf.bwidth;
 	cc->flags |= ignore ? CLIENT_IGNORE : 0;
 }
 
-struct {
-	char *tag;
-	void (*handler)(struct client_ctx *, void *);
-	int flags;
-	void *argument;
+static struct {
+	char		*tag;
+	void		 (*handler)(struct client_ctx *, union arg *);
+	int		 flags;
+	union arg	 argument;
 } name_to_kbfunc[] = {
-	{ "lower", kbfunc_client_lower, KBFLAG_NEEDCLIENT, 0 },
-	{ "raise", kbfunc_client_raise, KBFLAG_NEEDCLIENT, 0 },
-	{ "search", kbfunc_client_search, 0, 0 },
-	{ "menusearch", kbfunc_menu_search, 0, 0 },
-	{ "hide", kbfunc_client_hide, KBFLAG_NEEDCLIENT, 0 },
-	{ "cycle", kbfunc_client_cycle, 0, (void *)CWM_CYCLE },
-	{ "rcycle", kbfunc_client_cycle, 0, (void *)CWM_RCYCLE },
-	{ "label", kbfunc_client_label, KBFLAG_NEEDCLIENT, 0 },
-	{ "delete", kbfunc_client_delete, KBFLAG_NEEDCLIENT, 0 },
-	{ "group1", kbfunc_client_group, 0, (void *)1 },
-	{ "group2", kbfunc_client_group, 0, (void *)2 },
-	{ "group3", kbfunc_client_group, 0, (void *)3 },
-	{ "group4", kbfunc_client_group, 0, (void *)4 },
-	{ "group5", kbfunc_client_group, 0, (void *)5 },
-	{ "group6", kbfunc_client_group, 0, (void *)6 },
-	{ "group7", kbfunc_client_group, 0, (void *)7 },
-	{ "group8", kbfunc_client_group, 0, (void *)8 },
-	{ "group9", kbfunc_client_group, 0, (void *)9 },
-	{ "nogroup", kbfunc_client_nogroup, 0, 0 },
-	{ "cyclegroup", kbfunc_client_cyclegroup, 0, (void *)CWM_CYCLEGROUP },
-	{ "rcyclegroup", kbfunc_client_cyclegroup, 0, (void *)CWM_RCYCLEGROUP },
-	{ "grouptoggle", kbfunc_client_grouptoggle, KBFLAG_NEEDCLIENT, 0},
-	{ "maximize", kbfunc_client_maximize, KBFLAG_NEEDCLIENT, 0 },
-	{ "vmaximize", kbfunc_client_vmaximize, KBFLAG_NEEDCLIENT, 0 },
-	{ "reload", kbfunc_reload, 0, 0 },
-	{ "quit", kbfunc_quit_wm, 0, 0 },
-	{ "exec", kbfunc_exec, 0, (void *)CWM_EXEC_PROGRAM },
-	{ "exec_wm", kbfunc_exec, 0, (void *)CWM_EXEC_WM },
-	{ "ssh", kbfunc_ssh, 0, 0 },
-	{ "terminal", kbfunc_term, 0, 0 },
-	{ "lock", kbfunc_lock, 0, 0 },
+	{ "lower", kbfunc_client_lower, KBFLAG_NEEDCLIENT, {0} },
+	{ "raise", kbfunc_client_raise, KBFLAG_NEEDCLIENT, {0} },
+	{ "search", kbfunc_client_search, 0, {0} },
+	{ "menusearch", kbfunc_menu_search, 0, {0} },
+	{ "hide", kbfunc_client_hide, KBFLAG_NEEDCLIENT, {0} },
+	{ "cycle", kbfunc_client_cycle, 0, {.i = CWM_CYCLE} },
+	{ "rcycle", kbfunc_client_cycle, 0, {.i = CWM_RCYCLE} },
+	{ "label", kbfunc_client_label, KBFLAG_NEEDCLIENT, {0} },
+	{ "delete", kbfunc_client_delete, KBFLAG_NEEDCLIENT, {0} },
+	{ "group1", kbfunc_client_group, 0, {.i = 1} },
+	{ "group2", kbfunc_client_group, 0, {.i = 2} },
+	{ "group3", kbfunc_client_group, 0, {.i = 3} },
+	{ "group4", kbfunc_client_group, 0, {.i = 4} },
+	{ "group5", kbfunc_client_group, 0, {.i = 5} },
+	{ "group6", kbfunc_client_group, 0, {.i = 6} },
+	{ "group7", kbfunc_client_group, 0, {.i = 7} },
+	{ "group8", kbfunc_client_group, 0, {.i = 8} },
+	{ "group9", kbfunc_client_group, 0, {.i = 9} },
+	{ "grouponly1", kbfunc_client_grouponly, 0, {.i = 1} },
+	{ "grouponly2", kbfunc_client_grouponly, 0, {.i = 2} },
+	{ "grouponly3", kbfunc_client_grouponly, 0, {.i = 3} },
+	{ "grouponly4", kbfunc_client_grouponly, 0, {.i = 4} },
+	{ "grouponly5", kbfunc_client_grouponly, 0, {.i = 5} },
+	{ "grouponly6", kbfunc_client_grouponly, 0, {.i = 6} },
+	{ "grouponly7", kbfunc_client_grouponly, 0, {.i = 7} },
+	{ "grouponly8", kbfunc_client_grouponly, 0, {.i = 8} },
+	{ "grouponly9", kbfunc_client_grouponly, 0, {.i = 9} },
+	{ "movetogroup1", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 1} },
+	{ "movetogroup2", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 2} },
+	{ "movetogroup3", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 3} },
+	{ "movetogroup4", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 4} },
+	{ "movetogroup5", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 5} },
+	{ "movetogroup6", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 6} },
+	{ "movetogroup7", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 7} },
+	{ "movetogroup8", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 8} },
+	{ "movetogroup9", kbfunc_client_movetogroup, KBFLAG_NEEDCLIENT,
+	    {.i = 9} },
+	{ "nogroup", kbfunc_client_nogroup, 0, {0} },
+	{ "cyclegroup", kbfunc_client_cyclegroup, 0, {.i = CWM_CYCLEGROUP} },
+	{ "rcyclegroup", kbfunc_client_cyclegroup, 0, {.i = CWM_RCYCLEGROUP} },
+	{ "grouptoggle", kbfunc_client_grouptoggle, KBFLAG_NEEDCLIENT, {0}},
+	{ "maximize", kbfunc_client_maximize, KBFLAG_NEEDCLIENT, {0} },
+	{ "vmaximize", kbfunc_client_vmaximize, KBFLAG_NEEDCLIENT, {0} },
+	{ "hmaximize", kbfunc_client_hmaximize, KBFLAG_NEEDCLIENT, {0} },
+	{ "reload", kbfunc_reload, 0, {0} },
+	{ "quit", kbfunc_quit_wm, 0, {0} },
+	{ "exec", kbfunc_exec, 0, {.i = CWM_EXEC_PROGRAM} },
+	{ "exec_wm", kbfunc_exec, 0, {.i = CWM_EXEC_WM} },
+	{ "ssh", kbfunc_ssh, 0, {0} },
+	{ "terminal", kbfunc_term, 0, {0} },
+	{ "lock", kbfunc_lock, 0, {0} },
 	{ "moveup", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_UP|CWM_MOVE) },
+	    {.i = (CWM_UP|CWM_MOVE)} },
 	{ "movedown", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_DOWN|CWM_MOVE) },
+	    {.i = (CWM_DOWN|CWM_MOVE)} },
 	{ "moveright", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_RIGHT|CWM_MOVE) },
+	    {.i = (CWM_RIGHT|CWM_MOVE)} },
 	{ "moveleft", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_LEFT|CWM_MOVE) },
+	    {.i = (CWM_LEFT|CWM_MOVE)} },
 	{ "bigmoveup", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_UP|CWM_MOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_UP|CWM_MOVE|CWM_BIGMOVE)} },
 	{ "bigmovedown", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_DOWN|CWM_MOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_DOWN|CWM_MOVE|CWM_BIGMOVE)} },
 	{ "bigmoveright", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_RIGHT|CWM_MOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_RIGHT|CWM_MOVE|CWM_BIGMOVE)} },
 	{ "bigmoveleft", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_LEFT|CWM_MOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_LEFT|CWM_MOVE|CWM_BIGMOVE)} },
 	{ "resizeup", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_UP|CWM_RESIZE) },
+	    {.i = (CWM_UP|CWM_RESIZE)} },
 	{ "resizedown", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_DOWN|CWM_RESIZE) },
+	    {.i = (CWM_DOWN|CWM_RESIZE)} },
 	{ "resizeright", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_RIGHT|CWM_RESIZE) },
+	    {.i = (CWM_RIGHT|CWM_RESIZE)} },
 	{ "resizeleft", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_LEFT|CWM_RESIZE) },
+	    {.i = (CWM_LEFT|CWM_RESIZE)} },
 	{ "bigresizeup", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_UP|CWM_RESIZE|CWM_BIGMOVE) },
+	    {.i = (CWM_UP|CWM_RESIZE|CWM_BIGMOVE)} },
 	{ "bigresizedown", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_DOWN|CWM_RESIZE|CWM_BIGMOVE) },
+	    {.i = (CWM_DOWN|CWM_RESIZE|CWM_BIGMOVE)} },
 	{ "bigresizeright", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_RIGHT|CWM_RESIZE|CWM_BIGMOVE) },
+	    {.i = (CWM_RIGHT|CWM_RESIZE|CWM_BIGMOVE)} },
 	{ "bigresizeleft", kbfunc_moveresize, KBFLAG_NEEDCLIENT,
-	    (void *)(CWM_LEFT|CWM_RESIZE|CWM_BIGMOVE) },
-	{ "ptrmoveup", kbfunc_moveresize, 0, (void *)(CWM_UP|CWM_PTRMOVE) },
-	{ "ptrmovedown", kbfunc_moveresize, 0, (void *)(CWM_DOWN|CWM_PTRMOVE) },
-	{ "ptrmoveleft", kbfunc_moveresize, 0, (void *)(CWM_LEFT|CWM_PTRMOVE) },
+	    {.i = (CWM_LEFT|CWM_RESIZE|CWM_BIGMOVE)} },
+	{ "ptrmoveup", kbfunc_moveresize, 0, {.i = (CWM_UP|CWM_PTRMOVE)} },
+	{ "ptrmovedown", kbfunc_moveresize, 0, {.i = (CWM_DOWN|CWM_PTRMOVE)} },
+	{ "ptrmoveleft", kbfunc_moveresize, 0, {.i = (CWM_LEFT|CWM_PTRMOVE)} },
 	{ "ptrmoveright", kbfunc_moveresize, 0,
-	    (void *)(CWM_RIGHT|CWM_PTRMOVE) },
+	    {.i = (CWM_RIGHT|CWM_PTRMOVE)} },
 	{ "bigptrmoveup", kbfunc_moveresize, 0,
-	    (void *)(CWM_UP|CWM_PTRMOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_UP|CWM_PTRMOVE|CWM_BIGMOVE)} },
 	{ "bigptrmovedown", kbfunc_moveresize, 0,
-	    (void *)(CWM_DOWN|CWM_PTRMOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_DOWN|CWM_PTRMOVE|CWM_BIGMOVE)} },
 	{ "bigptrmoveleft", kbfunc_moveresize, 0,
-	    (void *)(CWM_LEFT|CWM_PTRMOVE|CWM_BIGMOVE) },
+	    {.i = (CWM_LEFT|CWM_PTRMOVE|CWM_BIGMOVE)} },
 	{ "bigptrmoveright", kbfunc_moveresize, 0,
-	    (void *)(CWM_RIGHT|CWM_PTRMOVE|CWM_BIGMOVE) },
-	{ NULL, NULL, 0, 0},
+	    {.i = (CWM_RIGHT|CWM_PTRMOVE|CWM_BIGMOVE)} },
+	{ NULL, NULL, 0, {0}},
 };
 
 /*
@@ -306,7 +432,6 @@ conf_grab(struct conf *c, struct keybinding *kb)
 
 	TAILQ_FOREACH(sc, &Screenq, entry)
 		xu_key_grab(sc->rootwin, kb->modmask, kb->keysym);
-
 }
 
 /*
@@ -322,36 +447,40 @@ conf_ungrab(struct conf *c, struct keybinding *kb)
 		xu_key_ungrab(sc->rootwin, kb->modmask, kb->keysym);
 }
 
+static struct {
+	char	chr;
+	int	mask;
+} bind_mods[] = {
+	{ 'C',	ControlMask },
+	{ 'M',	Mod1Mask },
+	{ '4',	Mod4Mask },
+	{ 'S',	ShiftMask },
+};
+
 void
 conf_bindname(struct conf *c, char *name, char *binding)
 {
 	struct keybinding	*current_binding;
-	char			*substring;
+	char			*substring, *tmp;
 	int			 iter;
 
-	XCALLOC(current_binding, struct keybinding);
+	current_binding = xcalloc(1, sizeof(*current_binding));
 
-	if (strchr(name, 'C') != NULL &&
-	    strchr(name, 'C') < strchr(name, '-'))
-		current_binding->modmask |= ControlMask;
+	if ((substring = strchr(name, '-')) != NULL) {
+		for (iter = 0; iter < (sizeof(bind_mods) /
+		    sizeof(bind_mods[0])); iter++) {
+			if ((tmp = strchr(name, bind_mods[iter].chr)) !=
+			    NULL && tmp < substring) {
+				current_binding->modmask |=
+				    bind_mods[iter].mask;
+			}
+		}
 
-	if (strchr(name, 'M') != NULL &&
-	    strchr(name, 'M') < strchr(name, '-'))
-		current_binding->modmask |= Mod1Mask;
-
-	if (strchr(name, '4') != NULL &&
-	    strchr(name, '4') < strchr(name, '-'))
-		current_binding->modmask |= Mod4Mask;
-
-	if (strchr(name, 'S') != NULL &&
-	    strchr(name, 'S') < strchr(name, '-'))
-		current_binding->modmask |= ShiftMask;
-
-	substring = strchr(name, '-') + 1;
-
-	/* If there is no '-' in name, continue as is */
-	if (strchr(name, '-') == NULL)
+		/* skip past the modifiers */
+		substring++;
+	} else {
 		substring = name;
+	}
 
 	if (substring[0] == '[' &&
 	    substring[strlen(substring)-1] == ']') {
@@ -387,14 +516,14 @@ conf_bindname(struct conf *c, char *name, char *binding)
 	}
 
 	current_binding->callback = kbfunc_cmdexec;
-	current_binding->argument = xstrdup(binding);
+	current_binding->argument.c = xstrdup(binding);
 	current_binding->flags = 0;
 	conf_grab(c, current_binding);
 	TAILQ_INSERT_TAIL(&c->keybindingq, current_binding, entry);
 	return;
 }
 
-void
+static void
 conf_unbind(struct conf *c, struct keybinding *unbind)
 {
 	struct keybinding	*key = NULL, *keynxt;
@@ -416,7 +545,7 @@ conf_unbind(struct conf *c, struct keybinding *unbind)
 	}
 }
 
-struct {
+static struct {
 	char *tag;
 	void (*handler)(struct client_ctx *, void *);
 	int context;
@@ -437,31 +566,25 @@ void
 conf_mousebind(struct conf *c, char *name, char *binding)
 {
 	struct mousebinding	*current_binding;
-	char			*substring;
+	char			*substring, *tmp;
 	const char		*errstr;
 	int			 iter;
 
-	XCALLOC(current_binding, struct mousebinding);
+	current_binding = xcalloc(1, sizeof(*current_binding));
 
-	if (strchr(name, 'C') != NULL &&
-	    strchr(name, 'C') < strchr(name, '-'))
-		current_binding->modmask |= ControlMask;
+	if ((substring = strchr(name, '-')) != NULL) {
+		for (iter = 0; iter < (sizeof(bind_mods) /
+		    sizeof(bind_mods[0])); iter++) {
+			if ((tmp = strchr(name, bind_mods[iter].chr)) !=
+			    NULL && tmp < substring) {
+				current_binding->modmask |=
+				    bind_mods[iter].mask;
+			}
+		}
 
-	if (strchr(name, 'M') != NULL &&
-	    strchr(name, 'M') < strchr(name, '-'))
-		current_binding->modmask |= Mod1Mask;
-
-	if (strchr(name, 'S') != NULL &&
-	    strchr(name, 'S') < strchr(name, '-'))
-		current_binding->modmask |= ShiftMask;
-
-	if (strchr(name, '4') != NULL &&
-	    strchr(name, '4') < strchr(name, '-'))
-		current_binding->modmask |= Mod4Mask;
-
-	substring = strchr(name, '-') + 1;
-
-	if (strchr(name, '-') == NULL)
+		/* skip past the modifiers */
+		substring++;
+	} else
 		substring = name;
 
 	current_binding->button = strtonum(substring, 1, 3, &errstr);
@@ -484,7 +607,7 @@ conf_mousebind(struct conf *c, char *name, char *binding)
 	}
 }
 
-void
+static void
 conf_mouseunbind(struct conf *c, struct mousebinding *unbind)
 {
 	struct mousebinding	*mb = NULL, *mbnxt;
@@ -528,7 +651,8 @@ conf_grab_mouse(struct client_ctx *cc)
 			break;
 		default:
 			warnx("strange button in mousebinding\n");
+			continue;
 		}
-		xu_btn_grab(cc->pwin, mb->modmask, button);
+		xu_btn_grab(cc->win, mb->modmask, button);
 	}
 }

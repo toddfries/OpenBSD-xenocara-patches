@@ -1,5 +1,4 @@
 /*
- * $XFree86: xc/programs/Xserver/hw/xfree86/drivers/tseng/tseng_driver.c,v 1.97tsi Exp $ 
  *
  * Copyright 1990,91 by Thomas Roell, Dinkelscherben, Germany.
  *
@@ -26,7 +25,6 @@
  *
  * Large parts rewritten for XFree86 4.0 by Koen Gadeyne.
  */
-/* $XConsortium: et4_driver.c /main/27 1996/10/28 04:48:15 kaleb $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -44,8 +42,10 @@
 
 #include "fb.h"
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 #include "xf86RAC.h"
 #include "xf86Resources.h"
+#endif
 #include "xf86int10.h"
 
 #include "xf86xv.h"
@@ -182,58 +182,6 @@ static const OptionInfoRec TsengOptions[] =
 	{0}, FALSE}
 };
 
-static const char *int10Symbols[] = {
-    "xf86FreeInt10",
-    "xf86InitInt10",
-    NULL
-};
-
-static const char *vgaHWSymbols[] = {
-  "vgaHWFreeHWRec",
-  "vgaHWGetHWRec",
-  "vgaHWGetIOBase",
-  "vgaHWGetIndex",
-  "vgaHWHandleColormaps",
-  "vgaHWInit",
-  "vgaHWLock",
-  "vgaHWMapMem",
-  "vgaHWProtect",
-  "vgaHWRestore",
-  "vgaHWSave", 
-  "vgaHWSaveScreen",
-  "vgaHWUnlock",
-  "vgaHWUnmapMem",
-  NULL
-};
-
-#ifdef XFree86LOADER
-static const char* miscfbSymbols[] = {
-  "xf1bppScreenInit",
-  "xf4bppScreenInit",
-  NULL
-};
-#endif
-
-static const char* fbSymbols[] = {
-  "fbPictureInit",
-  "fbScreenInit",
-  NULL
-};
-
-static const char *ramdacSymbols[] = {
-    "xf86CreateCursorInfoRec",
-    "xf86DestroyCursorInfoRec",
-    "xf86InitCursor",
-    NULL
-};
-
-static const char *xaaSymbols[] = {
-    "XAACreateInfoRec",
-    "XAADestroyInfoRec",
-    "XAAInit",
-    NULL
-};
-
 #ifdef XFree86LOADER
 
 static MODULESETUPPROTO(tsengSetup);
@@ -267,17 +215,6 @@ tsengSetup(pointer module, pointer opts, int *errmaj, int *errmin)
     if (!setupDone) {
 	setupDone = TRUE;
 	xf86AddDriver(&TSENG, module, 0);
-
-	/*
-	 * Modules that this driver always requires can be loaded here
-	 * by calling LoadSubModule().
-	 */
-	/*
-	 * Tell the loader about symbols from other modules that this module
-	 * might refer to.
-	 */
-	LoaderRefSymLists(vgaHWSymbols, miscfbSymbols, fbSymbols, xaaSymbols,
-			  int10Symbols, ramdacSymbols,  NULL);
 
 	/*
 	 * The return value must be non-NULL on success even though there
@@ -417,9 +354,11 @@ TsengProbe(DriverPtr drv, int flags)
 	return FALSE;
     }
 
+#ifndef XSERVER_LIBPCIACCESS
     /* PCI only driver now. */
     if (!xf86GetPciVideoInfo())
         return FALSE;
+#endif
 
     /* XXX maybe this can go some time soon */
     /*
@@ -476,7 +415,7 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
     /* Set up ChipType, ChipRev and pScrn->chipset.
      * This last one is usually not done manually, but
      * it's for informative use only anyway. */
-    switch (pTseng->PciInfo->chipType) {
+    switch (PCI_DEV_DEVICE_ID(pTseng->PciInfo)) {
     case PCI_CHIP_ET4000_W32P_A:
 	pTseng->ChipType = ET4000;
 	pTseng->ChipRev = REV_A;
@@ -500,7 +439,7 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
     case PCI_CHIP_ET6000:
 	pTseng->ChipType = ET6000;
 
-        if (pTseng->PciInfo->chipRev < 0x70) {
+        if (PCI_DEV_REVISION(pTseng->PciInfo) < 0x70) {
             pScrn->chipset = "ET6000";
             pTseng->ChipRev = REV_ET6000;
         } else {
@@ -510,24 +449,26 @@ TsengPreInitPCI(ScrnInfoPtr pScrn)
 	break;
     default:
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Unknown Tseng PCI ID: %X\n",
-                   pTseng->PciInfo->chipType);
+                   PCI_DEV_DEVICE_ID(pTseng->PciInfo));
 	return FALSE;
     }
 
     xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Chipset: \"%s\"\n", pScrn->chipset);
 
+#ifndef XSERVER_LIBPCIACCESS
     pTseng->PciTag = pciTag(pTseng->PciInfo->bus, pTseng->PciInfo->device,
 	pTseng->PciInfo->func);
+#endif
 
     /* only the ET6000 implements a PCI IO address */
     if (pTseng->ChipType == ET6000) {
-        if (!pTseng->PciInfo->ioBase[1]) {
+        if (!PCI_REGION_BASE(pTseng->PciInfo, 1, REGION_IO)) {
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "No valid PCI I/O address in PCI config space\n");
             return FALSE;
         }
 
-        pTseng->ET6000IOAddress = pTseng->PciInfo->ioBase[1];
+        pTseng->ET6000IOAddress = PCI_REGION_BASE(pTseng->PciInfo, 1, REGION_IO);
         
         xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "ET6000 PCI I/O registers at 0x%lX\n",
                    (unsigned long)pTseng->ET6000IOAddress);
@@ -942,18 +883,20 @@ TsengGetFbAddress(ScrnInfoPtr pScrn)
     PDEBUG("	TsengGetFbAddress\n");
 
     /* base0 is the framebuffer and base1 is the PCI IO space. */
-    if (!pTseng->PciInfo->memBase[0]) {
+    if (PCI_REGION_BASE(pTseng->PciInfo, 0, REGION_MEM)) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "No valid Framebuffer address in PCI config space;\n");
         return FALSE;
     } else
-        pTseng->FbAddress = pTseng->PciInfo->memBase[0];
+        pTseng->FbAddress = PCI_REGION_BASE(pTseng->PciInfo, 0, REGION_MEM);
 
 
+#ifndef XSERVER_LIBPCIACCESS
     if (xf86RegisterResources(pTseng->pEnt->index,NULL,ResNone)) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Cannot register FB memory.\n");
         return FALSE;
     }
+#endif
 
     /* The W32 linear map address space is always 4Mb (mainly because the
      * memory-mapped registers are located near the top of the 4MB area). 
@@ -1018,7 +961,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 #if 1
     if (xf86LoadSubModule(pScrn, "int10")) {
  	xf86Int10InfoPtr pInt;
-	xf86LoaderReqSymLists(int10Symbols, NULL);
 #if 1
 	xf86DrvMsg(pScrn->scrnIndex,X_INFO,"initializing int10\n");
 	pInt = xf86InitInt10(pTseng->pEnt->index);
@@ -1029,7 +971,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     
     if (!xf86LoadSubModule(pScrn, "vgahw"))
 	return FALSE;
-    xf86LoaderReqSymLists(vgaHWSymbols, NULL);
     /*
      * Allocate a vgaHWRec
      */
@@ -1152,13 +1093,14 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
     else
 	VGAHWPTR(pScrn)->MapSize = 0x10000;
 
+#ifndef XSERVER_LIBPCIACCESS
     /*
      * XXX At least part of this range does appear to be disabled,
      * but to play safe, it is marked as "unused" for now.
      * Changed this to "disable". Otherwise it might interfere with DGA.
      */
     xf86SetOperatingState(resVgaMem, pTseng->pEnt->index, ResDisableOpr);
-    
+#endif
     /* hibit processing (TsengProcessOptions() must have been called first) */
     pTseng->save_divide = 0x40;	       /* default */
     if (pTseng->ChipType == ET4000) {
@@ -1238,21 +1180,18 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	  TsengFreeRec(pScrn);
 	  return FALSE;
 	}
-	xf86LoaderReqSymbols("xf1bppScreenInit", NULL);
 	break;
     case 4:
 	if (xf86LoadSubModule(pScrn, "xf4bpp") == NULL) {
 	  TsengFreeRec(pScrn);
 	  return FALSE;
 	}
-	xf86LoaderReqSymbols("xf4bppScreenInit", NULL);
 	break;
     default:
 	if (xf86LoadSubModule(pScrn, "fb") == NULL) {
 	  TsengFreeRec(pScrn);
 	  return FALSE;
 	}
-	xf86LoaderReqSymLists(fbSymbols, NULL);
 	break;
     }
 
@@ -1262,7 +1201,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	    TsengFreeRec(pScrn);
 	    return FALSE;
 	}
-	xf86LoaderReqSymLists(xaaSymbols, NULL);
     }
     /* Load ramdac if needed */
     if (pTseng->HWCursor) {
@@ -1270,7 +1208,6 @@ TsengPreInit(ScrnInfoPtr pScrn, int flags)
 	    TsengFreeRec(pScrn);
 	    return FALSE;
 	}
-	xf86LoaderReqSymLists(ramdacSymbols, NULL);
     }
 /*    TsengLock(pScrn); */
 
@@ -1451,18 +1388,22 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
      */
 
     switch (pScrn->bitsPerPixel) {
+#if HAVE_XF1BPP
     case 1:
 	ret = xf1bppScreenInit(pScreen, pTseng->FbBase,
 			pScrn->virtualX, pScrn->virtualY,
 			pScrn->xDpi, pScrn->yDpi,
 			pScrn->displayWidth);
 	break;
+#endif
+#if HAVE_XF4BPP
     case 4:
 	ret = xf4bppScreenInit(pScreen, pTseng->FbBase,
 			pScrn->virtualX, pScrn->virtualY,
 			pScrn->xDpi, pScrn->yDpi,
 			pScrn->displayWidth);
 	break;
+#endif
     default:
         ret  = fbScreenInit(pScreen, pTseng->FbBase,
 			pScrn->virtualX, pScrn->virtualY,
@@ -1491,8 +1432,10 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	}
     }
 
+#if HAVE_XF1BPP
     /* must be after RGB ordering fixed */
     if (pScrn->bitsPerPixel > 4)
+#endif
 	fbPictureInit(pScreen, 0, 0);
 
     if (pScrn->depth >= 8)
@@ -1528,9 +1471,10 @@ TsengScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (pScrn->depth == 4 || pScrn->depth == 8) { /* fb and xf4bpp */
 	vgaHWHandleColormaps(pScreen);
     }
+#ifndef XSERVER_LIBPCIACCESS
     pScrn->racIoFlags = RAC_FB | RAC_COLORMAP | RAC_CURSOR | RAC_VIEWPORT;
     pScrn->racMemFlags = pScrn->racIoFlags;
-
+#endif
     /* Wrap the current CloseScreen and SaveScreen functions */
     pScreen->SaveScreen = TsengSaveScreen;
 
@@ -1680,10 +1624,25 @@ TsengMapMem(ScrnInfoPtr pScrn)
 	return FALSE;
     }
 
+#ifndef XSERVER_LIBPCIACCESS
     pTseng->FbBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_FRAMEBUFFER,
                                    pTseng->PciTag,
                                    (unsigned long)pTseng->FbAddress,
                                    pTseng->FbMapSize);
+#else
+    {
+      void** result = (void**)&pTseng->FbBase;
+      int err = pci_device_map_range(pTseng->PciInfo,
+				     pTseng->FbAddress,
+				     pTseng->FbMapSize,
+				     PCI_DEV_MAP_FLAG_WRITABLE |
+				     PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				     result);
+      
+      if (err) 
+	return FALSE;
+    }
+#endif
     if (pTseng->FbBase == NULL) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Could not mmap linear video memory.\n");
@@ -1692,10 +1651,14 @@ TsengMapMem(ScrnInfoPtr pScrn)
 
     /* need some sanity here */
     if (pTseng->UseAccel) {
+#ifndef XSERVER_LIBPCIACCESS
         pTseng->MMioBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO,
                                          pTseng->PciTag,
                                          (unsigned long)pTseng->FbAddress,
                                          pTseng->FbMapSize);
+#else
+	pTseng->MMioBase = pTseng->FbBase;
+#endif
         if (!pTseng->MMioBase) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		       "Could not mmap mmio memory.\n");
@@ -1717,7 +1680,11 @@ TsengUnmapMem(ScrnInfoPtr pScrn)
 
     PDEBUG("	TsengUnmapMem\n");
 
+#ifndef XSERVER_LIBPCIACCESS
     xf86UnMapVidMem(pScrn->scrnIndex, (pointer) pTseng->FbBase, pTseng->FbMapSize);
+#else
+    pci_device_unmap_range(pTseng->PciInfo, pTseng->FbBase, pTseng->FbMapSize);
+#endif
 
     vgaHWUnmapMem(pScrn);
 

@@ -1,12 +1,12 @@
-# $OpenBSD: Makefile,v 1.8 2008/07/16 20:24:40 brad Exp $
+# $OpenBSD: Makefile,v 1.10 2009/05/25 18:40:11 matthieu Exp $
 
 .include <bsd.own.mk>
 USE_GCC3?=No
 DEBUG?=
 
 MESA_MAJOR=	7
-MESA_MINOR=	0
-MESA_TINY=	3
+MESA_MINOR=	4
+MESA_TINY=	2
 
 LIB=	GLU
 

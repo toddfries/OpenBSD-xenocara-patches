@@ -1,4 +1,3 @@
-/* $Id: norm.S,v 1.1.1.1 2006/11/25 18:54:16 matthieu Exp $ */
 
 #include "sparc_matrix.h"
 

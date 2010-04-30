@@ -109,8 +109,12 @@ mffs(fd_mask mask)
 }
 
 #ifdef DPMSExtension
+#ifdef HAVE_X11_EXTENSIONS_DPMSCONST_H
+#include <X11/extensions/dpmsconst.h>
+#else
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
+#endif
 #endif
 
 struct _OsTimerRec {
@@ -155,9 +159,7 @@ WaitForSomething(int *pClientsReady)
     int nready;
     fd_set devicesReadable;
     CARD32 now = 0;
-#ifdef SMART_SCHEDULE
     Bool    someReady = FALSE;
-#endif
 
     FD_ZERO(&clientsReadable);
 
@@ -170,7 +172,6 @@ WaitForSomething(int *pClientsReady)
 	    ProcessWorkQueue();
 	if (XFD_ANYSET (&ClientsWithInput))
 	{
-#ifdef SMART_SCHEDULE
 	    if (!SmartScheduleDisable)
 	    {
 		someReady = TRUE;
@@ -179,13 +180,11 @@ WaitForSomething(int *pClientsReady)
 		wt = &waittime;
 	    }
 	    else
-#endif
 	    {
 		XFD_COPYSET (&ClientsWithInput, &clientsReadable);
 		break;
 	    }
 	}
-#ifdef SMART_SCHEDULE
 	if (someReady)
 	{
 	    XFD_COPYSET(&AllSockets, &LastSelectMask);
@@ -193,7 +192,6 @@ WaitForSomething(int *pClientsReady)
 	}
 	else
 	{
-#endif
         wt = NULL;
 	if (timers)
         {
@@ -215,10 +213,9 @@ WaitForSomething(int *pClientsReady)
 	    }
 	}
 	XFD_COPYSET(&AllSockets, &LastSelectMask);
-#ifdef SMART_SCHEDULE
 	}
-	SmartScheduleIdle = TRUE;
-#endif
+	SmartScheduleStopTimer ();
+
 	BlockHandler((pointer)&wt, (pointer)&LastSelectMask);
 	if (NewOutputPending)
 	    FlushAllOutput();
@@ -236,15 +233,7 @@ WaitForSomething(int *pClientsReady)
 	}
 	selecterr = GetErrno();
 	WakeupHandler(i, (pointer)&LastSelectMask);
-#ifdef SMART_SCHEDULE
-	if (i >= 0)
-	{
-	    SmartScheduleIdle = FALSE;
-	    SmartScheduleIdleCount = 0;
-	    if (SmartScheduleTimerStopped)
-		(void) SmartScheduleStartTimer ();
-	}
-#endif
+	SmartScheduleStartTimer ();
 	if (i <= 0) /* An error or timeout occurred */
 	{
 	    if (dispatchException)
@@ -259,16 +248,15 @@ WaitForSomething(int *pClientsReady)
 		}
 		else if (selecterr == EINVAL)
 		{
-		    FatalError("WaitForSomething(): select: errno=%d\n",
-			selecterr);
+		    FatalError("WaitForSomething(): select: %s\n",
+			strerror(selecterr));
             }
 		else if (selecterr != EINTR && selecterr != EAGAIN)
 		{
-		    ErrorF("WaitForSomething(): select: errno=%d\n",
-			selecterr);
+		    ErrorF("WaitForSomething(): select: %s\n",
+			strerror(selecterr));
 		}
 	    }
-#ifdef SMART_SCHEDULE
 	    else if (someReady)
 	    {
 		/*
@@ -278,7 +266,6 @@ WaitForSomething(int *pClientsReady)
 		XFD_COPYSET(&ClientsWithInput, &clientsReadable);
 		break;
 	    }
-#endif
 	    if (*checkForInput[0] != *checkForInput[1])
 		return 0;
 
@@ -315,10 +302,8 @@ WaitForSomething(int *pClientsReady)
                         return 0;
 	        }
 	    }
-#ifdef SMART_SCHEDULE
 	    if (someReady)
 		XFD_ORSET(&LastSelectMask, &ClientsWithInput, &LastSelectMask);
-#endif	    
 	    if (AnyClientsWriteBlocked && XFD_ANYSET (&clientsWritable))
 	    {
 		NewOutputPending = TRUE;
@@ -337,13 +322,9 @@ WaitForSomething(int *pClientsReady)
 
 	    if (XFD_ANYSET (&devicesReadable) || XFD_ANYSET (&clientsReadable))
 		break;
-#ifdef WIN32
-	    /* Windows keyboard and mouse events are added to the input queue
-	       in Block- and WakupHandlers. There is no device to check if  
-	       data is ready. So check here if new input is available */
+	    /* check here for DDXes that queue events during Block/Wakeup */
 	    if (*checkForInput[0] != *checkForInput[1])
 		return 0;
-#endif
 	}
     }
 
@@ -373,7 +354,6 @@ WaitForSomething(int *pClientsReady)
 	    curclient = XFD_FD(&savedClientsReadable, i);
 	    client_index = GetConnectionTranslation(curclient);
 #endif
-#ifdef XSYNC
 		/*  We implement "strict" priorities.
 		 *  Only the highest priority client is returned to
 		 *  dix.  If multiple clients at the same priority are
@@ -400,7 +380,6 @@ WaitForSomething(int *pClientsReady)
 		 *  clients get batched together
 		 */
 		else if (client_priority == highest_priority)
-#endif
 		{
 		    pClientsReady[nready++] = client_index;
 		}
@@ -414,21 +393,6 @@ WaitForSomething(int *pClientsReady)
     }
     return nready;
 }
-
-#if 0
-/*
- * This is not always a macro.
- */
-ANYSET(FdMask *src)
-{
-    int i;
-
-    for (i=0; i<mskcnt; i++)
-	if (src[ i ])
-	    return (TRUE);
-    return (FALSE);
-}
-#endif
 
 /* If time has rewound, re-run every affected timer.
  * Timers might drop out of the list, so we have to restart every time. */
@@ -583,7 +547,7 @@ TimerInit(void)
 
 #define DPMS_CHECK_MODE(mode,time)\
     if (time > 0 && DPMSPowerLevel < mode && timeout >= time)\
-	DPMSSet(mode);
+	DPMSSet(serverClient, mode);
 
 #define DPMS_CHECK_TIMEOUT(time)\
     if (time > 0 && (time - timeout) > 0)\
@@ -652,7 +616,7 @@ ScreenSaverTimeoutExpire(OsTimerPtr timer,CARD32 now,pointer arg)
     }
 
     ResetOsBuffers(); /* not ideal, but better than nothing */
-    SaveScreens(SCREEN_SAVER_ON, ScreenSaverActive);
+    dixSaveScreens(serverClient, SCREEN_SAVER_ON, ScreenSaverActive);
 
     if (ScreenSaverInterval > 0)
     {

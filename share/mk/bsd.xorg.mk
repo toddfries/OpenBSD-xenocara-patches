@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.xorg.mk,v 1.26 2008/08/21 05:54:41 matthieu Exp $ -*- makefile  -*-
+# $OpenBSD: bsd.xorg.mk,v 1.33 2010/01/17 20:48:49 matthieu Exp $ -*- makefile  -*-
 #
 # Copyright © 2006 Matthieu Herrb
 #
@@ -20,7 +20,8 @@
 .endif
 
 AUTOMAKE_VERSION=	1.9
-AUTOCONF_VERSION=	2.59
+AUTOCONF_VERSION=	2.62
+PYTHON_VERSION=		2.6
 
 # Where source lives
 XSRCDIR?=		/usr/xenocara
@@ -52,7 +53,6 @@ _SRCDIR?=	${.CURDIR}
 
 CONFIGURE_ENV=	PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)" \
 		CONFIG_SITE=$(CONFIG_SITE) \
-		XMLTO=: \
 		CFLAGS="$(CFLAGS:C/ *$//)" \
 		MAKE="${MAKE}"
 
@@ -67,42 +67,57 @@ AUTOTOOLS_ENV=  AUTOMAKE_VERSION="$(AUTOMAKE_VERSION)" \
 
 # pkgconfig
 .if defined(PKGCONFIG)
+.if !defined(PACKAGE_VERSION)
 PACKAGE_VERSION!=m4 ${XSRCDIR}/share/mk/package_version.m4 ${_SRCDIR}/configure.ac
+.endif
 
-all:: ${PKGCONFIG}
+all: ${PKGCONFIG}
 
 ${PKGCONFIG}: ${PKGCONFIG}.in
 	@sed -e 's#@prefix@#${X11BASE}#g' \
+	    -e 's#@datarootdir@#$${prefix}/share#g' \
+	    -e 's#@datadir@#$${datarootdir}#g' \
 	    -e 's#@exec_prefix@#$${prefix}#g' \
 	    -e 's#@libdir@#$${exec_prefix}/lib#g' \
 	    -e 's#@includedir@#$${prefix}/include#g' \
 	    -e 's#@PACKAGE_VERSION@#${PACKAGE_VERSION}#g' \
-	< ${_SRCDIR}/${PKGCONFIG}.in > $@
+	    ${EXTRA_PKGCONFIG_SUBST} \
+	< $? > $@
 
-install:: ${PKGCONFIG}
+install-pc: ${PKGCONFIG}
 	${INSTALL_DATA} ${PKGCONFIG} ${DESTDIR}${LIBDIR}/pkgconfig
 
-clean::
-	rm -f ${PKGCONFIG}
+clean-pc:
+	rm -rf ${PKGCONFIG}
+
+realinstall: install-pc
+
+clean:	clean-pc
+
+
 .endif
 
 # headers
 .if defined(HEADERS)
-install::
+install-headers:
 	@echo installing ${HEADERS} in ${INCSDIR}/${HEADERS_SUBDIR}
 	@cd ${_SRCDIR}; for i in ${HEADERS}; do \
 	    cmp -s $$i ${DESTDIR}${INCSDIR}/${HEADERS_SUBDIR}$$i || \
 		${INSTALL_DATA} $$i ${DESTDIR}${INCSDIR}/${HEADERS_SUBDIR}$$i;\
 	done
+
+realinstall: install-headers
 .endif
 .if defined(HEADERS_SUBDIRS)
 .for d in ${HEADERS_SUBDIRS}
-install::
+install-headers-subdirs::
 	@echo installing ${HEADERS_${d:S/\//_/}} in ${INCSDIR}/${d}
 	@cd ${_SRCDIR}; for i in ${HEADERS_${d:S/\//_/}}; do \
 	    cmp -s $$i ${DESTDIR}${INCSDIR}/$d/$$i || \
 		${INSTALL_DATA} $$i ${DESTDIR}${INCSDIR}/${d}; \
 	done
+
+realinstall: install-headers-subdirs
 .endfor
 .endif
 
@@ -192,12 +207,12 @@ build:
 
 .if !target(clean)
 clean:
-	-@if [ -e Makefile ]; then exec ${MAKE} clean; fi
+	-@if [ -f Makefile ]; then exec ${MAKE} clean; fi
 .endif
 
 .if !target(cleandir)
 cleandir: clean
-	-@if [ -e Makefile ]; then exec ${MAKE} distclean; fi
+	-@if [ -f Makefile ]; then exec ${MAKE} distclean; fi
 .endif
 
 #

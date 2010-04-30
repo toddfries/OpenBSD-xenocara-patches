@@ -1,5 +1,5 @@
 /*
- * $Id: fcinit.fncs,v 1.1.1.1 2006/11/25 18:42:13 matthieu Exp $
+ * fontconfig/doc/fcinit.fncs
  *
  * Copyright © 2003 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -75,7 +75,9 @@ Returns the version number of the library.
 @PURPOSE@	re-initialize library
 @DESC@
 Forces the default configuration file to be reloaded and resets the default
-configuration.
+configuration. Returns FcFalse if the configuration cannot be reloaded (due
+to config file errors, allocation failures or other issues) and leaves the
+existing configuration unchanged. Otherwise returns FcTrue.
 @@
 
 @RET@           FcBool       
@@ -85,5 +87,6 @@ configuration.
 @DESC@
 Checks the rescan interval in the default configuration, checking the
 configuration if the interval has passed and reloading the configuration if
-when any changes are detected.
+when any changes are detected. Returns FcFalse if the configuration cannot
+be reloaded (see FcInitReinitialize). Otherwise returns FcTrue.
 @@

@@ -1,5 +1,5 @@
 /*
- * Copyright 2007  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007  Egbert Eich   <eich@novell.com>
  * Copyright 2007  Advanced Micro Devices, Inc.
@@ -36,7 +36,12 @@ struct rhdLUT {
 
     void (*Save) (struct rhdLUT *LUT);
     void (*Restore) (struct rhdLUT *LUT);
-    void (*Set) (struct rhdLUT *LUT, int numColors, int *indices, LOCO *colors);
+    void (*Set) (struct rhdLUT *LUT, CARD16 *red, CARD16 *green, CARD16 *blue);
+    void (*SetRows) (struct rhdLUT *LUT, int numColors, int *indices, LOCO *colors);
+
+    /* because RandR does not specifically initialise a gamma ramp when
+       setting up a CRTC */
+    Bool Initialised;
 
     Bool Stored;
 
@@ -50,12 +55,15 @@ struct rhdLUT {
     CARD32 StoreWhiteGreen;
     CARD32 StoreWhiteBlue;
 
-    CARD16 StoreEntry[0x300];
+    CARD32 StoreEntry[256];
 };
 
 void RHDLUTsInit(RHDPtr rhdPtr);
 void RHDLUTsSave(RHDPtr rhdPtr);
 void RHDLUTsRestore(RHDPtr rhdPtr);
 void RHDLUTsDestroy(RHDPtr rhdPtr);
+
+/* For missing RandR functionality */
+void RHDLUTCopyForRR(struct rhdLUT *LUT);
 
 #endif /* _RHD_LUT_H */

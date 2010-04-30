@@ -39,7 +39,6 @@
  * ANY KIND OR FORM.
  */
 
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/voodoo/voodoo_driver.c,v 1.27 2001/08/07 07:04:46 keithp Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -48,17 +47,19 @@
 #include "fb.h"
 #include "mibank.h"
 #include "micmap.h"
+#include "mipointer.h"
 #include "xf86.h"
 #include "xf86_OSproc.h"
-#include "xf86Version.h"
+#include "xorgVersion.h"
 #include "xf86PciInfo.h"
 #include "xf86Pci.h"
 #include "xf86cmap.h"
 #include "shadowfb.h"
 #include "vgaHW.h"
-#include "xf86DDC.h"
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 #include "xf86RAC.h"
 #include "xf86Resources.h"
+#endif
 #include "compiler.h"
 #include "xaa.h"
 
@@ -68,8 +69,13 @@
 #include <X11/extensions/xf86dgastr.h>
 
 #include "opaque.h"
+#ifdef HAVE_XEXTPROTO_71
+#include <X11/extensions/dpmsconst.h>
+#else
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
+#endif
+
 
 static const OptionInfoRec * VoodooAvailableOptions(int chipid, int busid);
 static void	VoodooIdentify(int flags);
@@ -111,12 +117,14 @@ _X_EXPORT DriverRec VOODOO = {
 
 typedef enum {
   OPTION_NOACCEL,
-  OPTION_SHADOW_FB
+  OPTION_SHADOW_FB,
+  OPTION_PASS_THROUGH,
 } VoodooOpts;
 
 static const OptionInfoRec VoodooOptions[] = {
   { OPTION_NOACCEL,	"NoAccel",	OPTV_BOOLEAN,	{0}, FALSE },
   { OPTION_SHADOW_FB,	"ShadowFB",	OPTV_BOOLEAN,	{0}, FALSE },
+  { OPTION_PASS_THROUGH,"PassThrough",  OPTV_BOOLEAN,   {0}, FALSE },
   { -1,	                NULL,           OPTV_NONE,      {0}, FALSE }
 };
 
@@ -127,34 +135,6 @@ static SymTabRec VoodooChipsets[] = {
   {-1, NULL }
 };
 
-
-/*
- * List of symbols from other modules that this module references.  This
- * list is used to tell the loader that it is OK for symbols here to be
- * unresolved providing that it hasn't been told that they haven't been
- * told that they are essential via a call to xf86LoaderReqSymbols() or
- * xf86LoaderReqSymLists().  The purpose is this is to avoid warnings about
- * unresolved symbols that are not required.
- */
-
-static const char *fbSymbols[] = {
-  "fbScreenInit",
-  "fbPictureInit",
-  NULL
-};
-
-static const char *xaaSymbols[] = {
-    "XAACreateInfoRec",
-    "XAAInit",
-    "XAADestroyInfoRec",
-    NULL
-};
-
-static const char *shadowSymbols[] = {
-  "ShadowFBInit",
-  NULL
-};
-
 #ifdef XFree86LOADER
 
 static XF86ModuleVersionInfo voodooVersRec =
@@ -163,7 +143,7 @@ static XF86ModuleVersionInfo voodooVersRec =
   MODULEVENDORSTRING,
   MODINFOSTRING1,
   MODINFOSTRING2,
-  XF86_VERSION_CURRENT,
+  XORG_VERSION_CURRENT,
   VOODOO_MAJOR_VERSION, VOODOO_MINOR_VERSION, VOODOO_PATCHLEVEL,
   ABI_CLASS_VIDEODRV,			/* This is a video driver */
   ABI_VIDEODRV_VERSION,
@@ -180,7 +160,6 @@ static pointer voodooSetup(pointer module, pointer opts, int *errmaj, int *errmi
   {
     setupDone = TRUE;
     xf86AddDriver(&VOODOO, module, 0);
-    LoaderRefSymLists(fbSymbols, shadowSymbols, xaaSymbols,NULL);
     return (pointer)1;    
   }
   return NULL;
@@ -265,7 +244,10 @@ VoodooProbe(DriverPtr drv, int flags)
     }
 
     /* PCI BUS */
-    if (xf86GetPciVideoInfo() ) {
+#ifndef XSERVER_LIBPCIACCESS
+    if (xf86GetPciVideoInfo() )
+#endif
+    {
 	numUsed = xf86MatchPciInstances(VOODOO_NAME, PCI_VENDOR_3DFX,
 					VoodooChipsets, VoodooPCIChipsets, 
 					devSections,numDevSections,
@@ -400,8 +382,9 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
   pVoo->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
   
   pVoo->PciInfo = xf86GetPciInfoForEntity(pVoo->pEnt->index);
+#ifndef XSERVER_LIBPCIACCESS
   pVoo->PciTag = pciTag(pVoo->PciInfo->bus, pVoo->PciInfo->device, pVoo->PciInfo->func);
-  
+#endif
 
   /* Collect all of the relevant option flags (fill in pScrn->options) */
   xf86CollectOptions(pScrn, NULL);
@@ -433,6 +416,9 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
   	pVoo->Accel = 0;
   }
   
+  if (xf86ReturnOptValBool(pVoo->Options, OPTION_PASS_THROUGH,  FALSE))
+      pVoo->PassThrough = 1;
+
   if (xf86ReturnOptValBool(pVoo->Options, OPTION_NOACCEL, FALSE)) {
   	pVoo->ShadowFB = 1;
   	pVoo->Accel = 0;
@@ -446,13 +432,38 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
   }
 
   /* MMIO at 0 , FB at 4Mb, Texture at 8Mb */
+  pVoo->PhysBase = PCI_REGION_BASE(pVoo->PciInfo, 0, REGION_MEM) + 0x400000;
+
+#ifndef XSERVER_LIBPCIACCESS
   pVoo->MMIO = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO, pVoo->PciTag,
-  		pVoo->PciInfo->memBase[0], 0x400000);
+			     pVoo->PciInfo->memBase[0], 0x400000);
   pVoo->FBBase = xf86MapPciMem(pScrn->scrnIndex, VIDMEM_MMIO, pVoo->PciTag,
-  		pVoo->PciInfo->memBase[0] + 0x400000, 0x400000);
+			       pVoo->PciInfo->memBase[0] + 0x400000, 0x400000);
   		
-  pVoo->PhysBase = pVoo->PciInfo->memBase[0] + 0x400000;
-  		
+#else
+  {
+    void** result = (void**)&pVoo->MMIO;
+    int err = pci_device_map_range(pVoo->PciInfo,
+				   PCI_REGION_BASE(pVoo->PciInfo, 0, REGION_MEM),
+				   0x400000,
+				   PCI_DEV_MAP_FLAG_WRITABLE,
+				   result);
+    if (err)
+      return FALSE;
+  }
+
+  {
+    void** result = (void**)&pVoo->FBBase;
+    int err = pci_device_map_range(pVoo->PciInfo,
+				   PCI_REGION_BASE(pVoo->PciInfo, 0, REGION_MEM) + 0x400000,
+				   0x400000,
+				   PCI_DEV_MAP_FLAG_WRITABLE|
+				   PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				   result);
+    if (err)
+      return FALSE;
+  }
+#endif  		
   VoodooHardwareInit(pVoo);
   
   /*
@@ -516,6 +527,7 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
   }
 
   /* Set the current mode to the first in the list */
+  xf86SetCrtcForModes(pScrn, 0);
   pScrn->currentMode = pScrn->modes;
 
   /* Do some checking, we will not support a virtual framebuffer larger than
@@ -549,14 +561,10 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
     return FALSE;
   }
 
-  xf86LoaderReqSymLists(fbSymbols, NULL);
-
   if (!xf86LoadSubModule(pScrn, "xaa")) {
     VoodooFreeRec(pScrn);
     return FALSE;
   }
-  
-  xf86LoaderReqSymLists(xaaSymbols, NULL);
   
   if(pVoo->ShadowFB)
   {
@@ -565,7 +573,6 @@ VoodooPreInit(ScrnInfoPtr pScrn, int flags)
       VoodooFreeRec(pScrn);
       return FALSE;
     }
-    xf86LoaderReqSymLists(shadowSymbols, NULL);
   }
   return TRUE;
 }
@@ -886,8 +893,10 @@ VoodooRestore(ScrnInfoPtr pScrn, Bool Closing)
 
   pVoo = VoodooPTR(pScrn);
   pVoo->Blanked = TRUE;
-  if (!Closing || !(pVoo->OnAtExit))
-    VoodooBlank(pVoo);
+  if (!Closing)
+      VoodooBlank(pVoo);
+  if (Closing && pVoo->PassThrough)
+      VoodooRestorePassThrough(pVoo);
 }
 
 static void

@@ -7,10 +7,6 @@
  */
 
 /*
- * $Log: ugldrawpix.c,v $
- * Revision 1.1.1.1  2006/11/25 18:57:35  matthieu
- * Import MesaDemos 6.5.1
- *
  * Revision 1.2  2001/09/10 19:21:13  brianp
  * WindML updates (Stephane Raimbault)
  *

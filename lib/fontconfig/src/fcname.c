@@ -1,5 +1,5 @@
 /*
- * $RCSId: xc/lib/fontconfig/src/fcname.c,v 1.15 2002/09/26 00:17:28 keithp Exp $
+ * fontconfig/src/fcname.c
  *
  * Copyright © 2000 Keith Packard
  *
@@ -13,9 +13,9 @@
  * representations about the suitability of this software for any purpose.  It
  * is provided "as is" without express or implied warranty.
  *
- * KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
  * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
- * EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ * EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
  * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -74,7 +74,8 @@ static const FcObjectType _FcBaseObjectTypes[] = {
     { FC_FONTFORMAT,	FcTypeString },
     { FC_EMBOLDEN,	FcTypeBool },
     { FC_EMBEDDED_BITMAP,   FcTypeBool },
-    { FC_DECORATIVE,	FcTypeBool }, /* 40 */
+    { FC_DECORATIVE,	FcTypeBool },
+    { FC_LCD_FILTER,	FcTypeInteger }, /* 41 */
 };
 
 #define NUM_OBJECT_TYPES    (sizeof _FcBaseObjectTypes / sizeof _FcBaseObjectTypes[0])
@@ -326,6 +327,20 @@ FcObjectFromName (const char * name)
     return 0;
 }
 
+FcObjectSet *
+FcObjectGetSet (void)
+{
+    int		i;
+    FcObjectSet	*os = NULL;
+
+
+    os = FcObjectSetCreate ();
+    for (i = 0; i < FcObjectsNumber; i++)
+	FcObjectSetAdd (os, FcObjects[i].object);
+
+    return os;
+}
+
 FcBool
 FcObjectInit (void)
 {
@@ -435,6 +450,10 @@ static const FcConstant _FcBaseConstants[] = {
     { (FcChar8 *) "embolden",	    "embolden",	    FcTrue },
     { (FcChar8 *) "embeddedbitmap", "embeddedbitmap",	FcTrue },
     { (FcChar8 *) "decorative",	    "decorative",   FcTrue },
+    { (FcChar8 *) "lcdnone",	    "lcdfilter",    FC_LCD_NONE },
+    { (FcChar8 *) "lcddefault",	    "lcdfilter",    FC_LCD_DEFAULT },
+    { (FcChar8 *) "lcdlight",	    "lcdfilter",    FC_LCD_LIGHT },
+    { (FcChar8 *) "lcdlegacy",	    "lcdfilter",    FC_LCD_LEGACY },
 };
 
 #define NUM_FC_CONSTANTS   (sizeof _FcBaseConstants/sizeof _FcBaseConstants[0])
@@ -764,7 +783,7 @@ FcNameUnparseString (FcStrBuf	    *buf,
     return FcTrue;
 }
 
-static FcBool
+FcBool
 FcNameUnparseValue (FcStrBuf	*buf,
 		    FcValue	*v0,
 		    FcChar8	*escape)
@@ -799,7 +818,7 @@ FcNameUnparseValue (FcStrBuf	*buf,
     return FcFalse;
 }
 
-static FcBool
+FcBool
 FcNameUnparseValueList (FcStrBuf	*buf,
 			FcValueListPtr	v,
 			FcChar8		*escape)

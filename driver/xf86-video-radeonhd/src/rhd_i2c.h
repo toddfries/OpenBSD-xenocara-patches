@@ -1,5 +1,5 @@
 /*
- * Copyright 2007  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007  Egbert Eich   <eich@novell.com>
  * Copyright 2007  Advanced Micro Devices, Inc.
@@ -28,17 +28,16 @@
 #include "xf86DDC.h"
 #include "rhd.h"
 
-#define I2C_LINES 4
-
 typedef enum {
     RHD_I2C_INIT,
     RHD_I2C_DDC,
+    RHD_I2C_PROBE_ADDR_LINE,
     RHD_I2C_PROBE_ADDR,
     RHD_I2C_GETBUS,
     RHD_I2C_TEARDOWN
 } RHDi2cFunc;
 
-typedef union
+typedef union RHDI2CDataArg
 {
     I2CBusPtr *I2CBusList;
     int i;
@@ -46,6 +45,10 @@ typedef union
 	int line;
 	CARD8 slave;
     } target;
+    struct {
+	CARD8 slave;
+	I2CBusPtr i2cBusPtr;
+    } probe;
     struct
     {
 	int line;

@@ -31,10 +31,8 @@
 ** published by SGI, but has not been independently verified as being
 ** compliant with the OpenGL(R) version 1.2.1 Specification.
 **
-** $Date: 2007/11/24 17:27:03 $ $Revision: 1.1.1.2 $
 */
 /*
-** $Header: /cvs/xenocara/dist/Mesa/src/glu/sgi/libnurbs/internals/dataTransform.cc,v 1.1.1.2 2007/11/24 17:27:03 matthieu Exp $
 */
 
 #include <stdlib.h>

@@ -1,4 +1,3 @@
-/* $Id: sse_xform4.S,v 1.1.1.1 2006/11/25 18:54:22 matthieu Exp $ */
 
 /*
  * Mesa 3-D graphics library
@@ -25,6 +24,7 @@
  */
 
 #ifdef USE_SSE_ASM
+#include "assyntax.h"
 #include "matypes.h"
 #include "xform_args.h"
 

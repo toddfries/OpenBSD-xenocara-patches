@@ -16,36 +16,55 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "headers.h"
+#include <sys/param.h>
+#include <sys/queue.h>
+
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
+
+int
+font_ascent(struct screen_ctx *sc)
+{
+	return (sc->font->ascent);
+}
+
+int
+font_descent(struct screen_ctx *sc)
+{
+	return (sc->font->descent);
+}
+
+u_int
+font_height(struct screen_ctx *sc)
+{
+	return (sc->fontheight);
+}
 
 void
 font_init(struct screen_ctx *sc)
 {
-	XColor	 xcolor, tmp;
-
 	sc->xftdraw = XftDrawCreate(X_Dpy, sc->rootwin,
 	    DefaultVisual(X_Dpy, sc->which), DefaultColormap(X_Dpy, sc->which));
 	if (sc->xftdraw == NULL)
 		errx(1, "XftDrawCreate");
 
-	if (!XAllocNamedColor(X_Dpy, DefaultColormap(X_Dpy, sc->which),
-	    "black", &xcolor, &tmp))
-		errx(1, "XAllocNamedColor");
-
-	sc->xftcolor.color.red = xcolor.red;
-	sc->xftcolor.color.green = xcolor.green;
-	sc->xftcolor.color.blue = xcolor.blue;
-	sc->xftcolor.color.alpha = 0x00ff00;
-	sc->xftcolor.pixel = xcolor.pixel;
+	if (!XftColorAllocName(X_Dpy, DefaultVisual(X_Dpy, sc->which),
+	    DefaultColormap(X_Dpy, sc->which), "black", &sc->xftcolor))
+		errx(1, "XftColorAllocName");
 }
 
 int
-font_width(const char *text, int len)
+font_width(struct screen_ctx *sc, const char *text, int len)
 {
 	XGlyphInfo	 extents;
 
-	XftTextExtents8(X_Dpy, Conf.DefaultFont, (const XftChar8*)text,
+	XftTextExtents8(X_Dpy, sc->font, (const XftChar8*)text,
 	    len, &extents);
 
 	return (extents.xOff);
@@ -57,7 +76,7 @@ font_draw(struct screen_ctx *sc, const char *text, int len,
 {
 	XftDrawChange(sc->xftdraw, d);
 	/* Really needs to be UTF8'd. */
-	XftDrawString8(sc->xftdraw, &sc->xftcolor, Conf.DefaultFont, x, y,
+	XftDrawString8(sc->xftdraw, &sc->xftcolor, sc->font, x, y,
 	    (const FcChar8*)text, len);
 }
 
@@ -68,7 +87,7 @@ font_make(struct screen_ctx *sc, const char *name)
 	FcPattern	*pat, *patx;
 	XftResult	 res;
 
-	if ((pat = FcNameParse(name)) == NULL)
+	if ((pat = FcNameParse((const FcChar8*)name)) == NULL)
 		return (NULL);
 
 	if ((patx = XftFontMatch(X_Dpy, sc->which, pat, &res)) != NULL)

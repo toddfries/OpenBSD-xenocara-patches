@@ -1,5 +1,5 @@
 /*
- * Copyright 2007, 2008  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007, 2008  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007, 2008  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007, 2008  Egbert Eich   <eich@novell.com>
  * Copyright 2007, 2008  Advanced Micro Devices, Inc.
@@ -31,23 +31,42 @@ enum {
     BUS_CNTL		  =       0x4C, /* (RW) */
     MC_IND_INDEX	  =       0x70, /* (RW) */
     MC_IND_DATA           =       0x74, /* (RW) */
+    RS600_MC_INDEX	  =	  0x70,
+    RS600_MC_DATA	  =	  0x74,
+    RS690_MC_INDEX	  =	  0x78,
+    RS690_MC_DATA	  =	  0x7c,
+    RS780_MC_INDEX	  =	  0x28f8,
+    RS780_MC_DATA	  =	  0x28fc,
+
+    RS60_MC_NB_MC_INDEX	  =	  0x78,
+    RS60_MC_NB_MC_DATA	  =	  0x7C,
     CONFIG_CNTL		  =	  0xE0,
-    /* RS690 ?? */
-    RS69_MC_INDEX		  =	  0xE8,
-    RS69_MC_DATA		  =	  0xEC,
-    R5XX_CONFIG_MEMSIZE            = 0x00F8,
+    PCIE_RS69_MC_INDEX	  =	  0xE8,
+    PCIE_RS69_MC_DATA	  =	  0xEC,
+    R5XX_CONFIG_MEMSIZE	  =	  0x00F8,
 
     HDP_FB_LOCATION       =	  0x0134,
 
     SEPROM_CNTL1	  =       0x1C0,  /* (RW) */
+
+    AGP_BASE              =       0x0170,
+
     GPIOPAD_MASK          =       0x198,  /* (RW) */
     GPIOPAD_A		  =       0x19C,  /* (RW) */
     GPIOPAD_EN		  =       0x1A0,  /* (RW) */
     VIPH_CONTROL          =       0xC40,  /* (RW) */
 
+    ROM_CNTL                       = 0x1600,
+    GENERAL_PWRMGT                 = 0x0618,
+    LOW_VID_LOWER_GPIO_CNTL        = 0x0724,
+    MEDIUM_VID_LOWER_GPIO_CNTL     = 0x0720,
+    HIGH_VID_LOWER_GPIO_CNTL       = 0x071C,
+    CTXSW_VID_LOWER_GPIO_CNTL      = 0x0718,
+    LOWER_GPIO_ENABLE              = 0x0710,
+
     /* VGA registers */
     VGA_RENDER_CONTROL             = 0x0300,
-    VGA_MODE_CONTROL             = 0x0308,
+    VGA_MODE_CONTROL               = 0x0308,
     VGA_MEMORY_BASE_ADDRESS        = 0x0310,
     VGA_HDP_CONTROL                = 0x0328,
     D1VGA_CONTROL                  = 0x0330,
@@ -83,12 +102,28 @@ enum {
     PCLK_CRTC1_CNTL                = 0x0480,
     PCLK_CRTC2_CNTL                = 0x0484,
 
+    /* these regs were reverse enginered,
+     * so the chance is high that the naming is wrong
+     * R6xx+ ??? */
+    AUDIO_PLL1_MUL		   = 0x0514,
+    AUDIO_PLL1_DIV		   = 0x0518,
+    AUDIO_PLL2_MUL		   = 0x0524,
+    AUDIO_PLL2_DIV		   = 0x0528,
+    AUDIO_CLK_SRCSEL		   = 0x0534,
+
     DCCG_DISP_CLK_SRCSEL           = 0x0538, /* rv620+ */
+
+    AGP_STATUS                     = 0x0F5C,
+
+    R7XX_MC_VM_FB_LOCATION	   = 0x2024,
 
     R6XX_MC_VM_FB_LOCATION	   = 0x2180,
     R6XX_HDP_NONSURFACE_BASE       = 0x2C04,
     R6XX_CONFIG_MEMSIZE            = 0x5428,
     R6XX_CONFIG_FB_BASE            = 0x542C, /* AKA CONFIG_F0_BASE */
+    /* PCI config space */
+    PCI_CONFIG_SPACE_BASE          = 0x5000,
+    PCI_CAPABILITIES_PTR           = 0x5034,
 
     /* CRTC1 registers */
     D1CRTC_H_TOTAL                 = 0x6000,
@@ -158,6 +193,8 @@ enum {
 
     /* D1MODE */
     D1MODE_DESKTOP_HEIGHT          = 0x652C,
+    D1MODE_VLINE_START_END         = 0x6538,
+    D1MODE_VLINE_STATUS            = 0x653C,
     D1MODE_VIEWPORT_START          = 0x6580,
     D1MODE_VIEWPORT_SIZE           = 0x6584,
     D1MODE_EXT_OVERSCAN_LEFT_RIGHT = 0x6588,
@@ -222,6 +259,8 @@ enum {
 
     /* D2MODE */
     D2MODE_DESKTOP_HEIGHT          = 0x6D2C,
+    D2MODE_VLINE_START_END         = 0x6D38,
+    D2MODE_VLINE_STATUS            = 0x6D3C,
     D2MODE_VIEWPORT_START          = 0x6D80,
     D2MODE_VIEWPORT_SIZE           = 0x6D84,
     D2MODE_EXT_OVERSCAN_LEFT_RIGHT = 0x6D88,
@@ -239,12 +278,45 @@ enum {
     D2SCL_DITHER                   = 0x6DD4, /* guess */
     D2SCL_FLIP_CONTROL             = 0x6DD8, /* guess */
 
+    /* Audio, reverse enginered */
+    AUDIO_ENABLE		   = 0x7300, /* RW */
+    AUDIO_TIMING		   = 0x7344, /* RW */
+    /* Audio params */
+    AUDIO_VENDOR_ID                = 0x7380, /* RW */
+    AUDIO_REVISION_ID              = 0x7384, /* RW */
+    AUDIO_ROOT_NODE_COUNT          = 0x7388, /* RW */
+    AUDIO_NID1_NODE_COUNT          = 0x738c, /* RW */
+    AUDIO_NID1_TYPE                = 0x7390, /* RW */
+    AUDIO_SUPPORTED_SIZE_RATE      = 0x7394, /* RW */
+    AUDIO_SUPPORTED_CODEC          = 0x7398, /* RW */
+    AUDIO_SUPPORTED_POWER_STATES   = 0x739c, /* RW */
+    AUDIO_NID2_CAPS                = 0x73a0, /* RW */
+    AUDIO_NID3_CAPS                = 0x73a4, /* RW */
+    AUDIO_NID3_PIN_CAPS            = 0x73a8, /* RW */
+    /* Audio conn list */
+    AUDIO_CONN_LIST_LEN            = 0x73ac, /* RW */
+    AUDIO_CONN_LIST                = 0x73b0, /* RW */
+    /* Audio verbs */
+    AUDIO_RATE_BPS_CHANNEL         = 0x73c0, /* RO */
+    AUDIO_PLAYING                  = 0x73c4, /* RO */
+    AUDIO_IMPLEMENTATION_ID        = 0x73c8, /* RW */
+    AUDIO_CONFIG_DEFAULT           = 0x73cc, /* RW */
+    AUDIO_PIN_SENSE                = 0x73d0, /* RW */
+    AUDIO_PIN_WIDGET_CNTL          = 0x73d4, /* RO */
+    AUDIO_STATUS_BITS              = 0x73d8, /* RO */
+
+    /* HDMI */
+    HDMI_TMDS			   = 0x7400,
+    HDMI_LVTMA			   = 0x7700,
+    HDMI_DIG			   = 0x7800,
+
     /* R500 DAC A */
     DACA_ENABLE                    = 0x7800,
     DACA_SOURCE_SELECT             = 0x7804,
     DACA_SYNC_TRISTATE_CONTROL     = 0x7820,
     DACA_SYNC_SELECT               = 0x7824,
     DACA_AUTODETECT_CONTROL        = 0x7828,
+    DACA_AUTODETECT_INT_CONTROL    = 0x7838,
     DACA_FORCE_OUTPUT_CNTL         = 0x783C,
     DACA_FORCE_DATA                = 0x7840,
     DACA_POWERDOWN                 = 0x7850,
@@ -275,6 +347,7 @@ enum {
     DACB_SYNC_TRISTATE_CONTROL     = 0x7A20,
     DACB_SYNC_SELECT               = 0x7A24,
     DACB_AUTODETECT_CONTROL        = 0x7A28,
+    DACB_AUTODETECT_INT_CONTROL    = 0x7A38,
     DACB_FORCE_OUTPUT_CNTL         = 0x7A3C,
     DACB_FORCE_DATA                = 0x7A40,
     DACB_POWERDOWN                 = 0x7A50,
@@ -298,6 +371,7 @@ enum {
     LVTMA_R500_PWRSEQ_DELAY2        = 0x7AEC,
     LVTMA_R500_PWRSEQ_CNTL          = 0x7AF0,
     LVTMA_R500_PWRSEQ_STATE         = 0x7AF4,
+    LVTMA_R500_BL_MOD_CNTL          = 0x7AF8,
     LVTMA_R500_LVDS_DATA_CNTL       = 0x7AFC,
     LVTMA_R500_MODE                 = 0x7B00,
     LVTMA_R500_TRANSMITTER_ENABLE   = 0x7B04,
@@ -313,6 +387,7 @@ enum {
     LVTMA_R600_PWRSEQ_DELAY2        = 0x7AF0,
     LVTMA_R600_PWRSEQ_CNTL          = 0x7AF4,
     LVTMA_R600_PWRSEQ_STATE         = 0x7AF8,
+    LVTMA_R600_BL_MOD_CNTL          = 0x7AFC,
     LVTMA_R600_LVDS_DATA_CNTL       = 0x7B00,
     LVTMA_R600_MODE                 = 0x7B04,
     LVTMA_R600_TRANSMITTER_ENABLE   = 0x7B08,
@@ -411,8 +486,13 @@ enum rv620Regs {
     RV620_LVTMA_TRANSMITTER_ADJUST = 0x7F18,
     RV620_LVTMA_PREEMPHASIS_CONTROL= 0x7F1C,
     RV620_LVTMA_MACRO_CONTROL      = 0x7F0C,
+    RV620_LVTMA_PWRSEQ_CNTL        = 0x7F80,
+    RV620_LVTMA_PWRSEQ_STATE       = 0x7f84,
+    RV620_LVTMA_PWRSEQ_REF_DIV     = 0x7f88,
+    RV620_LVTMA_PWRSEQ_DELAY1      = 0x7f8C,
+    RV620_LVTMA_PWRSEQ_DELAY2      = 0x7f90,
+    RV620_LVTMA_BL_MOD_CNTL	   = 0x7F94,
     RV620_LVTMA_DATA_SYNCHRONIZATION = 0x7F98,
-
     RV620_FMT1_CONTROL		= 0x6700,
     RV620_FMT1_BIT_DEPTH_CONTROL= 0x6710,
     RV620_FMT1_CLAMP_CNTL	= 0x672C,
@@ -420,9 +500,49 @@ enum rv620Regs {
     RV620_FMT2_CNTL		= 0x6F10,
     RV620_FMT2_CLAMP_CNTL	= 0x6F2C,
 
+    RV620_EXT1_DIFF_POST_DIV_CNTL= 0x0420,
+    RV620_EXT2_DIFF_POST_DIV_CNTL= 0x0424,
     RV620_DCCG_PCLK_DIGA_CNTL   = 0x04b0,
     RV620_DCCG_PCLK_DIGB_CNTL   = 0x04b4,
     RV620_DCCG_SYMCLK_CNTL	= 0x04b8
+};
+
+enum RV620_EXT1_DIFF_POST_DIV_CNTL_BITS {
+    RV62_EXT1_DIFF_POST_DIV_RESET  = 1 << 0,
+    RV62_EXT1_DIFF_POST_DIV_SELECT = 1 << 4,
+    RV62_EXT1_DIFF_DRIVER_ENABLE   = 1 << 8
+};
+
+enum RV620_EXT2_DIFF_POST_DIV_CNTL_BITS {
+    RV62_EXT2_DIFF_POST_DIV_RESET = 1 << 0,
+    RV62_EXT2_DIFF_POST_DIV_SELECT = 1 << 4,
+    RV62_EXT2_DIFF_DRIVER_ENABLE = 3 << 8
+};
+
+enum RV620_LVTMA_PWRSEQ_CNTL_BITS {
+    RV62_LVTMA_PWRSEQ_EN = 1 << 0,
+    RV62_LVTMA_PWRSEQ_DISABLE_SYNCEN_CONTROL_OF_TX_EN = 1 << 1,
+    RV62_LVTMA_PLL_ENABLE_PWRSEQ_MASK = 1 << 2,
+    RV62_LVTMA_PLL_RESET_PWRSEQ_MASK = 1 << 3,
+    RV62_LVTMA_PWRSEQ_TARGET_STATE = 1 << 4,
+    RV62_LVTMA_SYNCEN = 1 << 8,
+    RV62_LVTMA_SYNCEN_OVRD = 1 << 9,
+    RV62_LVTMA_SYNCEN_POL = 1 << 10,
+    RV62_LVTMA_DIGON = 1 << 16,
+    RV62_LVTMA_DIGON_OVRD = 1 << 17,
+    RV62_LVTMA_DIGON_POL = 1 << 18,
+    RV62_LVTMA_BLON = 1 << 24,
+    RV62_LVTMA_BLON_OVRD = 1 << 25,
+    RV62_LVTMA_BLON_POL = 1 << 26
+};
+
+enum RV620_LVTMA_PWRSEQ_STATE_BITS {
+    RV62_LVTMA_PWRSEQ_STATE_SHIFT = 8
+};
+
+enum RV620_LVTMA_PWRSEQ_STATE_VAL {
+    RV62_POWERUP_DONE = 4,
+    RV62_POWERDOWN_DONE = 9
 };
 
 enum RV620_LVTMA_TRANSMITTER_CONTROL_BITS {
@@ -478,10 +598,20 @@ enum R620_LVTMA_TRANSMITTER_ENABLE_BITS {
 };
 
 enum RV620_LVTMA_DATA_SYNCHRONIZATION {
-    RV62_LVTMA_DSYNSEL = (1 << 0),
+    RV62_LVTMA_DSYNSEL  = (1 << 0),
     RV62_LVTMA_PFREQCHG = (1 << 8)
 };
 
+enum RV620_LVTMA_PWRSEQ_REF_DIV_BITS {
+    LVTMA_PWRSEQ_REF_DI_SHIFT  = 0,
+    LVTMA_BL_MOD_REF_DI_SHIFT  = 16
+};
+
+enum RV620_LVTMA_BL_MOD_CNTL_BITS {
+    LVTMA_BL_MOD_EN          = 1 << 0,
+    LVTMA_BL_MOD_LEVEL_SHIFT = 8,
+    LVTMA_BL_MOD_RES_SHIFT   = 16
+};
 
 enum RV620_DIG_CNTL_BITS {
     /* 0x75A0 */
@@ -532,7 +662,8 @@ enum _r5xxMCRegs {
     R5XX_MC_STATUS                 = 0x0000,
     RV515_MC_FB_LOCATION	   = 0x0001,
     R5XX_MC_FB_LOCATION		   = 0x0004,
-    RV515_MC_STATUS                = 0x0008
+    RV515_MC_STATUS                = 0x0008,
+    RV515_MC_MISC_LAT_TIMER        = 0x0009
 };
 
 enum _r5xxRegs {
@@ -663,7 +794,8 @@ enum RS69_DDIA_BIT_DEPTH_CONTROL_BITS {
 
 enum RS69_DDIA_DCBALANCER_CONTROL_BITS {
     RS69_DDIA_DCBALANCER_EN		= 1 << 0,
-    RS69_DDIA_SYNC_DCBAL_EN		= 1 << 4,
+    RS69_DDIA_SYNC_DCBAL_EN_SHIFT       = 4,
+    RS69_DDIA_SYNC_DCBAL_EN_MASK        = 7 <<  RS69_DDIA_SYNC_DCBAL_EN_SHIFT,
     RS69_DDIA_DCBALANCER_TEST_EN	= 1 << 8,
     RS69_DDIA_DCBALANCER_TEST_IN_SHIFT  = 16,
     RS69_DDIA_DCBALANCER_FORCE		= 1 << 24
@@ -689,29 +821,125 @@ enum RS69_DDIA_PCIE_LINK_CONTROL3_BITS {
 };
 
 enum RS69_MC_INDEX_BITS {
-    RS69_MC_IND_ADDR = (0x1 << 0),
-    RS69_C_IND_WR_EN = (0x1 << 9)
+    PCIE_RS69_MC_IND_ADDR = (0x1 << 0),
+    PCIE_RS69_MC_IND_WR_EN = (0x1 << 9)
+};
+
+enum RS60_MC_NB_MC_INDEX_BITS {
+    RS60_NB_MC_IND_ADDR = (0x1 << 0),
+    RS60_NB_MC_IND_WR_EN = (0x1 << 8)
 };
 
 enum _rs690MCRegs {
+    RS69_K8_FB_LOCATION		=	0x1E,
+    RS69_MC_MISC_UMA_CNTL	=	0x5f,
     RS69_MC_SYSTEM_STATUS 	=	0x90,  /* (RW) */
     RS69_MCCFG_FB_LOCATION		=	0x100,
-    RS69MCCFG_AGP_LOCATION		=	0x101
+    RS69MCCFG_AGP_LOCATION		=	0x101,
+    RS69_MC_INIT_MISC_LAT_TIMER         =       0x104
 };
 
-enum RS69_MC_SYSTEM_STATUS_BITS {
-        RS69_MC_SYSTEM_IDLE	 = (0x1 << 0),
-	RS69_MC_SEQUENCER_IDLE	 = (0x1 << 1),
-	RS69_MC_ARBITER_IDLE	 = (0x1 << 2),
-	RS69_MC_SELECT_PM	 = (0x1 << 3),
-	RS69_RESERVED4	 = (0xf << 4),
-	RS69_RESERVED8	 = (0xf << 8),
-	RS69_RESERVED12_SYSTEM_STATUS	 = (0xf << 12),
-	RS69_MCA_INIT_EXECUTED	 = (0x1 << 16),
-	RS69_MCA_IDLE	 = (0x1 << 17),
-	RS69_MCA_SEQ_IDLE	 = (0x1 << 18),
-	RS69_MCA_ARB_IDLE	 = (0x1 << 19),
-	RS69_RESERVED20_SYSTEM_STATUS	 = (0xfff << 20)
+enum MC_MISC_LAT_TIMER_BITS {
+    MC_CPR_INIT_LAT_SHIFT    =  0,
+    MC_VF_INIT_LAT           =  4,
+    MC_DISP0R_INIT_LAT_SHIFT =  8,
+    MC_DISP1R_INIT_LAT_SHIFT = 12,
+    MC_FIXED_INIT_LAT_SHIFT  = 16,
+    MC_E2R_INIT_LAT_SHIFT    = 20,
+    SAME_PAGE_PRIO_SHIFT     = 24,
+    MC_GLOBW_INIT_LAT_SHIFT  = 28
+};
+
+enum RS69_MC_MISC_UMA_CNTL_BITS {
+    RS69_K8_40BIT_ADDR_EXTENSION = (0x1 << 0),
+    RS69_GART_BYPASS             = (0x1 << 8),
+    RS69_GFX_64BYTE_MODE         = (0x1 << 9),
+    RS69_GFX_64BYTE_LAT          = (0x1 << 10),
+    RS69_GTW_COHERENCY           = (0x1 << 15),
+    RS69_READ_BUFFER_SIZE        = (0x1 << 16),
+    RS69_HDR_ROUTE_TO_DSP        = (0x1 << 24),
+    RS69_GTW_ROUTE_TO_DSP        = (0x1 << 25),
+    RS69_DSP_ROUTE_TO_GFX        = (0x1 << 26),
+    RS69_USE_HDPW_LAT_INIT       = (0x1 << 27),
+    RS69_USE_GFXW_LAT_INIT       = (0x1 << 28),
+    RS69_MCIFR_COHERENT          = (0x1 << 29),
+    RS69_NON_SNOOP_AZR_AIC_BP    = (0x1 << 30),
+    RS69_SIDE_PORT_PRESENT_R     = (0x1 << 31)
+};
+
+enum _rs600MCRegs {
+    RS60_MC_SYSTEM_STATUS	=       0x0,
+    RS60_NB_FB_LOCATION		=	0xa
+};
+
+enum RS600_MC_INDEX_BITS {
+    RS600_MC_INDEX_ADDR_MASK	 = 0xffff,
+    RS600_MC_INDEX_SEQ_RBS_0	 = (1 << 16),
+    RS600_MC_INDEX_SEQ_RBS_1	 = (1 << 17),
+    RS600_MC_INDEX_SEQ_RBS_2	 = (1 << 18),
+    RS600_MC_INDEX_SEQ_RBS_3	 = (1 << 19),
+    RS600_MC_INDEX_AIC_RBS	 = (1 << 20),
+    RS600_MC_INDEX_CITF_ARB0	 = (1 << 21),
+    RS600_MC_INDEX_CITF_ARB1	 = (1 << 22),
+    RS600_MC_INDEX_WR_EN	 = (1 << 23)
+};
+
+enum RS690_MC_INDEX_BITS {
+    RS690_MC_INDEX_ADDR_MASK	 = 0x1ff,
+    RS690_MC_INDEX_WR_EN	 = (1 << 9),
+    RS690_MC_INDEX_WR_ACK	 = 0x7f
+};
+
+enum RS780_MC_INDEX_BITS {
+    RS780_MC_INDEX_ADDR_MASK	 = 0x1ff,
+    RS780_MC_INDEX_WR_EN	 = (1 << 9)
+};
+
+enum _rs780NBRegs {
+    PCIE_RS78_NB_MC_IND_INDEX	= 0x70,
+    PCIE_RS78_NB_MC_IND_DATA         = 0x74
+};
+
+enum RS78_NB_IND_INDEX_BITS {
+    PCIE_RS78_NB_MC_IND_INDEX_MASK = (0xffff << 0),
+    PCIE_RS78_MC_IND_SEQ_RBS_0     = (0x1 << 16),
+    PCIE_RS78_MC_IND_SEQ_RBS_1     = (0x1 << 17),
+    PCIE_RS78_MC_IND_SEQ_RBS_2     = (0x1 << 18),
+    PCIE_RS78_MC_IND_SEQ_RBS_3     = (0x1 << 19),
+    PCIE_RS78_MC_IND_AIC_RBS       = (0x1 << 20),
+    PCIE_RS78_MC_IND_CITF_ARB0     = (0x1 << 21),
+    PCIE_RS78_MC_IND_CITF_ARB1     = (0x1 << 22),
+    PCIE_RS78_MC_IND_WR_EN         = (0x1 << 23),
+    PCIE_RS78_MC_IND_RD_INV        = (0x1 << 24)
+};
+
+enum _rs780MCRegs {
+    RS78_MC_SYSTEM_STATUS	=	0x0,
+    RS78_MC_FB_LOCATION		=	0x10,
+    RS78_K8_FB_LOCATION		=	0x11,
+    RS78_MC_MISC_UMA_CNTL       =       0x12
+};
+
+enum RS6X_MC_SYSTEM_STATUS_BITS {
+        RS6X_MC_SYSTEM_IDLE	 = (0x1 << 0),
+	RS6X_MC_SEQUENCER_IDLE	 = (0x1 << 1),
+	RS6X_MC_ARBITER_IDLE	 = (0x1 << 2),
+	RS6X_MC_SELECT_PM	 = (0x1 << 3),
+	RS6X_RESERVED4	 = (0xf << 4),
+	RS6X_RESERVED8	 = (0xf << 8),
+	RS6X_RESERVED12_SYSTEM_STATUS	 = (0xf << 12),
+	RS6X_MCA_INIT_EXECUTED	 = (0x1 << 16),
+	RS6X_MCA_IDLE	 = (0x1 << 17),
+	RS6X_MCA_SEQ_IDLE	 = (0x1 << 18),
+	RS6X_MCA_ARB_IDLE	 = (0x1 << 19),
+	RS6X_RESERVED20_SYSTEM_STATUS	 = (0xfff << 20)
+};
+
+enum RS78_MC_MISC_UMA_CNTL_BITS {
+    RS78_K8_40BIT_ADDR_EXTENSION = ( 0x1 << 0),
+    RS78_BANKGROUP_SEL           = ( 0x1 << 8),
+    RS78_CNTL_SPARE              = ( 0x1 << 15),
+    RS78_SIDE_PORT_PRESENT_R     = ( 0x1 << 31)
 };
 
 enum R5XX_MC_STATUS_BITS {
@@ -721,6 +949,19 @@ enum R5XX_MC_STATUS_BITS {
 
 enum RV515_MC_STATUS_BITS {
     RV515_MC_IDLE        = (0x1 << 4)
+};
+
+enum RS78_MC_SYSTEM_STATUS_BITS {
+    RS78_MC_SYSTEM_IDLE        =  1 << 0,
+    RS78_MC_SEQUENCER_IDLE     =  1 << 1,
+    RS78_MC_ARBITER_IDLE       = 1 << 2,
+    RS78_MC_SELECT_PM          = 1 << 3,
+    RS78_MC_STATUS_15_4_SHIFT  = 4,
+    RS78_MCA_INIT_EXECUTED     = 1 << 16,
+    RS78_MCA_IDLE              = 1 << 17,
+    RS78_MCA_SEQ_IDLE          = 1 << 18,
+    RS78_MCA_ARB_IDLE          = 1 << 19,
+    RS78_MC_STATUS_31_20_SHIFT = 20
 };
 
 enum BUS_CNTL_BITS {
@@ -767,6 +1008,38 @@ enum VIPH_CONTROL_BITS {
     VIPH_PWR_DOWN        = (0x1 << 28),
     VIPH_PWR_DOWN_AK     = (0x1 << 28),
     VIPH_VIPCLK_DIS      = (0x1 << 29)
+};
+
+enum ROM_CNTL_BITS {
+    SCK_OVERWRITE            = 1 << 1,
+    CLOCK_GATING_EN          = 1 << 2,
+    CSB_ACTIVE_TO_SCK_SETUP_TIME_SHIFT = 8,
+    CSB_ACTIVE_TO_SCK_HOLD_TIME_SHIFT = 16,
+    SCK_PRESCALE_REFCLK_SHIFT      = 24,
+    SCK_PRESCALE_CRYSTAL_CLK_SHIFT = 28
+};
+
+enum GENERAL_PWRMGT_BITS {
+    GLOBAL_PWRMGT_EN           = 1 << 0,
+    STATIC_PM_EN               = 1 << 1,
+    MOBILE_SU                  = 1 << 2,
+    THERMAL_PROTECTION_DIS     = 1 << 3,
+    THERMAL_PROTECTION_TYPE    = 1 << 4,
+    ENABLE_GEN2PCIE            = 1 << 5,
+    SW_GPIO_INDEX_SHIFT        = 1 << 6,
+    LOW_VOLT_D2_ACPI           = 1 << 8,
+    LOW_VOLT_D3_ACPI           = 1 << 9,
+    VOLT_PWRMGT_EN             = 1 << 10,
+    OPEN_DRAIN_PADS            = 1 << 11,
+    AVP_SCLK_EN                = 1 << 12,
+    IDCT_SCLK_EN               = 1 << 13,
+    GPU_COUNTER_ACPI           = 1 << 14,
+    GPU_COUNTER_CLK            = 1 << 15,
+    BACKBIAS_PAD_EN            = 1 << 16,
+    BACKBIAS_VALUE             = 1 << 17,
+    BACKBIAS_DPM_CNTL          = 1 << 18,
+    SPREAD_SPECTRUM_INDEX_SHIFT = 19,
+    DYN_SPREAD_SPECTRUM_EN     = 1 << 2
 };
 
 enum VGA_RENDER_CONTROL_BITS {
@@ -832,5 +1105,46 @@ enum {
 #define MC_IND_DATA_BIT  0xffffffff
 };
 
+enum AGP_STATUS_BITS {
+    AGP_1X_MODE          = 0x01,
+    AGP_2X_MODE          = 0x02,
+    AGP_4X_MODE          = 0x04,
+    AGP_FW_MODE          = 0x10,
+    AGP_MODE_MASK        = 0x17,
+    AGPv3_MODE           = 0x08,
+    AGPv3_4X_MODE        = 0x01,
+    AGPv3_8X_MODE        = 0x02
+};
+
+enum {
+    /* HDMI registers */
+    HDMI_ENABLE           = 0x00,
+    HDMI_STATUS           = 0x04,
+    HDMI_CNTL             = 0x08,
+    HDMI_UNKNOWN_0        = 0x0C,
+    HDMI_AUDIOCNTL        = 0x10,
+    HDMI_VIDEOCNTL        = 0x14,
+    HDMI_VERSION          = 0x18,
+    HDMI_UNKNOWN_1        = 0x28,
+    HDMI_VIDEOINFOFRAME_0 = 0x54,
+    HDMI_VIDEOINFOFRAME_1 = 0x58,
+    HDMI_VIDEOINFOFRAME_2 = 0x5c,
+    HDMI_VIDEOINFOFRAME_3 = 0x60,
+    HDMI_32kHz_CTS        = 0xac,
+    HDMI_32kHz_N          = 0xb0,
+    HDMI_44_1kHz_CTS      = 0xb4,
+    HDMI_44_1kHz_N        = 0xb8,
+    HDMI_48kHz_CTS        = 0xbc,
+    HDMI_48kHz_N          = 0xc0,
+    HDMI_AUDIOINFOFRAME_0 = 0xcc,
+    HDMI_AUDIOINFOFRAME_1 = 0xd0,
+    HDMI_IEC60958_1       = 0xd4,
+    HDMI_IEC60958_2       = 0xd8,
+    HDMI_UNKNOWN_2        = 0xdc,
+    HDMI_AUDIO_DEBUG_0    = 0xe0,
+    HDMI_AUDIO_DEBUG_1    = 0xe4,
+    HDMI_AUDIO_DEBUG_2    = 0xe8,
+    HDMI_AUDIO_DEBUG_3    = 0xec
+};
 
 #endif /* _RHD_REGS_H */

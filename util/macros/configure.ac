@@ -21,24 +21,25 @@ dnl  CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 dnl
 dnl Process this file with autoconf to create configure.
 
-AC_PREREQ([2.57])
+AC_PREREQ([2.60])
 AC_INIT([util-macros],
-        [1.1.6],
-        [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg])
+        [1.6.1],
+        [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
+        [util-macros])
+AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
+AM_MAINTAINER_MODE
 
-# Since this is the package that installs the xorgversion.m4 file, we
-# cannot use it here.  Therefore, we copy the code from the m4 file.
-# Please try to keep them in sync.
-AC_ARG_WITH(release-version,
-		AC_HELP_STRING([--with-release-version=STRING]
-			[Use release version string in package name]),
-		[RELEASE_VERSION="$withval"],
-		[RELEASE_VERSION=""])
-if test "x$RELEASE_VERSION" != "x"; then
-	PACKAGE="$PACKAGE-$RELEASE_VERSION"
-	PACKAGE_TARNAME="$PACKAGE_TARNAME-$RELEASE_VERSION"
-	AC_MSG_NOTICE([Building with package name set to $PACKAGE])
-fi
+# Checks for programs.
+AC_PROG_INSTALL
 
-AC_OUTPUT([Makefile xorg-macros.m4])
+# This is the package that installs xorgversion.m4 as part of xorg-macros.m4.
+# In order to use xorgversion.m4 here, we include it explicitly.
+m4_include([xorgversion.m4])
+
+XORG_RELEASE_VERSION
+XORG_CHANGELOG
+
+AC_CONFIG_FILES([xorg-macros.pc
+                 Makefile xorg-macros.m4:xorg-macros.m4.in:xorgversion.m4])
+AC_OUTPUT

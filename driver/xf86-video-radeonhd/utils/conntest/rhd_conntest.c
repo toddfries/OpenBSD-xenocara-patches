@@ -1,5 +1,5 @@
 /*
- * Copyright 2007, 2008  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007, 2008  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007, 2008  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007, 2008  Egbert Eich   <eich@novell.com>
  * Copyright 2007, 2008  Advanced Micro Devices, Inc.
@@ -35,7 +35,6 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <pci/pci.h>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -43,6 +42,12 @@
 # include "config.h"
 #endif
 #include "git_version.h"
+
+#ifdef XSERVER_LIBPCIACCESS
+#include <pciaccess.h>
+#else
+#include <pci/pci.h>
+#endif
 
 #ifndef ULONG
 typedef unsigned int ULONG;
@@ -79,10 +84,31 @@ typedef unsigned int CARD32;
 
 /* Some register names */
 enum {
+    /* Needed for enable PCI ROM read */
+    BUS_CNTL              =       0x4C, /* (RW) */
+    GPIOPAD_MASK          =       0x198,  /* (RW) */
+    GPIOPAD_A             =       0x19C,  /* (RW) */
+    GPIOPAD_EN            =       0x1A0,  /* (RW) */
+    VIPH_CONTROL          =       0xC40,  /* (RW) */
+    SEPROM_CNTL1          =       0x1C0,  /* (RW) */
+
+    ROM_CNTL                       = 0x1600,
+    GENERAL_PWRMGT                 = 0x0618,
+    LOW_VID_LOWER_GPIO_CNTL        = 0x0724,
+    MEDIUM_VID_LOWER_GPIO_CNTL     = 0x0720,
+    HIGH_VID_LOWER_GPIO_CNTL       = 0x071C,
+    CTXSW_VID_LOWER_GPIO_CNTL      = 0x0718,
+    LOWER_GPIO_ENABLE              = 0x0710,
+
+    VGA_RENDER_CONTROL             = 0x0300,
+    D1VGA_CONTROL                  = 0x0330,
+    D2VGA_CONTROL                  = 0x0338,
+
     /* DAC A */
     DACA_ENABLE                    = 0x7800,
     DACA_SOURCE_SELECT             = 0x7804,
     DACA_AUTODETECT_CONTROL        = 0x7828,
+    DACA_AUTODETECT_INT_CONTROL    = 0x7838,
     DACA_FORCE_OUTPUT_CNTL         = 0x783C,
     DACA_FORCE_DATA                = 0x7840,
     DACA_POWERDOWN                 = 0x7850,
@@ -109,6 +135,7 @@ enum {
     DACB_ENABLE                    = 0x7A00,
     DACB_SOURCE_SELECT             = 0x7A04,
     DACB_AUTODETECT_CONTROL        = 0x7A28,
+    DACB_AUTODETECT_INT_CONTROL    = 0x7A38,
     DACB_FORCE_OUTPUT_CNTL         = 0x7A3C,
     DACB_FORCE_DATA                = 0x7A40,
     DACB_POWERDOWN                 = 0x7A50,
@@ -253,6 +280,21 @@ typedef enum dacOutput {
     DAC_COMPOSITE,
     DAC_COMPONENT
 } dacOutput;
+
+/* Some defines needed for getting access to unposted BIOS */
+
+#define SCK_PRESCALE (0xff << 24)
+#define VIPH_EN              (1 << 21)
+#define BIOS_ROM_DIS         (1 << 2)
+#define D1VGA_MODE_ENABLE    (1 << 0)
+#define D1VGA_TIMING_SELECT  (1 << 8)
+#define D2VGA_MODE_ENABLE    (1 << 0)
+#define D2VGA_TIMING_SELECT  (1 << 8)
+#define VGA_VSTATUS_CNTL     (0x3 << 16)
+#define SCK_OVERWRITE        (1 << 1)
+#define SCK_PRESCALE_CRYSTAL_CLK_SHIFT 28
+#define OPEN_DRAIN_PADS      (1 << 11)
+
 
 /* for RHD_R500/R600/RS690/RV620 */
 chipType ChipType;
@@ -434,9 +476,39 @@ struct RHDDevice {
     { 0x1002, 0x958C, 2, RHD_R600},
     { 0x1002, 0x958D, 2, RHD_R600},
     { 0x1002, 0x958E, 2, RHD_R600},
+    { 0x1002, 0x958F, 2, RHD_R600},
+    { 0x1002, 0x9590, 2, RHD_RV620},
+    { 0x1002, 0x9591, 2, RHD_RV620},
+    { 0x1002, 0x9593, 2, RHD_RV620},
+    { 0x1002, 0x9594, 2, RHD_RV620},
+    { 0x1002, 0x9596, 2, RHD_RV620},
+    { 0x1002, 0x9597, 2, RHD_RV620},
     { 0x1002, 0x9598, 2, RHD_RV620},
+    { 0x1002, 0x9599, 2, RHD_RV620},
+    { 0x1002, 0x959B, 2, RHD_RV620},
+    { 0x1002, 0x95C0, 2, RHD_RV620},
+    { 0x1002, 0x95C2, 2, RHD_RV620},
+    { 0x1002, 0x95C4, 2, RHD_RV620},
     { 0x1002, 0x95C5, 2, RHD_RV620},
+    { 0x1002, 0x95C7, 2, RHD_RV620},
+    { 0x1002, 0x95CC, 2, RHD_RV620},
+    { 0x1002, 0x95CD, 2, RHD_RV620},
+    { 0x1002, 0x95CE, 2, RHD_RV620},
+    { 0x1002, 0x95CF, 2, RHD_RV620},
+    { 0x1002, 0x9610, 2, RHD_RV620},
+    { 0x1002, 0x9611, 2, RHD_RV620},
     { 0x1002, 0x9612, 2, RHD_RV620},
+    { 0x1002, 0x9613, 2, RHD_RV620},
+    { 0x1002, 0x9614, 2, RHD_RV620},
+    { 0x1002, 0x9440, 2, RHD_RV620},
+    { 0x1002, 0x9441, 2, RHD_RV620},
+    { 0x1002, 0x9442, 2, RHD_RV620},
+    { 0x1002, 0x9444, 2, RHD_RV620},
+    { 0x1002, 0x9446, 2, RHD_RV620},
+    { 0x1002, 0x944E, 2, RHD_RV620},
+    { 0x1002, 0x9456, 2, RHD_RV620},
+    { 0x1002, 0x9590, 2, RHD_RV620},
+    { 0x1002, 0x954F, 2, RHD_RV620},
     { 0, 0, 0, 0 }
 };
 
@@ -477,6 +549,8 @@ dprint(unsigned char *start, unsigned long size)
 /*
  *
  */
+#ifndef XSERVER_LIBPCIACCESS
+/* Only for libpci use */
 static struct pci_dev *
 DeviceLocate(struct pci_dev *devices, int bus, int dev, int func)
 {
@@ -488,12 +562,17 @@ DeviceLocate(struct pci_dev *devices, int bus, int dev, int func)
 	    return device;
     return NULL;
 }
+#endif
 
 /*
  *
  */
 static struct RHDDevice *
+#ifdef XSERVER_LIBPCIACCESS
+DeviceMatch(struct pci_device *device)
+#else
 DeviceMatch(struct pci_dev *device)
+#endif
 {
     int i;
 
@@ -508,21 +587,30 @@ DeviceMatch(struct pci_dev *device)
 /*
  *
  */
+#ifndef XSERVER_LIBPCIACCESS
+/* Only for libpci use */
 static void *
 MapBar(struct pci_dev *device, int ioBar, int devMem)
 {
     void *map;
 
-    if (!device->base_addr[ioBar] || !device->size[ioBar])
+    pci_fill_info(device, PCI_FILL_BASES | PCI_FILL_SIZES);
+    if (!device->base_addr[ioBar]
+#if !defined (__FreeBSD__)
+	|| !device->size[ioBar]
+#endif
+	)
 	return NULL;
-
-    map = mmap(0, device->size[ioBar], PROT_WRITE | PROT_READ, MAP_SHARED,
-	       devMem, device->base_addr[ioBar]);
-    /* printf("Mapped IO at 0x%08llX (BAR %1d: 0x%08llX)\n",
-       device->base_addr[io_bar], io_bar, device->size[io_bar]); */
+    /* on FreeBSD the PCI bar sizes don't get filled in; pick a sane default size */
+    map = mmap(0, device->size[ioBar] ? device->size[ioBar] : 0x10000,
+	       PROT_WRITE | PROT_READ, MAP_SHARED, devMem,
+	       device->base_addr[ioBar]);
+    /* printf("Mapped IO at 0x%08X (BAR %1d: 0x%08X)\n",
+       device->base_addr[ioBar], ioBar, device->size[ioBar]); */
 
     return map;
 }
+#endif
 
 /*
  *
@@ -581,9 +669,12 @@ HPDReport(void *map)
 	if (HPD & 0x100)
 	    printf(" RHD_HPD_1");
 
-	if ((ChipType == RHD_R600) && (HPD & 0x00010000))
+	if ((ChipType >= RHD_R600) && (HPD & 0x00010000))
 	    printf(" RHD_HPD_2");
-    }
+
+    	if ((ChipType >= RHD_R600) && (HPD & 0x01000000))
+	    printf(" RHD_HPD_3");
+}
     printf("\n");
 }
 
@@ -605,20 +696,28 @@ DACLoadDetect(void *map, Bool tv, int dac)
     DetectControl = RegRead(map, offset + DACA_AUTODETECT_CONTROL);
     Enable = RegRead(map, offset + DACA_ENABLE);
 
+    /* enable */
     RegWrite(map, offset + DACA_ENABLE, 1);
+    /* ack autodetect */
+    RegMask(map, offset + DACA_AUTODETECT_INT_CONTROL, 0x01, 0x01);
+    /* autodetect off */
     RegMask(map, offset + DACA_AUTODETECT_CONTROL, 0, 0x3);
+    /* zscale shift off */
     RegMask(map, offset + DACA_CONTROL2, 0, 0xff0000);
+    /* dac force off */
     RegMask(map, offset + DACA_CONTROL2, 0, 0x1);
 
+    /* set TV */
     RegMask(map, offset + DACA_CONTROL2, tv ? 0x100 : 0, 0x100);
 
     RegWrite(map, offset + DACA_FORCE_DATA, 0);
     RegMask(map, offset + DACA_CONTROL2, 0x1, 0x1);
 
-    RegMask(map, offset + DACA_COMPARATOR_ENABLE, 0x00070000, 0x00070000);
+    RegMask(map, offset + DACA_COMPARATOR_ENABLE, 0x00070000, 0x00070101);
     RegWrite(map, offset + DACA_CONTROL1, 0x00050802);
+
     RegMask(map, offset + DACA_POWERDOWN, 0, 0x1); /* Shut down Bandgap Voltage Reference Power */
-    usleep(5);
+    usleep(5000);
 
     RegMask(map, offset + DACA_POWERDOWN, 0, 0x01010100); /* Shut down RGB */
 
@@ -632,6 +731,80 @@ DACLoadDetect(void *map, Bool tv, int dac)
 
     RegMask(map, offset + DACA_COMPARATOR_ENABLE, 0x100, 0x100);
     usleep(100);
+
+    /* Get RGB detect values
+     * If only G is detected, we could have a monochrome monitor,
+     * but we don't bother with this at the moment.
+     */
+    ret = (RegRead(map, offset + DACA_COMPARATOR_OUTPUT) & 0x0E) >> 1;
+#ifdef DEBUG
+    fprintf(stderr, "DAC%s: %x %s\n", dac ? "B" : "A", ret, tv ? "TV" : "");
+#endif
+    RegMask(map, offset + DACA_COMPARATOR_ENABLE, CompEnable, 0x00FFFFFF);
+    RegWrite(map, offset + DACA_CONTROL1, Control1);
+    RegMask(map, offset + DACA_CONTROL2, Control2, 0x1FF);
+    RegMask(map, offset + DACA_AUTODETECT_CONTROL, DetectControl, 0xFF);
+    RegMask(map, offset + DACA_ENABLE, Enable, 0xFF);
+
+    switch (ret & 0x7) {
+	case 0x7:
+	    if (tv)
+		return DAC_COMPONENT;
+	    else
+		return DAC_VGA;
+	case 0x1:
+	    if (tv)
+		return DAC_COMPOSITE;
+	    else
+		return DAC_NONE;
+	case 0x6:
+	    if (tv)
+		return DAC_SVIDEO;
+	    else
+		return DAC_NONE;
+	default:
+	    return DAC_NONE;
+    }
+}
+
+/*
+ *
+ */
+static dacOutput
+RS690DACLoadDetect(void *map, Bool tv, int dac)
+{
+    CARD32 CompEnable, Control1, Control2, DetectControl, Enable;
+    CARD8 ret;
+    unsigned int offset = 0;
+
+    if (dac) offset = 0x200;
+
+    CompEnable = RegRead(map, offset + DACA_COMPARATOR_ENABLE);
+    Control1 = RegRead(map, offset + DACA_CONTROL1);
+    Control2 = RegRead(map, offset + DACA_CONTROL2);
+    DetectControl = RegRead(map, offset + DACA_AUTODETECT_CONTROL);
+    Enable = RegRead(map, offset + DACA_ENABLE);
+
+     /* Shut down Bandgap Voltage Reference Power */
+    RegMask(map, offset + DACA_POWERDOWN, 0, 0x1);
+    /* enable */
+    RegWrite(map, offset + DACA_ENABLE, 1);
+    /* autodetect off */
+    RegMask(map, offset + DACA_AUTODETECT_CONTROL, 0, 0x3);
+    /* zscale shift off */
+    RegMask(map, offset + DACA_CONTROL2, 0, 0xff0000);
+    /* set TV */
+    RegMask(map, offset + DACA_CONTROL2, tv ? 0x100 : 0, 0x100);
+    /* electrical */
+    RegWrite(map, offset + DACA_CONTROL1, 0x000A0A02);
+    usleep(1000);
+    /* 486 out of 1024 */
+    RegWrite(map, offset + DACA_FORCE_DATA, 0x1e6);
+    /* dac force on */
+    RegMask(map, offset + DACA_CONTROL2, 0x1, 0x1);
+    usleep(1000);
+    RegMask(map, offset + DACA_COMPARATOR_ENABLE, 0x100, 0x100);
+    usleep(37000);
 
     /* Get RGB detect values
      * If only G is detected, we could have a monochrome monitor,
@@ -725,10 +898,10 @@ RV620DACLoadDetect(void *map, Bool tv, int dac)
     RegMask(map, offset + RV620_DACA_CONTROL2, 0x1, 0x1);
     /* enable r/g/b comparators, disable D/SDET ref */
     RegMask(map, offset + RV620_DACA_COMPARATOR_ENABLE, 0x70000, 0x070101);
-    usleep(100);
+    //usleep(100);
     /* check for connection */
     RegMask(map, offset + RV620_DACA_AUTODETECT_CONTROL, 0x01, 0xff);
-    usleep(32);
+    usleep(50);
 
     ret = RegRead(map, offset + RV620_DACA_AUTODETECT_STATUS);
 
@@ -802,12 +975,17 @@ LoadReport(void *map)
 
     switch (ChipType) {
 	case RHD_R500:
-	case RHD_RS690:
 	case RHD_R600:
 	    DACA = DACLoadDetect(map, FALSE, 0);
 	    DACB = DACLoadDetect(map, FALSE, 1);
 	    TVA = DACLoadDetect(map, TRUE, 0);
 	    TVB = DACLoadDetect(map, TRUE, 1);
+	    break;
+	case RHD_RS690:
+	    DACA = RS690DACLoadDetect(map, FALSE, 0);
+	    DACB = RS690DACLoadDetect(map, FALSE, 1);
+	    TVA = RS690DACLoadDetect(map, TRUE, 0);
+	    TVB = RS690DACLoadDetect(map, TRUE, 1);
 	    break;
 	case RHD_RV620:
 	    DACA = RV620DACLoadDetect(map, FALSE, 0);
@@ -871,28 +1049,33 @@ getDDCSpeed(void)
 {
     CARD32 clock, ref_clk, ret;
 
-    switch  (AtomData.FirmwareInfoVersion.crev) {
-	case 1:
-	    clock = AtomData.FirmwareInfo.FirmwareInfo->ulDefaultEngineClock;
-	    ref_clk = AtomData.FirmwareInfo.FirmwareInfo->usReferenceClock;
-	    break;
-	case 2:
-	    clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_2->ulDefaultEngineClock;
-	    ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_2->usReferenceClock;
-	    break;
-	case 3:
-	    clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_3->ulDefaultEngineClock;
-	    ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_3->usReferenceClock;
-	    break;
-	case 4:
-	    clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_4->ulDefaultEngineClock;
-	    ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_4->usReferenceClock;
-	    break;
-	default:
-	    /* no AtomBIOS info; use save default */
-	    clock = 70000;
-	    ref_clk = 270;
+    /* if no AtomBIOS info; use save default */
+    clock = 40000;
+    ref_clk = 270;
+
+    if (AtomData.FirmwareInfo.base) {
+	switch  (AtomData.FirmwareInfoVersion.crev) {
+	    case 1:
+		clock = AtomData.FirmwareInfo.FirmwareInfo->ulDefaultEngineClock;
+		ref_clk = AtomData.FirmwareInfo.FirmwareInfo->usReferenceClock;
+		break;
+	    case 2:
+		clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_2->ulDefaultEngineClock;
+		ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_2->usReferenceClock;
+		break;
+	    case 3:
+		clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_3->ulDefaultEngineClock;
+		ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_3->usReferenceClock;
+		break;
+	    case 4:
+		clock = AtomData.FirmwareInfo.FirmwareInfo_V_1_4->ulDefaultEngineClock;
+		ref_clk = AtomData.FirmwareInfo.FirmwareInfo_V_1_4->usReferenceClock;
+		break;
+	    default:
+		break;
+	}
     }
+
     clock *= 10;
     ref_clk *= 10;
 
@@ -1041,7 +1224,7 @@ R6xxI2CSetupStatus(void *map, int channel)
 static Bool
 R6xxI2CStatus(void *map)
 {
-    int count = 800;
+    unsigned int count = 800;
     CARD32 val = 0;
 
     while (--count) {
@@ -1059,6 +1242,9 @@ R6xxI2CStatus(void *map)
 	fprintf(stderr, "I2CStatus: %x\n",val);
 #endif
     if (!count || (val & (R6_DC_I2C_SW_STOPPED_ON_NACK
+			  | R6_DC_I2C_SW_ABORTED | R6_DC_I2C_SW_TIMEOUT
+			  | R6_DC_I2C_SW_INTERRUPTED
+			  | R6_DC_I2C_SW_BUFFER_OVERFLOW
 			  | R6_DC_I2C_SW_NACK0 | R6_DC_I2C_SW_NACK1 | 0x3)))
 	return FALSE; /* 2 */
     return TRUE; /* 1 */
@@ -1201,6 +1387,10 @@ enum _rhdRS69I2CBits {
     RS69_DC_I2C_SW_DONE_ACK   = (0x1 << 1),
     /* RS69_DC_I2C_SW_STATUS */
     RS69_DC_I2C_SW_DONE       = (0x1 << 2),
+    RS69_DC_I2C_SW_ABORTED    = (0x1 << 4),
+    RS69_DC_I2C_SW_TIMEOUT    = (0x1 << 5),
+    RS69_DC_I2C_SW_INTERRUPTED= (0x1 << 6),
+    RS69_DC_I2C_SW_BUFFER_OVERFLOW= (0x1 << 7),
     RS69_DC_I2C_SW_STOPPED_ON_NACK    = (0x1 << 8),
     RS69_DC_I2C_SW_NACK0      = (0x1 << 12),
     RS69_DC_I2C_SW_NACK1      = (0x1 << 13)
@@ -1212,7 +1402,7 @@ enum _rhdRS69I2CBits {
 static Bool
 RS69I2CStatus(void *map)
 {
-    int count = 800;
+    unsigned int count = 2000;
     volatile CARD32 val;
 
     while (--count) {
@@ -1228,6 +1418,9 @@ RS69I2CStatus(void *map)
     RegMask(map, RS69_DC_I2C_INTERRUPT_CONTROL, RS69_DC_I2C_SW_DONE_ACK,
 	    RS69_DC_I2C_SW_DONE_ACK);
     if (!count || (val & (RS69_DC_I2C_SW_STOPPED_ON_NACK
+			  | RS69_DC_I2C_SW_ABORTED | RS69_DC_I2C_SW_TIMEOUT
+			  | RS69_DC_I2C_SW_INTERRUPTED
+			  | RS69_DC_I2C_SW_BUFFER_OVERFLOW
 			  | RS69_DC_I2C_SW_NACK0 | RS69_DC_I2C_SW_NACK1
 			  | 0x3)))
 	return FALSE; /* 2 */
@@ -1244,7 +1437,7 @@ RS69I2CSetupStatus(void *map, int line)
     CARD16 prescale;
 
     prescale = getDDCSpeed();
-    if (!prescale)
+    if (!prescale || !AtomData.GPIO_I2C_Info)
 	return FALSE;
 
     RegMask(map, 0x28, 0x200, 0x200);
@@ -1268,13 +1461,12 @@ RS69I2CSetupStatus(void *map, int line)
 	    break;
     }
 #ifdef DEBUG
-    printf("DDC: line: %i -> %i port: %x\n",line,ddc,
+    fprintf(stderr, "DDC: line: %i -> %i port: %x\n",line,ddc,
 	   AtomData.GPIO_I2C_Info->asGPIO_Info[line & 0xf]
 	   .usClkMaskRegisterIndex);
 #endif
-    RegMask(map, RS69_DC_I2C_CONTROL, ddc << 8, 0xff << 8);
     RegWrite(map, RS69_DC_I2C_DDC_SETUP_Q, 0x30000000);
-    RegMask(map, RS69_DC_I2C_CONTROL, (line & 0x3) << 16, 0xff << 16);
+    RegMask(map, RS69_DC_I2C_CONTROL, ((line & 0x3) << 16) | ddc << 8, 0xffff << 8);
     RegMask(map, RS69_DC_I2C_INTERRUPT_CONTROL, 0x2, 0x2);
     RegMask(map, RS69_DC_I2C_UNKNOWN_2, 0x2, 0xff);
 
@@ -1371,6 +1563,13 @@ RS69xI2CWriteRead(void *map,  CARD8 line, CARD8 slave,
 static Bool
 RS69DDCProbe(void *map, int Channel, unsigned char slave)
 {
+    return RS69xI2CWriteRead(map, Channel, slave, NULL, 0, NULL, 0);
+}
+
+#if 0
+static Bool
+RS69DDCProbe(void *map, int Channel, unsigned char slave)
+{
     Bool ret = FALSE;
     CARD32 data;
 
@@ -1396,6 +1595,7 @@ RS69DDCProbe(void *map, int Channel, unsigned char slave)
 
     return ret;
 }
+#endif
 
 enum _rhdR5xxI2CBits {
  /* R5_DC_I2C_STATUS1 */
@@ -1486,7 +1686,8 @@ R5xxI2CStatus(void *map)
 #ifdef DEBUG
 	fprintf(stderr, "I2CStatus: %x\n",res);
 #endif
-	if (res & R5_DC_I2C_DONE)
+	if (res & R5_DC_I2C_DONE
+	    && !(res & (R5_DC_I2C_NACK | R5_DC_I2C_HALT)))
 	    return TRUE;
 	else
 	    return FALSE;
@@ -1748,7 +1949,7 @@ enum rv620I2CBits {
 static Bool
 RV620I2CStatus(void *map)
 {
-    int count = 50;
+    unsigned int count = 50;
     volatile CARD32 val;
 
     while (--count) {
@@ -1774,38 +1975,92 @@ RV620I2CStatus(void *map)
 /*
  *
  */
+enum {
+    rhdDdc1data = 0,
+    rhdDdc2data = 2,
+    rhdDdc3data = 4,
+    rhdVIP_DOUT_scl = 0x41,
+    rhdDvoData12 = 0x28,
+    rhdDdc1clk = 1,
+    rhdDdc2clk = 3,
+    rhdDdc3clk = 5,
+    rhdVIP_DOUTvipclk = 0x42,
+    rhdDvoData13 = 0x29
+};
+
+static int
+getDDCLineFromGPIO(CARD32 gpio, int shift)
+{
+    switch (gpio) {
+    case 0x1f90:
+	switch (shift) {
+	    case 0:
+		return rhdDdc1clk; /* ddc1 clk */
+	    case 8:
+		return rhdDdc1data; /* ddc1 data */
+	}
+	break;
+    case 0x1f94: /* ddc2 */
+	switch (shift) {
+	    case 0:
+		return rhdDdc2clk; /* ddc2 clk */
+	    case 8:
+		return rhdDdc2data; /* ddc2 data */
+	}
+	break;
+    case 0x1f98: /* ddc3 */
+	switch (shift) {
+	    case 0:
+		return rhdDdc3clk; /* ddc3 clk */
+	    case 8:
+		return rhdDdc3data; /* ddc3 data */
+	}
+    case 0x1f88: /* ddc4 */
+	switch (shift) {
+	    case 0:
+		return rhdVIP_DOUTvipclk; /* ddc4 clk */
+	    case 8:
+		return rhdVIP_DOUT_scl; /* ddc4 data */
+	}
+	break;
+    case 0x1fda: /* ddc5 */
+	switch (shift) {
+	    case 0:
+		return rhdDvoData13; /* ddc5 clk */
+	    case 8:
+		return rhdDvoData12; /* ddc5 data */
+	}
+	break;
+    }
+    return -1;
+}
+
+/*
+ *
+ */
 static  Bool
 RV620I2CSetupStatus(void *map, int line, int prescale)
 {
 /*     CARD32 reg_7d9c[] = { 0x1, 0x0203,  0x0405, 0x0607 }; */
-    CARD32 reg_7d9c;
-    unsigned char *table;
-    short size = 0;
-    int i = 0;
+    CARD32 gpio, shift, sda, scl;
 
     if (line > 3)
 	return FALSE;
 
-    table = AtomBiosGetDataFromCodeTable(command_table, 0x36, &size);
-    while (i < size) {
-	if (table[i] == line) {
-	    reg_7d9c = table[i + 3] << 8 | table[i + 2];
-#ifdef DEBUG
-	    fprintf(stderr, "Line[%i] = 0x%4.4x\n",line, reg_7d9c);
-#endif
-	    break;
-	}
-	i += 4;
-    }
-    if (i >= size)
-	return FALSE;
+    gpio = AtomData.GPIO_I2C_Info->asGPIO_Info[line].usDataMaskRegisterIndex;
+    shift = AtomData.GPIO_I2C_Info->asGPIO_Info[line].ucDataMaskShift;
+    sda = getDDCLineFromGPIO(gpio, shift);
 
-    RegWrite(map, 0x7e40, 0);
-    RegWrite(map, 0x7e50, 0);
-    RegWrite(map, 0x7e60, 0);
-    RegWrite(map, 0x7e20, 0);
+    gpio = AtomData.GPIO_I2C_Info->asGPIO_Info[line].usClkMaskRegisterIndex;
+    shift = AtomData.GPIO_I2C_Info->asGPIO_Info[line].ucClkMaskShift;
+    scl = getDDCLineFromGPIO(gpio, shift);
 
-    RegWrite(map, RV62_GENERIC_I2C_PIN_SELECTION, reg_7d9c);
+    /* Don't understand this yet */
+    if (gpio == 0x1fda)
+	gpio = 0x1f90;
+
+    RegWrite(map, gpio << 2, 0);
+    RegWrite(map, RV62_GENERIC_I2C_PIN_SELECTION, scl | (sda << 8));
     RegMask(map, RV62_GENERIC_I2C_SPEED,
 	    (prescale & 0xffff) << 16 | 0x02, 0xffff00ff);
     RegWrite(map, RV62_GENERIC_I2C_SETUP, 0x30000000);
@@ -2011,11 +2266,11 @@ DDCScanBus(void *map, int count)
 {
     int channel;
     unsigned char slave;
-    int max_chan = ((ChipType >= RHD_R600) ? 3 : 2);
+    int max_chan = ((ChipType >= RHD_RS690) ? 3 : 2);
     unsigned char *data = NULL;
 
     if (count)
-	data = alloca(count);
+	data = malloc(count);
 
     for (channel = 0; channel < max_chan; channel ++) {
 	int state = 0;
@@ -2038,6 +2293,7 @@ DDCScanBus(void *map, int count)
 	if (state == 1)
 	    printf("\n");
     }
+    if (data) free(data);
 }
 
 /*
@@ -2169,6 +2425,129 @@ FreeVBIOS(unsigned char *rombase, int size)
     munmap(rombase,size);
 }
 
+
+#ifdef XSERVER_LIBPCIACCESS
+
+/* Copy BIOS from PCI ROM into memory buffer */
+unsigned char *
+GetBIOS_from_PCI(struct RHDDevice *rhdDevice, struct pci_device *dev, void *io, int *size)
+{
+    unsigned char *rombase = NULL;
+    int errnum;
+
+    CARD32 save_seprom_cntl1 = 0,
+        save_gpiopad_a, save_gpiopad_en, save_gpiopad_mask,
+        save_viph_cntl,
+        save_bus_cntl,
+        save_d1vga_control, save_d2vga_control, save_vga_render_control,
+        save_rom_cntl = 0,
+        save_gen_pwrmgt = 0,
+        save_low_vid_lower_gpio_cntl = 0, save_med_vid_lower_gpio_cntl = 0,
+        save_high_vid_lower_gpio_cntl = 0, save_ctxsw_vid_lower_gpio_cntl = 0,
+        save_lower_gpio_en = 0;
+
+    /* We have to enable BIOS on an unposted card.  But first we save the
+       state. Much of this code pinched from RHDReadPCIBios() in
+       rhd_driver.c */
+
+    if (rhdDevice->type < RHD_R600)
+        save_seprom_cntl1 = RegRead(io, SEPROM_CNTL1);
+    save_gpiopad_en = RegRead(io, GPIOPAD_EN);
+    save_gpiopad_a = RegRead(io, GPIOPAD_A);
+    save_gpiopad_mask = RegRead(io, GPIOPAD_MASK);
+    save_viph_cntl = RegRead(io, VIPH_CONTROL);
+    save_bus_cntl = RegRead(io, BUS_CNTL);
+    save_d1vga_control = RegRead(io, D1VGA_CONTROL);
+    save_d2vga_control = RegRead(io, D2VGA_CONTROL);
+    save_vga_render_control = RegRead(io, VGA_RENDER_CONTROL);
+    if (rhdDevice->type >= RHD_R600) {
+        save_rom_cntl                  = RegRead(io, ROM_CNTL);
+        save_gen_pwrmgt                = RegRead(io, GENERAL_PWRMGT);
+        save_low_vid_lower_gpio_cntl   = RegRead(io, LOW_VID_LOWER_GPIO_CNTL);
+        save_med_vid_lower_gpio_cntl   = RegRead(io, MEDIUM_VID_LOWER_GPIO_CNTL);
+        save_high_vid_lower_gpio_cntl  = RegRead(io, HIGH_VID_LOWER_GPIO_CNTL);
+        save_ctxsw_vid_lower_gpio_cntl = RegRead(io, CTXSW_VID_LOWER_GPIO_CNTL);
+        save_lower_gpio_en             = RegRead(io, LOWER_GPIO_ENABLE);
+    }
+
+    /* Set SPI ROM prescale value to change the SCK period */
+    if (rhdDevice->type < RHD_R600)
+        RegMask(io, SEPROM_CNTL1, 0x0C << 24, SCK_PRESCALE);
+    /* Let chip control GPIO pads - this is the default state after power up */
+    RegWrite(io, GPIOPAD_EN, 0);
+    RegWrite(io, GPIOPAD_A, 0);
+    /* Put GPIO pads in read mode */
+    RegWrite(io, GPIOPAD_MASK, 0);
+    /* Disable VIP Host port */
+    RegMask(io, VIPH_CONTROL, 0, VIPH_EN);
+    /* Enable BIOS ROM */
+    RegMask(io, BUS_CNTL, 0, BIOS_ROM_DIS);
+    /* Disable VGA and select extended timings */
+    RegMask(io, D1VGA_CONTROL, 0,
+               D1VGA_MODE_ENABLE | D1VGA_TIMING_SELECT);
+    RegMask(io, D2VGA_CONTROL, 0,
+               D2VGA_MODE_ENABLE | D2VGA_TIMING_SELECT);
+    RegMask(io, VGA_RENDER_CONTROL, 0, VGA_VSTATUS_CNTL);
+    if (rhdDevice->type >= RHD_R600) {
+        RegMask(io, ROM_CNTL, SCK_OVERWRITE
+                   | 1 << SCK_PRESCALE_CRYSTAL_CLK_SHIFT,
+                   SCK_OVERWRITE
+                   | 1 << SCK_PRESCALE_CRYSTAL_CLK_SHIFT);
+        RegMask(io, GENERAL_PWRMGT, 0, OPEN_DRAIN_PADS);
+        RegMask(io, LOW_VID_LOWER_GPIO_CNTL, 0, 0x400);
+        RegMask(io, MEDIUM_VID_LOWER_GPIO_CNTL, 0, 0x400);
+        RegMask(io, HIGH_VID_LOWER_GPIO_CNTL, 0, 0x400);
+        RegMask(io, CTXSW_VID_LOWER_GPIO_CNTL, 0, 0x400);
+        RegMask(io, LOWER_GPIO_ENABLE, 0x400, 0x400);
+    }
+
+    /* Read the ROM */
+
+    *size = (dev->rom_size > 0) ? dev->rom_size : 0x20000;
+
+    rombase =  malloc((size_t)*size);
+
+    if ((errnum = pci_device_read_rom(dev, rombase))) {
+	fprintf(stderr,"Attempt to read ROM from PCI failed: %s.\n",
+		strerror(errnum));
+	free(rombase);
+	rombase = NULL;
+    }
+
+    /* Restore the state prior to being called */
+
+    if (rhdDevice->type < RHD_R600)
+        RegWrite(io, SEPROM_CNTL1, save_seprom_cntl1);
+    RegWrite(io, GPIOPAD_EN, save_gpiopad_en);
+    RegWrite(io, GPIOPAD_A, save_gpiopad_a);
+    RegWrite(io, GPIOPAD_MASK, save_gpiopad_mask);
+    RegWrite(io, VIPH_CONTROL, save_viph_cntl);
+    RegWrite(io, BUS_CNTL, save_bus_cntl);
+    RegWrite(io, D1VGA_CONTROL, save_d1vga_control);
+    RegWrite(io, D2VGA_CONTROL, save_d2vga_control);
+    RegWrite(io, VGA_RENDER_CONTROL, save_vga_render_control);
+    if (rhdDevice->type >= RHD_R600) {
+        RegWrite(io, ROM_CNTL, save_rom_cntl);
+        RegWrite(io, GENERAL_PWRMGT, save_gen_pwrmgt);
+        RegWrite(io, LOW_VID_LOWER_GPIO_CNTL, save_low_vid_lower_gpio_cntl);
+        RegWrite(io, MEDIUM_VID_LOWER_GPIO_CNTL, save_med_vid_lower_gpio_cntl);
+        RegWrite(io, HIGH_VID_LOWER_GPIO_CNTL, save_high_vid_lower_gpio_cntl);
+        RegWrite(io, CTXSW_VID_LOWER_GPIO_CNTL, save_ctxsw_vid_lower_gpio_cntl);
+        RegWrite(io, LOWER_GPIO_ENABLE, save_lower_gpio_en);
+    }
+
+    return rombase;
+}
+
+
+
+void FreeBIOS_from_PCI(unsigned char *rombase)
+{
+    if (rombase) free(rombase);
+}
+#endif
+
+
 /*
  *
  */
@@ -2272,8 +2651,14 @@ print_help(const char* progname, const char* message, const char* msgarg)
 	    fprintf(stderr, "%s %s\n", message, msgarg);
 	fprintf(stderr, "Usage: %s [options] PCI-tag\n"
 			"       Options: -d: dumpBios\n"
+#ifdef XSERVER_LIBPCIACCESS
+# if HAVE_PCI_DEVICE_ENABLE
+		        "                -e: enable pci card (not normally needed)\n"
+# endif
+		        "                -r: only attempt BIOS read via PCI ROM\n"
+#endif
 			"                -s: scanDDCBus\n"
-			"		 -x num: dump num bytes from available i2c channels\n"
+			"                -x num: dump num bytes from available i2c channels\n"
 			"       PCI-tag: bus:dev.func\n\n",
 		progname);
 }
@@ -2293,11 +2678,13 @@ struct atomCodeDataTableHeader
 unsigned char *
 AtomBiosGetDataFromCodeTable(unsigned char **tablelist, int n, short *size)
 {
-    ATOM_COMMON_ROM_COMMAND_TABLE_HEADER *header = (ATOM_COMMON_ROM_COMMAND_TABLE_HEADER *)
-	tablelist[n];
+    ATOM_COMMON_ROM_COMMAND_TABLE_HEADER *header;
     unsigned char *code;
     int i;
 
+    if (!tablelist)
+	return FALSE;
+    header = (ATOM_COMMON_ROM_COMMAND_TABLE_HEADER *) tablelist[n];
     if (!header)
 	return NULL;
     if (!AnalyzeCommonHdr(&header->CommonHeader))
@@ -2407,28 +2794,52 @@ InterpretATOMBIOS(unsigned char *base)
 int
 main(int argc, char *argv[])
 {
+#ifdef XSERVER_LIBPCIACCESS
+    struct pci_device *device = NULL;
+# if HAVE_PCI_DEVICE_ENABLE
+    int enable_device;
+# endif
+#else
     struct pci_dev *device = NULL;
     struct pci_access *pciAccess;
-    struct RHDDevice *rhdDevice = NULL;
     int devMem;
+    int saved_errno;
+#endif
+    struct RHDDevice *rhdDevice = NULL;
     void *io;
     int bus, dev, func;
     int ret;
-    int saved_errno;
     Bool deviceSet = FALSE;
     Bool dumpBios = FALSE, scanDDCBus = FALSE;
     unsigned long DumpI2CData = 0;
     int i;
     unsigned char *rombase;
     int size;
+    int using_vbios;
 
     printf("%s: v%s, %s\n",
 	   "rhd_conntest", PACKAGE_VERSION, GIT_MESSAGE);
 
+#ifdef XSERVER_LIBPCIACCESS
+    /* Initialise pciaccess */
+    if ((i = pci_system_init())) {
+	fprintf(stderr, "ERROR: pciaccess failed to initialise PCI bus"
+		        " (error %d)\n", i);
+	return 1;
+    }
+    /* Default actions */
+# if HAVE_PCI_DEVICE_ENABLE
+    enable_device = FALSE;
+# endif
+    using_vbios = TRUE;
+#else
     /* init libpci */
     pciAccess = pci_alloc();
     pci_init(pciAccess);
     pci_scan_bus(pciAccess);
+    /* Default action */
+    using_vbios = TRUE;
+#endif
 
     if (argc < 2) {
 	print_help(argv[0], "Missing argument: please provide a PCI tag\n",
@@ -2437,6 +2848,16 @@ main(int argc, char *argv[])
     }
 
     for (i = 1; i < argc; i++) {
+#ifdef XSERVER_LIBPCIACCESS
+# if HAVE_PCI_DEVICE_ENABLE
+	if (!strncmp("-e", argv[i], 3)) {
+	    enable_device = TRUE;
+	}else
+# endif
+	if (!strncmp("-r", argv[i], 3)) {
+	    using_vbios = FALSE;
+	}else
+#endif
 	if (!strncmp("-d",argv[i],3)) {
 	    dumpBios = TRUE;
 	} else if (!strncmp("-s",argv[i],3)) {
@@ -2473,14 +2894,35 @@ main(int argc, char *argv[])
 	}
     }
 
+    if (!using_vbios & !deviceSet) {
+	/* Not technically an error, but only a right plonker would specify
+	   this combination of command line options. */
+	printf("What?!! You want me to do nothing!\n"
+	       "Specify a PCI tag and/or don't specify '-r' for some action.\n");
+	return 0;
+    }
+
     if (deviceSet) {
-	/* find our toy */
+#ifdef XSERVER_LIBPCIACCESS
+	/* Find the toy using pciaccess */
+	if ((device = pci_device_find_by_slot(0, bus, dev, func)) == NULL) {
+	    fprintf(stderr, "ERROR: Unable to find PCI device at %02X:%02X.%02X.\n",
+		    bus, dev, func);
+	    return 1;
+	}
+# if HAVE_PCI_DEVICE_ENABLE
+	if (enable_device)
+	    pci_device_enable(device);
+# endif
+#else
+	/* find our toy using pci */
 	device = DeviceLocate(pciAccess->devices, bus, dev, func);
 	if (!device) {
 	    fprintf(stderr, "Unable to find PCI device at %02X:%02X.%02X.\n",
 		    bus, dev, func);
 	    return 1;
 	}
+#endif
 
 	rhdDevice = DeviceMatch(device);
 	if (!rhdDevice) {
@@ -2489,44 +2931,82 @@ main(int argc, char *argv[])
 		    device->vendor_id, device->device_id, bus, dev, func);
 	    return 1;
 	}
+
+#ifdef XSERVER_LIBPCIACCESS
+	printf("Found card: %s - %s\n",
+	       pci_device_get_vendor_name(device),
+	       pci_device_get_device_name(device));
+#endif
     }
 
-    rombase = GetVBIOS(&size);
-    if (!rombase) {
-	fprintf(stderr, "Cannot get VBIOS. Are we root?\n");
-	return 1;
-    }
-    if (!InterpretATOMBIOS(rombase)) {
-	fprintf(stderr, "Cannot analyze AtomBIOS\n");
-	return 1;
-    }
-
-    if (dumpBios) {
-	char name[1024] = "posted.vga.rom";
-
-	if (deviceSet) {
-	    snprintf(name, 1023, "%04X.%04X.%04X.vga.rom",
-		     device->device_id,
-		     pci_read_word(device, PCI_SUBSYSTEM_VENDOR_ID),
-		     pci_read_word(device, PCI_SUBSYSTEM_ID));
+    if (using_vbios) {
+	/* Attempt to read BIOS from legacy VBIOS. */
+	rombase = GetVBIOS(&size);
+	if (!rombase) {
+	    printf("Cannot get VBIOS. Are we root?\n");
+	}else{
+	    if (!InterpretATOMBIOS(rombase)) {
+		printf("Cannot analyze AtomBIOS from VBIOS\n");
+		rombase = NULL;
+	    }
 	}
-	WriteToFile(name, rombase, size);
 
+	if (dumpBios && rombase) {
+	    char name[1024] = "posted.vga.rom";
+
+	    if (deviceSet) {
+#ifdef XSERVER_LIBPCIACCESS
+		snprintf(name, 1023, "%04X.%04X.%04X.vga.rom",
+			 device->device_id, device->subvendor_id, device->subdevice_id);
+#else
+		snprintf(name, 1023, "%04X.%04X.%04X.vga.rom",
+			 device->device_id,
+			 pci_read_word(device, PCI_SUBSYSTEM_VENDOR_ID),
+			 pci_read_word(device, PCI_SUBSYSTEM_ID));
+#endif
+	    }
+	    WriteToFile(name, rombase, size);
+	}
+    }else{
+	/* We ain't goin' to read VBIOS - flag that */
+	rombase = NULL;
     }
 
-    if (!deviceSet)
+    /* We reuse the flag using_vbios now to indicate whether we successfully
+       read the VBIOS (rombase is not suitable for the purpose) */
+    using_vbios = rombase ? 1 : 0;
+
+    if (!deviceSet) {
+	if (! using_vbios) {
+	    fprintf(stderr, "ERROR: Failed to read VBIOS.\n");
+	    return 1;
+	}
 	return 0;
+    }
 
     if (rhdDevice->bar > 5) {
-	fprintf(stderr, "Program error: No acceptable BAR defined for this device.\n");
+	fprintf(stderr, "ERROR: No acceptable PCI BAR defined for this device.\n");
 	return 1;
     }
 
-    printf("Checking connectors on 0x%04X, 0x%04X, 0x%04X  (@%02X:%02X:%02X):\n",
-	   device->device_id, pci_read_word(device, PCI_SUBSYSTEM_VENDOR_ID),
-	   pci_read_word(device, PCI_SUBSYSTEM_ID),
-	   device->bus, device->dev, device->func);
+    /* Map into CPU memory space the required PCI memory */
 
+#ifdef XSERVER_LIBPCIACCESS
+    pci_device_probe(device);
+
+    if (device->regions[rhdDevice->bar].base_addr == 0) {
+	fprintf(stderr, "ERROR: Failed to find required resource on PCI card.\n");
+	return 1;
+    }
+
+    if ((i = pci_device_map_range(device,device->regions[rhdDevice->bar].base_addr,
+					 device->regions[rhdDevice->bar].size,
+					 PCI_DEV_MAP_FLAG_WRITABLE, &io))) {
+	fprintf(stderr, "ERROR: Couldn't map IO memory: %s.\n", strerror(i));
+	return i;
+    }
+
+#else
     /* make sure we can actually read DEV_MEM before we do anything else */
     devMem = open(DEV_MEM, O_RDWR);
     if (devMem < 0) {
@@ -2537,11 +3017,50 @@ main(int argc, char *argv[])
     io = MapBar(device, rhdDevice->bar, devMem);
     saved_errno = errno;
     close (devMem);
-    if (!io) {
+    if (io == (void *) -1) {
 	fprintf(stderr, "Unable to map IO memory: %s.\n",
 		strerror(saved_errno));
 	return 1;
     }
+#endif
+
+#ifdef XSERVER_LIBPCIACCESS
+    /* Attempt to get unposted BIOS if failed before */
+
+    if (! using_vbios) {
+	printf("Trying to get BIOS from PCI ROM...\n");
+
+	if ((rombase = GetBIOS_from_PCI(rhdDevice, device, io, &size)) == NULL) {
+	    fprintf(stderr,"ERROR: Fat lot of use that was -- can't read BIOS image\n");
+	    return 1;
+	}
+
+	if (!InterpretATOMBIOS(rombase)) {
+	    fprintf(stderr, "ERROR: Cannot analyze AtomBIOS from PCI ROM\n");
+	    return 1;
+	}
+
+	if (dumpBios && rombase) {
+	    char name[1024];
+
+	    snprintf(name, 1023, "%04X.%04X.%04X.vga.rom",
+		     device->device_id, device->subvendor_id, device->subdevice_id);
+	    WriteToFile(name, rombase, size);
+	}
+    }
+#endif
+
+
+#ifdef XSERVER_LIBPCIACCESS
+    printf("Checking connectors on 0x%04X, 0x%04X, 0x%04X  (@%02X:%02X:%02X):\n",
+	   device->device_id, device->subvendor_id, device->subdevice_id,
+	   device->bus, device->dev, device->func);
+#else
+    printf("Checking connectors on 0x%04X, 0x%04X, 0x%04X  (@%02X:%02X:%02X):\n",
+	   device->device_id, pci_read_word(device, PCI_SUBSYSTEM_VENDOR_ID),
+	   pci_read_word(device, PCI_SUBSYSTEM_ID),
+	   device->bus, device->dev, device->func);
+#endif
 
     ChipType = rhdDevice->type;
 
@@ -2553,7 +3072,18 @@ main(int argc, char *argv[])
     if (scanDDCBus || DumpI2CData)
 	DDCScanBus(io, DumpI2CData);
 
+#ifdef XSERVER_LIBPCIACCESS
+    if (using_vbios) {
+	FreeVBIOS(rombase, size);
+    }else{
+	FreeBIOS_from_PCI(rombase);
+    }
+
+    pci_device_unmap_range(device, io, device->regions[rhdDevice->bar].size);
+    pci_system_cleanup();
+#else
     FreeVBIOS(rombase, size);
+#endif
 
     return 0;
 }

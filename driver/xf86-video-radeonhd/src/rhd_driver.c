@@ -1,8 +1,8 @@
 /*
- * Copyright 2007  Luc Verhaegen <lverhaegen@novell.com>
- * Copyright 2007  Matthias Hopf <mhopf@novell.com>
- * Copyright 2007  Egbert Eich   <eich@novell.com>
- * Copyright 2007  Advanced Micro Devices, Inc.
+ * Copyright 2007-2009  Luc Verhaegen <libv@exsuse.de>
+ * Copyright 2007-2009  Matthias Hopf <mhopf@novell.com>
+ * Copyright 2007-2009  Egbert Eich   <eich@novell.com>
+ * Copyright 2007-2009  Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -38,14 +38,15 @@
 /* For PIO/MMIO */
 #include "compiler.h"
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
 #include "xf86Resources.h"
+/* Needed by Resources Access Control (RAC) */
+#include "xf86RAC.h"
+#endif
 
 #include "xf86PciInfo.h"
 /* do we need to access PCI config space directly? */
 #include "xf86Pci.h"
-
-/* This is used for module versioning */
-#include "xf86Version.h"
 
 /* Memory manager */
 #include "xf86fbman.h"
@@ -66,11 +67,13 @@
 
 #include "fb.h"
 
-/* Needed by Resources Access Control (RAC) */
-#include "xf86RAC.h"
-
+#ifdef HAVE_XEXTPROTO_71
+#include "X11/extensions/dpmsconst.h"
+#else
 #define DPMS_SERVER
 #include "X11/extensions/dpms.h"
+#endif
+
 
 /* int10 - for now at least */
 #include "xf86int10.h"
@@ -80,6 +83,12 @@
 #include "xf86DDC.h"
 
 #include "picturestr.h"
+
+#ifdef USE_DRI
+#define _XF86DRI_SERVER_
+#include "dri.h"
+#include "GL/glxint.h"
+#endif
 
 #if HAVE_XF86_ANSIC_H
 # include "xf86_ansic.h"
@@ -100,6 +109,7 @@
 #include "rhd_atombios.h"
 #include "rhd_connector.h"
 #include "rhd_output.h"
+#include "rhd_biosscratch.h"
 #include "rhd_pll.h"
 #include "rhd_vga.h"
 #include "rhd_mc.h"
@@ -111,7 +121,16 @@
 #include "rhd_shadow.h"
 #include "rhd_card.h"
 #include "rhd_randr.h"
+#include "rhd_cs.h"
+#include "rhd_audio.h"
+#include "rhd_pm.h"
 #include "r5xx_accel.h"
+#include "rhd_video.h"
+
+#ifdef USE_DRI
+#include "r6xx_accel.h"
+#include "rhd_dri.h"
+#endif
 
 /* ??? */
 #include "servermd.h"
@@ -146,7 +165,7 @@ static void     rhdRestore(RHDPtr rhdPtr);
 static Bool     rhdModeLayoutSelect(RHDPtr rhdPtr);
 static void     rhdModeLayoutPrint(RHDPtr rhdPtr);
 static void     rhdModeDPISet(ScrnInfoPtr pScrn);
-static void	rhdPrepareMode(RHDPtr rhdPtr);
+static Bool     rhdAllIdle(RHDPtr rhdPtr);
 static void     rhdModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
 static void	rhdSetMode(ScrnInfoPtr pScrn, DisplayModePtr mode);
 static Bool     rhdMapMMIO(RHDPtr rhdPtr);
@@ -156,6 +175,7 @@ static void     rhdUnmapFB(RHDPtr rhdPtr);
 static CARD32   rhdGetVideoRamSize(RHDPtr rhdPtr);
 static void     rhdFbOffscreenGrab(ScrnInfoPtr pScrn);
 static void	rhdGetIGPNorthBridgeInfo(RHDPtr rhdPtr);
+static enum rhdCardType rhdGetCardType(RHDPtr rhdPtr);
 
 /* rhd_id.c */
 extern SymTabRec RHDChipsets[];
@@ -178,6 +198,8 @@ static int pix24bpp = 0;
 # define FGLRX_SYS_PATH "/sys/module/fglrx"
 #endif
 
+#if XORG_VERSION_CURRENT >= 6 * 10000000
+
 static const char *xaaSymbols[] = {
     "XAACreateInfoRec",
     "XAADestroyInfoRec",
@@ -185,7 +207,7 @@ static const char *xaaSymbols[] = {
     NULL
 };
 
-#ifdef USE_EXA
+# ifdef USE_EXA
 static const char *exaSymbols[] = {
     "exaDriverAlloc",
     "exaDriverFini",
@@ -196,7 +218,8 @@ static const char *exaSymbols[] = {
     "exaWaitSync",
     NULL
 };
-#endif /* USE_EXA */
+# endif /* USE_EXA */
+#endif
 
 _X_EXPORT DriverRec RADEONHD = {
     RHD_VERSION,
@@ -228,12 +251,28 @@ typedef enum {
     OPTION_USECONFIGUREDMONITOR,
     OPTION_HPD,
     OPTION_NORANDR,
-    OPTION_RRUSEXF86EDID,
     OPTION_RROUTPUTORDER,
-    OPTION_TV_MODE
+    OPTION_DRI,
+    OPTION_TV_MODE,
+    OPTION_SCALE_TYPE,
+#ifdef ATOM_BIOS
+    OPTION_USE_ATOMBIOS,
+    OPTION_ATOMBIOS,     /* only for testing, don't document in man page! */
+#endif
+    OPTION_UNVERIFIED_FEAT,
+    OPTION_AUDIO,
+    OPTION_AUDIO_WORKAROUND,
+    OPTION_HDMI,
+    OPTION_COHERENT,
+    OPTION_FORCE_LOW_POWER,
+    OPTION_LOW_POWER_CLOCK
 } RHDOpts;
 
 static const OptionInfoRec RHDOptions[] = {
+    /* See above definition of enum RHDOpts for which options need
+     * documentation and which ones should not be documented in the
+     * man page.
+     */
     { OPTION_NOACCEL,              "NoAccel",              OPTV_BOOLEAN, {0}, FALSE },
     { OPTION_ACCELMETHOD,          "AccelMethod",          OPTV_ANYSTR,  {0}, FALSE },
     { OPTION_OFFSCREENSIZE,        "offscreensize",        OPTV_ANYSTR,  {0}, FALSE },
@@ -244,9 +283,21 @@ static const OptionInfoRec RHDOptions[] = {
     { OPTION_USECONFIGUREDMONITOR, "useconfiguredmonitor", OPTV_BOOLEAN, {0}, FALSE },
     { OPTION_HPD,                  "HPD",                  OPTV_STRING,  {0}, FALSE },
     { OPTION_NORANDR,              "NoRandr",              OPTV_BOOLEAN, {0}, FALSE },
-    { OPTION_RRUSEXF86EDID,        "RRUseXF86Edid",        OPTV_BOOLEAN, {0}, FALSE },
     { OPTION_RROUTPUTORDER,        "RROutputOrder",        OPTV_ANYSTR,  {0}, FALSE },
+    { OPTION_DRI,                  "DRI",                  OPTV_BOOLEAN, {0}, FALSE },
     { OPTION_TV_MODE,		   "TVMode",	           OPTV_ANYSTR,  {0}, FALSE },
+    { OPTION_SCALE_TYPE,	   "ScaleType",	           OPTV_ANYSTR,  {0}, FALSE },
+#ifdef ATOM_BIOS
+    { OPTION_USE_ATOMBIOS,	   "UseAtomBIOS",	   OPTV_BOOLEAN, {0}, FALSE },
+    { OPTION_ATOMBIOS,	           "AtomBIOS",             OPTV_ANYSTR,  {0}, FALSE },
+#endif
+    { OPTION_UNVERIFIED_FEAT,	   "UnverifiedFeatures",   OPTV_BOOLEAN, {0}, FALSE },
+    { OPTION_AUDIO,		   "Audio",	           OPTV_BOOLEAN, {0}, FALSE },
+    { OPTION_AUDIO_WORKAROUND,	   "AudioStreamSilence",   OPTV_ANYSTR,  {0}, FALSE },
+    { OPTION_HDMI,		   "HDMI",	           OPTV_ANYSTR,  {0}, FALSE },
+    { OPTION_COHERENT,             "COHERENT",		   OPTV_ANYSTR,  {0}, FALSE },
+    { OPTION_FORCE_LOW_POWER,      "ForceLowPowerMode",    OPTV_BOOLEAN, {0}, FALSE },
+    { OPTION_LOW_POWER_CLOCK,      "LowPowerModeEngineClock", OPTV_INTEGER, {0}, FALSE },
     { -1, NULL, OPTV_NONE,	{0}, FALSE }
 };
 
@@ -318,6 +369,7 @@ RHDFreeRec(ScrnInfoPtr pScrn)
     RHDMCDestroy(rhdPtr);
     RHDVGADestroy(rhdPtr);
     RHDPLLsDestroy(rhdPtr);
+    RHDAudioDestroy(rhdPtr);
     RHDLUTsDestroy(rhdPtr);
     RHDOutputsDestroy(rhdPtr);
     RHDConnectorsDestroy(rhdPtr);
@@ -326,7 +378,7 @@ RHDFreeRec(ScrnInfoPtr pScrn)
     RHDI2CFunc(pScrn->scrnIndex, rhdPtr->I2C, RHD_I2C_TEARDOWN, NULL);
 #ifdef ATOM_BIOS
     RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-		    ATOMBIOS_TEARDOWN, NULL);
+		    ATOM_TEARDOWN, NULL);
 #endif
     RHDShadowDestroy(rhdPtr);
     if (rhdPtr->CursorInfo)
@@ -445,7 +497,6 @@ static Bool
 RHDPreInit(ScrnInfoPtr pScrn, int flags)
 {
     RHDPtr rhdPtr;
-    EntityInfoPtr pEnt = NULL;
     Bool ret = FALSE;
     RHDI2CDataArg i2cArg;
     DisplayModePtr Modes;		/* Non-RandR-case only */
@@ -486,41 +537,42 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	goto error0;
     }
     /* @@@ move to Probe? */
-    if (!(pEnt = xf86GetEntityInfo(pScrn->entityList[0]))) {
+    if (!(rhdPtr->pEnt = xf86GetEntityInfo(pScrn->entityList[0]))) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		   "Unable to get entity info\n");
 	goto error0;
     }
 
-    if (pEnt->resources) {
-        xfree(pEnt);
+#ifndef XSERVER_LIBPCIACCESS
+    if (rhdPtr->pEnt->resources) {
+        xfree(rhdPtr->pEnt);
 	goto error0;
     }
+#endif
 
-    pScrn->videoRam = pEnt->device->videoRam;
-    rhdPtr->entityIndex = pEnt->index;
+    pScrn->videoRam = rhdPtr->pEnt->device->videoRam;
+    rhdPtr->entityIndex = rhdPtr->pEnt->index;
 
 #ifndef XSERVER_LIBPCIACCESS
-    rhdPtr->ChipSet = pEnt->chipset;
+    rhdPtr->ChipSet = rhdPtr->pEnt->chipset;
 
-    rhdPtr->PciInfo = xf86GetPciInfoForEntity(pEnt->index);
+    rhdPtr->PciInfo = xf86GetPciInfoForEntity(rhdPtr->pEnt->index);
     rhdPtr->PciTag = pciTag(rhdPtr->PciInfo->bus,
                             rhdPtr->PciInfo->device,
                             rhdPtr->PciInfo->func);
 /* #else:  RHDPciProbe() did this for us already */
 #endif
-
-    xfree(pEnt);
-
     if (RHDIsIGP(rhdPtr->ChipSet))
 	rhdGetIGPNorthBridgeInfo(rhdPtr);
 
     pScrn->chipset = (char *)xf86TokenToString(RHDChipsets, rhdPtr->ChipSet);
 
+#ifndef XSERVER_LIBPCIACCESS
     /* We will disable access to VGA legacy resources emulation and
        save/restore VGA thru MMIO when necessary */
     if (xf86RegisterResources(rhdPtr->entityIndex, NULL, ResNone))
 	goto error0;
+#endif
 
 #ifndef  ATOM_ASIC_INIT
     if (xf86LoadSubModule(pScrn, "int10")) {
@@ -593,13 +645,21 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	goto error0;
     }
 
+    rhdPtr->cardType = rhdGetCardType(rhdPtr);
+
 #ifdef ATOM_BIOS
     {
 	AtomBiosArgRec atomBiosArg;
 
-	if (RHDAtomBiosFunc(pScrn->scrnIndex, NULL, ATOMBIOS_INIT, &atomBiosArg)
+	if (RHDAtomBiosFunc(pScrn->scrnIndex, NULL, ATOM_INIT, &atomBiosArg)
 	    == ATOM_SUCCESS) {
 	    rhdPtr->atomBIOS = atomBiosArg.atomhandle;
+	} else {
+	    if (RHDUseAtom(rhdPtr,  NULL, atomUsageAny)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "No AtomBIOS image found but required for AtomBIOS based mode setting\n");
+		goto error0; /* @@@ No blacklist handling. So far no blacklists are used for any subsystem */
+	    }
 	}
     }
 #else
@@ -613,6 +673,11 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	       "**              of this driver                 ***\n");
     xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 	       "**************************************************\n");
+    if (RHDUseAtom(rhdPtr,  NULL, atomUsageAny)) {
+	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		   "No AtomBIOS support compiled in but required for this chipset/ current settings\n");
+	goto error0;
+    }
 #endif
     rhdPtr->tvMode = RHD_TV_NONE;
     {
@@ -621,10 +686,12 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	    {"NTSC", RHD_TV_NTSC},
 	    {"NTSCJ", RHD_TV_NTSCJ},
 	    {"PAL", RHD_TV_PAL},
-	    {"PALM", RHD_TV_PALN},
+	    {"PALM", RHD_TV_PALM},
 	    {"PALCN", RHD_TV_PALCN},
+	    {"PALN", RHD_TV_PALN},
 	    {"PAL60", RHD_TV_PAL60},
 	    {"SECAM", RHD_TV_SECAM},
+	    {"CV", RHD_TV_CV},
 	    {NULL, RHD_TV_NONE}
 	};
 
@@ -688,29 +755,52 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 
         atomBiosArg.fb.start = rhdPtr->FbFreeStart;
         atomBiosArg.fb.size = rhdPtr->FbFreeSize;
-        if (RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, ATOMBIOS_ALLOCATE_FB_SCRATCH,
+        if (RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, ATOM_ALLOCATE_FB_SCRATCH,
 			  &atomBiosArg) == ATOM_SUCCESS) {
 	    rhdPtr->FbFreeStart = atomBiosArg.fb.start;
 	    rhdPtr->FbFreeSize = atomBiosArg.fb.size;
 	}
-	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, GET_DEFAULT_ENGINE_CLOCK,
+
+	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, ATOM_GET_DEFAULT_ENGINE_CLOCK,
 			&atomBiosArg);
-	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, GET_DEFAULT_MEMORY_CLOCK,
+	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS, ATOM_GET_DEFAULT_MEMORY_CLOCK,
 			&atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			GET_MAX_PIXEL_CLOCK_PLL_OUTPUT, &atomBiosArg);
+			ATOM_GET_MAX_PIXEL_CLOCK_PLL_OUTPUT, &atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			GET_MIN_PIXEL_CLOCK_PLL_OUTPUT, &atomBiosArg);
+			ATOM_GET_MIN_PIXEL_CLOCK_PLL_OUTPUT, &atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			GET_MAX_PIXEL_CLOCK_PLL_INPUT, &atomBiosArg);
+			ATOM_GET_MAX_PIXEL_CLOCK_PLL_INPUT, &atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			    GET_MIN_PIXEL_CLOCK_PLL_INPUT, &atomBiosArg);
+			    ATOM_GET_MIN_PIXEL_CLOCK_PLL_INPUT, &atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			    GET_MAX_PIXEL_CLK, &atomBiosArg);
+			    ATOM_GET_MAX_PIXEL_CLK, &atomBiosArg);
 	RHDAtomBiosFunc(pScrn->scrnIndex, rhdPtr->atomBIOS,
-			GET_REF_CLOCK, &atomBiosArg);
+			ATOM_GET_REF_CLOCK, &atomBiosArg);
     }
 #endif
+
+    if (rhdPtr->ChipSet >= RHD_R600 && rhdPtr->AccelMethod == RHD_ACCEL_XAA) {
+	rhdPtr->AccelMethod = RHD_ACCEL_EXA;
+	xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Accel Method XAA not supported on this chipset generation."
+		   " Defaulting to EXA\n");
+    }
+#ifdef USE_DRI
+    ret = RHDDRIPreInit(pScrn);
+    if (!ret && rhdPtr->ChipSet >= RHD_R600 && rhdPtr->AccelMethod > RHD_ACCEL_SHADOWFB) {
+        xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Falling back to ShadowFB acceleration\n");
+        rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
+    }
+#else
+    xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+	       "DRI support has been disabled at compile time\n");
+    if (rhdPtr->ChipSet >= RHD_R600 && rhdPtr->AccelMethod == RHD_ACCEL_EXA) {
+	rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
+	xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Accel Method EXA requires DRI on this chip. Falling back to SHADOW_FB.\n");
+    }
+#endif
+    if (rhdPtr->AccelMethod == RHD_ACCEL_FORCE_SHADOWFB)
+	rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
 
     if (xf86LoadSubModule(pScrn, "i2c")) {
 	if (RHDI2CFunc(pScrn->scrnIndex, NULL, RHD_I2C_INIT, &i2cArg)
@@ -735,20 +825,81 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
     /* Init modesetting structures */
     RHDVGAInit(rhdPtr);
     RHDMCInit(rhdPtr);
-    RHDCrtcsInit(rhdPtr);
-    RHDPLLsInit(rhdPtr);
+    if (!RHDCrtcsInit(rhdPtr))
+	RHDAtomCrtcsInit(rhdPtr);
+    if (!RHDPLLsInit(rhdPtr))
+	RHDAtomPLLsInit(rhdPtr);
+    RHDAudioInit(rhdPtr);
     RHDLUTsInit(rhdPtr);
     RHDCursorsInit(rhdPtr); /* do this irrespective of hw/sw cursor setting */
+    RHDPmInit(rhdPtr);
 
     if (!RHDConnectorsInit(rhdPtr, rhdPtr->Card)) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		   "Card information has invalid connector information\n");
 	goto error1;
     }
+    {
+#ifdef ATOM_BIOS
+	struct rhdAtomOutputDeviceList *OutputDeviceList = NULL;
+
+	if (rhdPtr->Card
+	    && rhdPtr->Card->ConnectorInfo[0].Type != RHD_CONNECTOR_NONE
+	    && (rhdPtr->Card->DeviceInfo[0][0] != atomNone
+		|| rhdPtr->Card->DeviceInfo[0][1] != atomNone)) {
+	    int i, k = 0;
+
+	    for (i = 0; i < RHD_CONNECTORS_MAX; i++) {
+		int j;
+		if (rhdPtr->Card->ConnectorInfo[i].Type == RHD_CONNECTOR_NONE)
+		    break;
+		for (j = 0; j < MAX_OUTPUTS_PER_CONNECTOR; j++) {
+		    if (rhdPtr->Card->ConnectorInfo[i].Output[j] != RHD_OUTPUT_NONE) {
+			if (!(OutputDeviceList = (struct rhdAtomOutputDeviceList *)xrealloc(
+				  OutputDeviceList, sizeof (struct rhdAtomOutputDeviceList) * (k + 1))))
+			    break;
+			OutputDeviceList[k].ConnectorType = rhdPtr->Card->ConnectorInfo[i].Type;
+			OutputDeviceList[k].DeviceId = rhdPtr->Card->DeviceInfo[i][j];
+			OutputDeviceList[k].OutputType = rhdPtr->Card->ConnectorInfo[i].Output[j];
+			RHDDebug(rhdPtr->scrnIndex, "OutputDevice: C: 0x%2.2x O: 0x%2.2x DevID: 0x%2.2x\n",
+				 OutputDeviceList[k].ConnectorType, OutputDeviceList[k].OutputType,
+				 OutputDeviceList[k].DeviceId);
+			k++;
+		    }
+		}
+	    }
+	} else {
+	    AtomBiosArgRec data;
+
+	    data.chipset = rhdPtr->ChipSet;
+	    if (RHDAtomBiosFunc(rhdPtr->scrnIndex, rhdPtr->atomBIOS,
+				ATOM_GET_OUTPUT_DEVICE_LIST, &data) == ATOM_SUCCESS)
+		OutputDeviceList = data.OutputDeviceList;
+	}
+
+	if (OutputDeviceList) {
+	    struct rhdOutput *Output;
+
+	    for (Output = rhdPtr->Outputs; Output; Output = Output->Next)
+		RHDAtomSetupOutputDriverPrivate(OutputDeviceList, Output);
+	    xfree(OutputDeviceList);
+	}
+#endif
+    }
+
+    /*
+     * Set this here as we might need it for the validation of a fixed mode in
+     * rhdModeLayoutSelect(). Later it is used for Virtual selection and mode
+     * pool creation.
+     * For Virtual selection, the scanout area is all the free space we have.
+     */
+    rhdPtr->FbScanoutStart = rhdPtr->FbFreeStart;
+    rhdPtr->FbScanoutSize = rhdPtr->FbFreeSize;
 
     RHDRandrPreInit(pScrn);
 
-    if (! rhdPtr->randr) {
+    if (!rhdPtr->randr) {
+	Bool configured;
 	/* Pick anything for now */
 	if (!rhdModeLayoutSelect(rhdPtr)) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -757,9 +908,9 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 	/* set up rhdPtr->ConfigMonitor */
-	if (!xf86GetOptValBool(rhdPtr->Options, OPTION_USECONFIGUREDMONITOR, &ret))
-	    ret = FALSE;
-	RHDConfigMonitorSet(pScrn->scrnIndex, ret);
+	if (!xf86GetOptValBool(rhdPtr->Options, OPTION_USECONFIGUREDMONITOR, &configured))
+	    configured = FALSE;
+	RHDConfigMonitorSet(pScrn->scrnIndex, configured);
 
 	rhdModeLayoutPrint(rhdPtr);
     }
@@ -812,10 +963,6 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
     /* @@@ need this? */
     pScrn->progClock = TRUE;
 
-    /* For Virtual selection, the scanout area is all the free space we have. */
-    rhdPtr->FbScanoutStart = rhdPtr->FbFreeStart;
-    rhdPtr->FbScanoutSize = rhdPtr->FbFreeSize;
-
     if (pScrn->display->virtualX && pScrn->display->virtualY)
         if (!RHDGetVirtualFromConfig(pScrn)) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -842,14 +989,11 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
                "Using %dx%d Framebuffer with %d pitch\n", pScrn->virtualX,
                pScrn->virtualY, pScrn->displayWidth);
     /* grab the real scanout area and adjust the free space */
-    rhdPtr->FbScanoutStart = rhdPtr->FbFreeStart;
     rhdPtr->FbScanoutSize = RHD_FB_CHUNK(pScrn->displayWidth * pScrn->bitsPerPixel *
 					 pScrn->virtualY / 8);
-    RHDDebug(pScrn->scrnIndex, "ScanoutBuffer at offset 0x%08X (size = 0x%08X)\n",
-	     rhdPtr->FbScanoutStart, rhdPtr->FbScanoutSize);
-
-    rhdPtr->FbFreeStart = rhdPtr->FbScanoutStart + rhdPtr->FbScanoutSize;
-    rhdPtr->FbFreeSize -= rhdPtr->FbScanoutSize;
+    rhdPtr->FbScanoutStart = RHDAllocFb(rhdPtr, rhdPtr->FbScanoutSize,
+					"ScanoutBuffer");
+    ASSERT(rhdPtr->FbScanoutStart != (unsigned)-1);
 
     if (!rhdPtr->randr)
 	xf86PrintModes(pScrn);
@@ -873,8 +1017,14 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to load XAA module."
 		       " Falling back to ShadowFB.\n");
 	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
-	} else
+	}
+	/* This is functionally void since 7.0 (old version scheme,
+	 * and removed since 1.6.99.1 (new version scheme) */
+	/* Assume anything >= 6.* is old version scheme */
+#if XORG_VERSION_CURRENT >= 6 * 10000000
+	else
 	    xf86LoaderReqSymLists(xaaSymbols, NULL);
+#endif
     }
 
 #ifdef USE_EXA
@@ -884,8 +1034,14 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to load EXA module."
 		       " Falling back to ShadowFB.\n");
 	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
-	} else
+	}
+	/* This is functionally void since 7.0 (old version scheme,
+	 * and removed since 1.6.99.1 (new version scheme) */
+	/* Assume anything >= 6.* is old version scheme */
+#if XORG_VERSION_CURRENT >= 6 * 10000000
+	else
 	    xf86LoaderReqSymLists(exaSymbols, NULL);
+#endif
     }
 #endif /* USE_EXA */
 
@@ -896,6 +1052,11 @@ RHDPreInit(ScrnInfoPtr pScrn, int flags)
     if ((rhdPtr->AccelMethod == RHD_ACCEL_XAA) ||
 	(rhdPtr->AccelMethod == RHD_ACCEL_EXA))
 	rhdFbOffscreenGrab(pScrn);
+
+#ifdef USE_DRI
+    if (rhdPtr->dri)
+	RHDDRIAllocateBuffers(pScrn);
+#endif
 
     RHDDebug(pScrn->scrnIndex, "Free FB offset 0x%08X (size = 0x%08X)\n",
 	     rhdPtr->FbFreeStart, rhdPtr->FbFreeSize);
@@ -918,7 +1079,12 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     ScrnInfoPtr pScrn;
     RHDPtr rhdPtr;
     VisualPtr visual;
+#ifndef XSERVER_LIBPCIACCESS
     unsigned int racflag = 0;
+#endif
+#ifdef USE_DRI
+    Bool DriScreenInited = FALSE;
+#endif
 
     pScrn = xf86Screens[pScreen->myNum];
     rhdPtr = RHDPTR(pScrn);
@@ -958,6 +1124,24 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	}
     }
 
+    /* disable all memory accesses for MC setup */
+    RHDVGADisable(rhdPtr);
+
+    if (!rhdAllIdle(rhdPtr))
+	return FALSE;
+
+    /* now set up the MC - has to be done after AllIdle and before DRI init */
+    if (!RHDMCSetupFBLocation(rhdPtr, rhdPtr->FbIntAddress, rhdPtr->FbIntSize))
+	return FALSE;
+
+#ifdef USE_DRI
+    /* Setup DRI after visuals have been established, but before fbScreenInit is
+     * called.  fbScreenInit will eventually call the driver's InitGLXVisuals
+     * call back. */
+    if (rhdPtr->dri)
+	DriScreenInited = RHDDRIScreenInit(pScreen);
+#endif
+
     /* shadowfb is allowed to fail gracefully too */
     if ((rhdPtr->AccelMethod != RHD_ACCEL_SHADOWFB) &&
 	!fbScreenInit(pScreen, (CARD8 *) rhdPtr->FbBase + rhdPtr->FbScanoutStart,
@@ -968,6 +1152,7 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	return FALSE;
     }
 
+    /* must be done after fbScreenInit() */
     if (pScrn->depth > 8) {
         /* Fixup RGB ordering */
         visual = pScreen->visuals + pScreen->numVisuals;
@@ -988,20 +1173,67 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     fbPictureInit(pScreen, 0, 0);
     xf86SetBlackWhitePixels(pScreen);
 
-    if (rhdPtr->AccelMethod == RHD_ACCEL_SHADOWFB) {
+    /* Static power management */
+    if (rhdPtr->Pm)
+	rhdPtr->Pm->SelectState (rhdPtr, RHD_PM_IDLE);
+
+#ifdef USE_DRI
+    if (DriScreenInited)
+	rhdPtr->directRenderingEnabled = RHDDRIFinishScreenInit(pScreen);
+#endif
+
+    /* Initialize command submission backend */
+    RHDCSInit(pScrn);
+    if (rhdPtr->CS)
+	RHDCSStart(rhdPtr->CS);
+
+    /* Init 2D after DRI is set up */
+    switch (rhdPtr->AccelMethod) {
+    case RHD_ACCEL_SHADOWFB:
 	if (!RHDShadowSetup(pScreen))
 	    /* No safetynet anymore */
 	    return FALSE;
-    } else if (rhdPtr->AccelMethod == RHD_ACCEL_XAA) {
-	if (rhdPtr->ChipSet < RHD_R600)
-	    R5xxXAAInit(pScrn, pScreen);
+	break;
+    case RHD_ACCEL_XAA:
+	if (rhdPtr->ChipSet < RHD_R600) {
+	    if (!R5xxXAAInit(pScrn, pScreen)) {
+		rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+                xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                           "Failed to initalize XAA; disabling acceleration.\n");
+            }
+	} else {
+	    rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+            xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                       "XAA is not supported on R600 and above; disabling acceleration.\n");
+        }
+	break;
+#ifdef USE_DRI
+    case RHD_ACCEL_EXA:
+	if (rhdPtr->ChipSet < RHD_R600) {
+	    if (!R5xxEXAInit(pScrn, pScreen)) {
+		rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+                xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                           "Failed to initalize EXA; disabling acceleration.\n");
+            }
+	} else {
+	    if (!R6xxEXAInit(pScrn, pScreen)) {
+		rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+                xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+                           "Failed to initalize EXA; disabling acceleration.\n");
+            }
+	}
+	break;
+#endif /* USE_DRI */
+    default:
+	rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+	break;
     }
-#ifdef USE_EXA
-    else if (rhdPtr->AccelMethod == RHD_ACCEL_EXA) {
- 	if (rhdPtr->ChipSet < RHD_R600)
- 	    R5xxEXAInit(pScrn, pScreen);
+
+    if (rhdPtr->ChipSet < RHD_R600) {
+	if (rhdPtr->TwoDPrivate)
+	    R5xx2DStart(pScrn);
+	R5xxEngineWaitIdleFull(rhdPtr->CS);
     }
-#endif /* USE_EXA */
 
     miInitializeBackingStore(pScreen);
     xf86SetBackingStore(pScreen);
@@ -1013,6 +1245,12 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	return FALSE;
     }
 
+#ifdef ATOM_BIOS
+    /* Set accelerator mode in the BIOSScratch registers */
+    RHDAtomBIOSScratchSetAccelratorMode(rhdPtr, TRUE);
+#endif
+
+    RHDPrepareMode(rhdPtr);
     /* now init the new mode */
     if (rhdPtr->randr)
 	RHDRandrModeInit(pScrn);
@@ -1022,27 +1260,36 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* fix viewport */
     RHDAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
 
+    /* enable/disable audio */
+    RHDAudioSetEnable(rhdPtr, rhdPtr->audio.val.bool);
+
     /* Initialise cursor functions */
     miDCInitialize (pScreen, xf86GetPointerScreenFuncs());
 
     /* Inititalize HW cursor */
-    if (!rhdPtr->swCursor.val.bool)
-        if (!RHDxf86InitCursor(pScreen))
+    if (!rhdPtr->swCursor.val.bool) {
+	Bool ret;
+	if (rhdPtr->randr == NULL)
+	    ret = RHDxf86InitCursor(pScreen);
+	else
+	    ret = RHDRRInitCursor(pScreen);
+	if (!ret)
             xf86DrvMsg(scrnIndex, X_ERROR,
                        "Hardware cursor initialization failed\n");
-
+    }
     /* default colormap */
     if(!miCreateDefColormap(pScreen))
 	return FALSE;
     /* fixme */
-    if (!xf86HandleColormaps(pScreen, 256, pScrn->rgbBits,
+    /* Support 10-bits of precision in LUT */
+    if (!xf86HandleColormaps(pScreen, 256, 10,
                          RHDLoadPalette, NULL,
                          CMAP_PALETTED_TRUECOLOR | CMAP_RELOAD_ON_MODE_SWITCH))
 	return FALSE;
 
+#ifndef XSERVER_LIBPCIACCESS
     pScrn->racIoFlags = pScrn->racMemFlags = racflag;
-
-    /* @@@@ initialize video overlays here */
+#endif
 
     /* Function to unblank, so that we don't show an uninitialised FB */
     pScreen->SaveScreen = RHDSaveScreen;
@@ -1050,6 +1297,11 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Setup DPMS mode */
 
     xf86DPMSInit(pScreen, (DPMSSetProcPtr)RHDDisplayPowerManagementSet,0);
+
+    pScrn->memPhysBase = rhdPtr->FbPhysAddress + rhdPtr->FbScanoutStart;
+
+    if (rhdPtr->TwoDPrivate)
+	RHDInitVideo(pScreen);
 
     /* Wrap the current CloseScreen function */
     rhdPtr->CloseScreen = pScreen->CloseScreen;
@@ -1063,43 +1315,109 @@ RHDScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     return TRUE;
 }
 
+static Bool
+rhdAllIdle(RHDPtr rhdPtr)
+{
+    int i;
+
+    /* Make sure that VGA has been disabled before calling AllIdle() */
+    ASSERT(RHD_CHECKDEBUGFLAG(rhdPtr, VGA_SETUP));
+
+    /* stop scanout */
+    for (i = 0; i < 2; i++)
+	if (!rhdPtr->Crtc[i]->Power(rhdPtr->Crtc[i], RHD_POWER_RESET)) {
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR, "%s: unable to stop CRTC: cannot idle MC\n",
+		       __func__);
+	    return FALSE;
+	}
+
+    if (!RHDMCIdleWait(rhdPtr, 1000)) {
+	xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR, "MC not idle\n");
+	return FALSE;
+    }
+    return TRUE;
+}
+
+/*
+ *
+ */
+static void
+rhdEngineIdle(ScrnInfoPtr pScrn)
+{
+    RHDPtr rhdPtr = RHDPTR(pScrn);
+    struct RhdCS *CS = rhdPtr->CS;
+
+    if (CS) {
+	if (rhdPtr->ChipSet < RHD_R600) {
+	    R5xxDstCacheFlush(CS);
+	    R5xxEngineWaitIdleFull(CS);
+	}
+
+	RHDCSFlush(CS);
+	RHDCSIdle(CS);
+    }
+
+    if (rhdPtr->TwoDPrivate) {
+#ifdef USE_DRI
+	if (rhdPtr->ChipSet >= RHD_R600)
+	    R6xxIdle(pScrn);
+	else
+#endif /* USE_DRI */
+	    R5xx2DIdle(pScrn);
+    }
+
+}
+
 /* Mandatory */
 static Bool
 RHDCloseScreen(int scrnIndex, ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     RHDPtr rhdPtr = RHDPTR(pScrn);
+    Bool Idle = TRUE; /* yes, this is correct! */
+    
+    /* Make sure our CS and 2D status is clean before destroying it */
+    if (pScrn->vtSema)
+	rhdEngineIdle(pScrn);
 
-    if(pScrn->vtSema) {
-	struct rhdCrtc *Crtc;
-	int i;
-
-	/* stop scanout */
-	for (i = 0; i < 2; i++) {
-	    Crtc = rhdPtr->Crtc[i];
-	    if (scrnIndex == Crtc->scrnIndex)
-		Crtc->Power(Crtc, RHD_POWER_RESET);
-	}
-
-	/* TODO: Invalidate the cached acceleration registers */
-	if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->TwoDInfo)
-	    R5xx2DIdle(pScrn);
-
-	if (!RHDMCIdle(rhdPtr, 1000))
-	    xf86DrvMsg(scrnIndex, X_WARNING, "MC not idle\n");
-
-	rhdRestore(rhdPtr);
-    }
-
+    /* tear down 2d accel infrastructure */
     if (rhdPtr->AccelMethod == RHD_ACCEL_SHADOWFB)
 	RHDShadowCloseScreen(pScreen);
-#ifdef USE_EXA
+#ifdef USE_DRI
     else if (rhdPtr->AccelMethod == RHD_ACCEL_EXA) {
-	if (rhdPtr->ChipSet < RHD_R600)
+	if (rhdPtr->ChipSet < RHD_R600) {
 	    R5xxEXACloseScreen(pScreen);
+	    R5xxEXADestroy(pScrn);
+	} else {
+	    R6xxEXACloseScreen(pScreen);
+	    R6xxEXADestroy(pScrn);
+	}
+    } else
+#endif /* USE_DRI */
+	if (rhdPtr->AccelMethod == RHD_ACCEL_XAA) {
+	    if (rhdPtr->ChipSet < RHD_R600)
+		R5xxXAADestroy(pScrn);
+	}
+
+    if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->ThreeDPrivate)
+	R5xx3DDestroy(pScrn);
+
+    if (rhdPtr->CS)
+	RHDCSStop(rhdPtr->CS);
+
+    if (pScrn->vtSema)
+	Idle = rhdAllIdle(rhdPtr);
+
+#ifdef USE_DRI
+    if (rhdPtr->dri) {
+	if (Idle)
+	    RHDDRICloseScreen(pScreen);
+	else
+	    xf86DrvMsg(scrnIndex, X_ERROR, "MC not idle, cannot close DRI\n");
     }
-#endif /* USE_EXA */
-    /* nothing for XAA: handled in FreeRec */
+#endif
+    if (pScrn->vtSema)
+	rhdRestore(rhdPtr);
 
     rhdUnmapFB(rhdPtr);
     rhdUnmapMMIO(rhdPtr);
@@ -1127,8 +1445,19 @@ RHDEnterVT(int scrnIndex, int flags)
 
     rhdSave(rhdPtr);
 
-    if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->TwoDInfo)
-	R5xx2DIdle(pScrn);
+    /* disable all memory accesses for MC setup */
+    RHDVGADisable(rhdPtr);
+
+    if (!rhdAllIdle(rhdPtr))
+	return FALSE;
+
+    /* now set up the MC - has to be done before DRI init */
+    RHDMCSetupFBLocation(rhdPtr, rhdPtr->FbIntAddress, rhdPtr->FbIntSize);
+
+#ifdef ATOM_BIOS
+    /* Set accelerator mode in the BIOSScratch registers */
+    RHDAtomBIOSScratchSetAccelratorMode(rhdPtr, TRUE);
+#endif
 
     if (rhdPtr->randr)
 	RHDRandrModeInit(pScrn);
@@ -1140,10 +1469,59 @@ RHDEnterVT(int scrnIndex, int flags)
     if (rhdPtr->CursorInfo)
 	rhdReloadCursor(pScrn);
     /* rhdShowCursor() done by AdjustFrame */
-    RHDAdjustFrame(pScrn->scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
 
-    if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->TwoDInfo)
-	R5xx2DSetup(pScrn);
+    RHDAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
+
+    /* enable/disable audio */
+    RHDAudioSetEnable(rhdPtr, rhdPtr->audio.val.bool);
+
+    /* Static power management */
+    if (rhdPtr->Pm)
+	rhdPtr->Pm->SelectState (rhdPtr, RHD_PM_IDLE);
+
+#ifdef USE_DRI
+    if (rhdPtr->dri)
+	RHDDRIEnterVT(pScrn->pScreen);
+#endif
+
+    if (rhdPtr->CS) {
+#ifdef USE_DRI
+	if (rhdPtr->ChipSet >= RHD_R600) {
+	    if (rhdPtr->TwoDPrivate) {
+		R600LoadShaders(pScrn);
+		R6xxIdle(pScrn);
+
+		((struct r6xx_accel_state *) rhdPtr->TwoDPrivate)->XHas3DEngineState =
+		    FALSE;
+	    }
+	} else {
+#endif
+	    if (rhdPtr->TwoDPrivate) {
+		R5xx2DSetup(pScrn);
+		R5xx2DIdle(pScrn);
+	    }
+
+	    if (rhdPtr->ThreeDPrivate)
+		((struct R5xx3D *) rhdPtr->ThreeDPrivate)->XHas3DEngineState =
+		    FALSE;
+#ifdef USE_DRI
+	}
+#endif
+
+	RHDCSStart(rhdPtr->CS);
+
+	if (rhdPtr->ChipSet < RHD_R600)
+	    R5xxEngineWaitIdleFull(rhdPtr->CS);
+
+	RHDCSFlush(rhdPtr->CS);
+	RHDCSIdle(rhdPtr->CS);
+    }
+
+#ifdef USE_DRI
+    if (rhdPtr->dri) {
+        DRIUnlock(pScrn->pScreen);
+    }
+#endif
 
     return TRUE;
 }
@@ -1154,24 +1532,23 @@ RHDLeaveVT(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     RHDPtr rhdPtr = RHDPTR(pScrn);
-    struct rhdCrtc *Crtc;
-    int i;
 
     RHDFUNC(rhdPtr);
 
-    /* stop scanout */
-    for (i = 0; i < 2; i++) {
-	Crtc = rhdPtr->Crtc[i];
-	if (scrnIndex == Crtc->scrnIndex)
-	    Crtc->Power(Crtc, RHD_POWER_RESET);
-    }
+#ifdef USE_DRI
+    if (rhdPtr->dri)
+	RHDDRILeaveVT(pScrn->pScreen);
+#endif
 
-    /* TODO: Invalidate the cached acceleration registers */
-    if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->TwoDInfo)
-	R5xx2DIdle(pScrn);
+    rhdEngineIdle(pScrn);
 
-    if (!RHDMCIdle(rhdPtr, 1000))
-	xf86DrvMsg(scrnIndex, X_WARNING, "MC not idle\n");
+    if (rhdPtr->CS)
+	RHDCSStop(rhdPtr->CS);
+
+    rhdAllIdle(rhdPtr);
+
+    if (rhdPtr->randr)
+	RHDRRFreeShadow(pScrn);
 
     rhdRestore(rhdPtr);
 }
@@ -1184,13 +1561,12 @@ RHDSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 
     RHDFUNC(rhdPtr);
 
-    if ((rhdPtr->ChipSet < RHD_R600) && rhdPtr->TwoDInfo)
-	R5xx2DIdle(pScrn);
+    rhdEngineIdle(pScrn);
 
     if (rhdPtr->randr)
 	RHDRandrSwitchMode(pScrn, mode);
     else {
-	rhdPrepareMode(rhdPtr);
+	RHDPrepareMode(rhdPtr);
 	rhdSetMode(xf86Screens[scrnIndex], mode);
     }
 
@@ -1245,8 +1621,12 @@ RHDDisplayPowerManagementSet(ScrnInfoPtr pScrn,
 	    Crtc1->Power(Crtc1, RHD_POWER_ON);
 
 	    for (Output = rhdPtr->Outputs; Output; Output = Output->Next)
-		if (Output->Power && Output->Active && (Output->Crtc == Crtc1))
+		if (Output->Power && Output->Active && (Output->Crtc == Crtc1)) {
 		    Output->Power(Output, RHD_POWER_ON);
+#ifdef ATOM_BIOS
+		    RHDAtomBIOSScratchPMState(rhdPtr, Output, PowerManagementMode);
+#endif
+		}
 
 	    Crtc1->Blank(Crtc1, FALSE);
 	}
@@ -1255,9 +1635,12 @@ RHDDisplayPowerManagementSet(ScrnInfoPtr pScrn,
 	    Crtc2->Power(Crtc2, RHD_POWER_ON);
 
 	    for (Output = rhdPtr->Outputs; Output; Output = Output->Next)
-		if (Output->Power && Output->Active && (Output->Crtc == Crtc2))
+		if (Output->Power && Output->Active && (Output->Crtc == Crtc2)) {
 		    Output->Power(Output, RHD_POWER_ON);
-
+#ifdef ATOM_BIOS
+		    RHDAtomBIOSScratchPMState(rhdPtr, Output, PowerManagementMode);
+#endif
+		}
 	    Crtc2->Blank(Crtc2, FALSE);
 	}
 	break;
@@ -1268,8 +1651,12 @@ RHDDisplayPowerManagementSet(ScrnInfoPtr pScrn,
 	    Crtc1->Blank(Crtc1, TRUE);
 
 	    for (Output = rhdPtr->Outputs; Output; Output = Output->Next)
-		if (Output->Power && Output->Active && (Output->Crtc == Crtc1))
+		if (Output->Power && Output->Active && (Output->Crtc == Crtc1)) {
 		    Output->Power(Output, RHD_POWER_RESET);
+#ifdef ATOM_BIOS
+		    RHDAtomBIOSScratchPMState(rhdPtr, Output, PowerManagementMode);
+#endif
+		}
 
 	    Crtc1->Power(Crtc1, RHD_POWER_RESET);
 	}
@@ -1278,8 +1665,12 @@ RHDDisplayPowerManagementSet(ScrnInfoPtr pScrn,
 	    Crtc2->Blank(Crtc2, TRUE);
 
 	    for (Output = rhdPtr->Outputs; Output; Output = Output->Next)
-		if (Output->Power && Output->Active && (Output->Crtc == Crtc2))
+		if (Output->Power && Output->Active && (Output->Crtc == Crtc2)) {
 		    Output->Power(Output, RHD_POWER_RESET);
+#ifdef ATOM_BIOS
+		    RHDAtomBIOSScratchPMState(rhdPtr, Output, PowerManagementMode);
+#endif
+		}
 
 	    Crtc2->Power(Crtc2, RHD_POWER_RESET);
 	}
@@ -1297,13 +1688,70 @@ RHDLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices, LOCO *colors,
     RHDPtr rhdPtr = RHDPTR(pScrn);
     struct rhdCrtc *Crtc;
 
-    Crtc = rhdPtr->Crtc[0];
-    if ((pScrn->scrnIndex == Crtc->scrnIndex) && Crtc->Active)
-	Crtc->LUT->Set(Crtc->LUT, numColors, indices, colors);
+    CARD16 red[256], green[256], blue[256];
+    int i, index, j, n;
+    Bool partial_table = FALSE;
 
-    Crtc = rhdPtr->Crtc[1];
-    if ((pScrn->scrnIndex == Crtc->scrnIndex) && Crtc->Active)
-	Crtc->LUT->Set(Crtc->LUT, numColors, indices, colors);
+    switch (pScrn->depth) {
+    case 8:
+    case 24:
+    case 32:
+        if (numColors < 256) {
+            partial_table = TRUE;
+            break;
+        }
+        for (i = 0; i < numColors; i++) {
+            index = indices[i];
+            red[index] = colors[index].red << 6;
+            green[index] = colors[index].green << 6;
+            blue[index] = colors[index].blue << 6;
+        }
+        break;
+    case 16:
+        if (numColors < 64) {
+            partial_table = TRUE;
+            break;
+        }
+        /* 6 bits of green, 5 bits of red and blue each */
+        for (i = 0; i < numColors; i++) {
+            index = indices[i];
+            n = index * 4;
+            for (j = 0; j < 4; j++) {
+                red[n + j] = colors[index/2].red << 6;
+                green[n + j] = colors[index].green << 6;
+                blue[n + j] = colors[index/2].blue << 6;
+            }
+        }
+        break;
+    case 15:
+        if (numColors < 32) {
+            partial_table = TRUE;
+            break;
+        }
+        /* 5 bits each */
+        for (i = 0; i < numColors; i++) {
+            int j, n;
+
+            index = indices[i];
+            n = index * 8;
+            for (j = 0; j < 8; j++) {
+                red[n + j] = colors[index].red << 6;
+                green[n + j] = colors[index].green << 6;
+                blue[n+ j] = colors[index].blue << 6;
+            }
+        }
+        break;
+    }
+
+    for (i = 0; i < 2; i++) {
+        Crtc = rhdPtr->Crtc[i];
+        if ((pScrn->scrnIndex == Crtc->scrnIndex) && Crtc->Active) {
+            if (!partial_table)
+                Crtc->LUT->Set(Crtc->LUT, red, green, blue);
+            else
+                Crtc->LUT->SetRows(Crtc->LUT, numColors, indices, colors);
+        }
+    }
 }
 
 /*
@@ -1351,6 +1799,21 @@ RHDSaveScreen(ScreenPtr pScreen, int on)
 /*
  *
  */
+Bool
+RHDScalePolicy(struct rhdMonitor *Monitor, struct rhdConnector *Connector)
+{
+    if (!Monitor || !Monitor->UseFixedModes || !Monitor->NativeMode)
+	return FALSE;
+
+    if (Connector->Type != RHD_CONNECTOR_PANEL)
+	return FALSE;
+
+    return TRUE;
+}
+
+/*
+ *
+ */
 static Bool
 rhdMapMMIO(RHDPtr rhdPtr)
 {
@@ -1359,10 +1822,9 @@ rhdMapMMIO(RHDPtr rhdPtr)
 #ifdef XSERVER_LIBPCIACCESS
 
     rhdPtr->MMIOMapSize = rhdPtr->PciInfo->regions[RHD_MMIO_BAR].size;
-
+    rhdPtr->MMIOPCIAddress = rhdPtr->PciInfo->regions[RHD_MMIO_BAR].base_addr;
     if (pci_device_map_range(rhdPtr->PciInfo,
-			     rhdPtr->PciInfo->regions[RHD_MMIO_BAR].base_addr,
-			     rhdPtr->MMIOMapSize,
+			     rhdPtr->MMIOPCIAddress, rhdPtr->MMIOMapSize,
 			     PCI_DEV_MAP_FLAG_WRITABLE,
 			     &rhdPtr->MMIOBase))
 	rhdPtr->MMIOBase = NULL;
@@ -1370,16 +1832,16 @@ rhdMapMMIO(RHDPtr rhdPtr)
 #else
 
     rhdPtr->MMIOMapSize = 1 << rhdPtr->PciInfo->size[RHD_MMIO_BAR];
+    rhdPtr->MMIOPCIAddress = rhdPtr->PciInfo->memBase[RHD_MMIO_BAR];
     rhdPtr->MMIOBase =
         xf86MapPciMem(rhdPtr->scrnIndex, VIDMEM_MMIO, rhdPtr->PciTag,
-		      rhdPtr->PciInfo->memBase[RHD_MMIO_BAR],
-		      rhdPtr->MMIOMapSize);
+		      rhdPtr->MMIOPCIAddress, rhdPtr->MMIOMapSize);
 #endif
     if (!rhdPtr->MMIOBase)
         return FALSE;
 
-    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Mapped IO at %p (size 0x%08X)\n",
-	       rhdPtr->MMIOBase, rhdPtr->MMIOMapSize);
+    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Mapped IO @ 0x%x to %p (size 0x%08X)\n",
+	       rhdPtr->MMIOPCIAddress, rhdPtr->MMIOBase, rhdPtr->MMIOMapSize);
 
     return TRUE;
 }
@@ -1417,7 +1879,7 @@ rhdGetVideoRamSize(RHDPtr rhdPtr)
     else
 	RamSize = (RHDRegRead(rhdPtr, R6XX_CONFIG_MEMSIZE)) >> 10;
 #ifdef XSERVER_LIBPCIACCESS
-    BARSize = rhdPtr->PciInfo->regions[RHD_FB_BAR].size;
+    BARSize = rhdPtr->PciInfo->regions[RHD_FB_BAR].size >> 10;
 #else
     BARSize = 1 << (rhdPtr->PciInfo->size[RHD_FB_BAR] - 10);
 #endif
@@ -1437,52 +1899,118 @@ rhdGetVideoRamSize(RHDPtr rhdPtr)
 static Bool
 rhdMapFB(RHDPtr rhdPtr)
 {
-    unsigned long membase;
+    ScrnInfoPtr pScrn = xf86Screens[rhdPtr->scrnIndex];
     RHDFUNC(rhdPtr);
 
+    rhdPtr->FbBase = NULL;
+
 #ifdef XSERVER_LIBPCIACCESS
-
+    rhdPtr->FbPCIAddress = rhdPtr->PciInfo->regions[RHD_FB_BAR].base_addr;
     rhdPtr->FbMapSize = rhdPtr->PciInfo->regions[RHD_FB_BAR].size;
-    membase = rhdPtr->PciInfo->regions[RHD_FB_BAR].base_addr; /* @@@ */
+#else
+    rhdPtr->FbPCIAddress = rhdPtr->PciInfo->memBase[RHD_FB_BAR];
+    rhdPtr->FbMapSize = 1 << rhdPtr->PciInfo->size[RHD_FB_BAR];
+#endif
 
-    if (pci_device_map_range(rhdPtr->PciInfo,
-			     membase,
-			     rhdPtr->FbMapSize,
-			     PCI_DEV_MAP_FLAG_WRITABLE
-			     | PCI_DEV_MAP_FLAG_WRITE_COMBINE
-			     | PCI_DEV_MAP_FLAG_CACHABLE,
-			     &rhdPtr->FbBase))
-	rhdPtr->FbBase = NULL;
+    /* some IGPs are special cases */
+    switch (rhdPtr->ChipSet) {
+   	case RHD_RS690:
+	case RHD_RS740:
+	    rhdPtr->FbPhysAddress = RHDReadMC(rhdPtr, RS69_K8_FB_LOCATION);
+	    break;
+	case RHD_RS780:
+	    rhdPtr->FbPhysAddress = RHDReadMC(rhdPtr, RS78_K8_FB_LOCATION);
+	    break;
+	default:
+	    rhdPtr->FbPhysAddress = 0;
+	    break;
+    }
+
+    if (rhdPtr->FbPhysAddress) {
+	Bool SetIGPMemory = TRUE;
+	CARD32 option = X_DEFAULT;
+
+	if (rhdPtr->unverifiedFeatures.set) {
+	    option = X_CONFIG;
+	    SetIGPMemory = rhdPtr->unverifiedFeatures.val.bool;
+	}
+	if (SetIGPMemory && ! RHD_MC_IGP_SideportMemoryPresent(rhdPtr)) {
+	    SetIGPMemory = FALSE;
+	    option = X_DEFAULT;
+	}
+	if (SetIGPMemory) {
+	    CARD32 tmp = 0xfffffc00;
+	    CARD32 s = pScrn->videoRam;
+	    while (! (s & 0x1)) {
+		s >>= 1;
+		tmp <<= 1;
+	    }
+	    if (rhdPtr->FbPhysAddress & ~tmp) {
+		xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING,
+			   "IGP memory base 0x%8.8x seems to be bogus.\n", rhdPtr->FbPhysAddress);
+		SetIGPMemory = FALSE;
+		option = X_DEFAULT;
+	    }
+	}
+	if (SetIGPMemory) {
+	    CARD32 FbMapSizePCI =  rhdPtr->FbMapSize;
+
+	    xf86DrvMsg(rhdPtr->scrnIndex, option, "Mapping IGP memory @ 0x%8.8x\n",rhdPtr->FbPhysAddress);
+	    rhdPtr->FbMapSize = pScrn->videoRam * 1024;
+#ifdef XSERVER_LIBPCIACCESS
+	    if (pci_device_map_range(rhdPtr->PciInfo,
+				     rhdPtr->FbPhysAddress,
+				     rhdPtr->FbMapSize,
+				     PCI_DEV_MAP_FLAG_WRITABLE
+				     | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				     &rhdPtr->FbBase))
+		rhdPtr->FbBase = NULL;
 
 #else
-
-    rhdPtr->FbMapSize = 1 << rhdPtr->PciInfo->size[RHD_FB_BAR];
-    rhdPtr->FbBase =
-        xf86MapPciMem(rhdPtr->scrnIndex, VIDMEM_FRAMEBUFFER, rhdPtr->PciTag,
-		      rhdPtr->PciInfo->memBase[RHD_FB_BAR], rhdPtr->FbMapSize);
-    membase = rhdPtr->PciInfo->memBase[RHD_FB_BAR];
-
+	    rhdPtr->FbBase =
+		xf86MapPciMem(rhdPtr->scrnIndex, VIDMEM_FRAMEBUFFER,
+			      rhdPtr->PciTag,
+			      rhdPtr->FbPhysAddress,
+			      rhdPtr->FbMapSize);
 #endif
+	    /* If mapping was unsuccessful restore old size */
+	    if (!rhdPtr->FbBase)
+		rhdPtr->FbMapSize = FbMapSizePCI;
+	} else {
+	    xf86DrvMsg(rhdPtr->scrnIndex, option, "Not Mapping IGP memory\n");
+	}
+    }
+
+    /* go through the BAR */
+    if (!rhdPtr->FbBase) {
+	rhdPtr->FbPhysAddress = rhdPtr->FbPCIAddress;
+
+	if (rhdPtr->FbMapSize > (unsigned) pScrn->videoRam * 1024)
+	    rhdPtr->FbMapSize = pScrn->videoRam * 1024;
+
+#ifdef XSERVER_LIBPCIACCESS
+	if (pci_device_map_range(rhdPtr->PciInfo,
+				 rhdPtr->FbPhysAddress,
+				 rhdPtr->FbMapSize,
+				 PCI_DEV_MAP_FLAG_WRITABLE
+				 | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+				 &rhdPtr->FbBase))
+	    rhdPtr->FbBase = NULL;
+#else
+	rhdPtr->FbBase =
+	    xf86MapPciMem(rhdPtr->scrnIndex, VIDMEM_FRAMEBUFFER, rhdPtr->PciTag,
+			  rhdPtr->FbPhysAddress, rhdPtr->FbMapSize);
+#endif
+    }
+
+    RHDDebug(rhdPtr->scrnIndex, "Physical FB Address: 0x%08X (PCI BAR: 0x%08X)\n",
+	     rhdPtr->FbPhysAddress, rhdPtr->FbPCIAddress);
 
     if (!rhdPtr->FbBase)
         return FALSE;
 
-    /* These devices have an internal address reference, which some other
-     * address registers in there also use. This can be different from the
-     * address in the BAR */
-    if (rhdPtr->ChipSet < RHD_R600)
-	rhdPtr->FbIntAddress = RHDRegRead(rhdPtr, HDP_FB_LOCATION)
-			       << 16;
-    else
-	rhdPtr->FbIntAddress = RHDRegRead(rhdPtr, R6XX_CONFIG_FB_BASE);
-
-    if (rhdPtr->FbIntAddress != membase)
-	    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "PCI FB Address (BAR) is at "
-		       "0x%08X while card Internal Address is 0x%08X\n",
-		       (unsigned int) membase,
-		       rhdPtr->FbIntAddress);
-    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Mapped FB at %p (size 0x%08X)\n",
-	       rhdPtr->FbBase, rhdPtr->FbMapSize);
+    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Mapped FB @ 0x%x to %p (size 0x%08X)\n",
+	       rhdPtr->FbPhysAddress, rhdPtr->FbBase, rhdPtr->FbMapSize);
     return TRUE;
 }
 
@@ -1496,14 +2024,16 @@ rhdUnmapFB(RHDPtr rhdPtr)
 
     if (!rhdPtr->FbBase)
 	return;
+
 #ifdef XSERVER_LIBPCIACCESS
     pci_device_unmap_range(rhdPtr->PciInfo, (pointer)rhdPtr->FbBase,
 			   rhdPtr->FbMapSize);
 #else
     xf86UnMapVidMem(rhdPtr->scrnIndex, (pointer)rhdPtr->FbBase,
-                    rhdPtr->FbMapSize);
+		    rhdPtr->FbMapSize);
 #endif
-    rhdPtr->FbBase = 0;
+
+    rhdPtr->FbBase = NULL;
 }
 
 /*
@@ -1555,14 +2085,9 @@ rhdFbOffscreenGrab(ScrnInfoPtr pScrn)
 
     tmp = RHD_FB_CHUNK(tmp);
 
-    rhdPtr->FbOffscreenStart = rhdPtr->FbFreeStart;
     rhdPtr->FbOffscreenSize = tmp;
-
-    rhdPtr->FbFreeStart += rhdPtr->FbOffscreenSize;
-    rhdPtr->FbFreeSize -= rhdPtr->FbOffscreenSize;
-
-    RHDDebug(pScrn->scrnIndex, "Offscreen Buffer at offset 0x%08X (size = 0x%08X)\n",
-	     rhdPtr->FbOffscreenStart, rhdPtr->FbOffscreenSize);
+    rhdPtr->FbOffscreenStart = RHDAllocFb(rhdPtr, tmp, "Offscreen Buffer");
+    ASSERT(rhdPtr->FbOffscreenStart != (unsigned)-1);
 }
 
 /*
@@ -1577,11 +2102,20 @@ rhdOutputConnectorCheck(struct rhdConnector *Connector)
     /* First, try to sense */
     for (i = 0; i < 2; i++) {
 	Output = Connector->Output[i];
-	if (Output && Output->Sense
-	    && (Output->SensedType = Output->Sense(Output, Connector->Type))) {
-	    RHDOutputPrintSensedType(Output);
-	    Output->Connector = Connector;
-	    break;
+	if (Output && Output->Sense) {
+	    /*
+	     * This is ugly and needs to change when the TV support patches are in.
+	     * The problem here is that the Output struct can be used for two connectors
+	     * and thus two different devices
+	     */
+	    if (Output->SensedType == RHD_SENSED_NONE) {
+		/* Do this before sensing as AtomBIOS sense needs this info */
+		if ((Output->SensedType = Output->Sense(Output, Connector)) != RHD_SENSED_NONE) {
+		    RHDOutputPrintSensedType(Output);
+		    RHDOutputAttachConnector(Output, Connector);
+		    break;
+		}
+	    }
 	}
     }
 
@@ -1590,7 +2124,7 @@ rhdOutputConnectorCheck(struct rhdConnector *Connector)
 	for (i = 0; i < 2; i++) {
 	    Output = Connector->Output[i];
 	    if (Output && !Output->Sense) {
-		Output->Connector = Connector;
+		RHDOutputAttachConnector(Output, Connector);
 		break;
 	    }
 	}
@@ -1606,7 +2140,7 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
     struct rhdOutput *Output;
     struct rhdConnector *Connector;
     Bool Found = FALSE;
-    char *ignore = NULL;
+    RHDOpt ignore;
     Bool ConnectorIsDMS59 = FALSE;
     int i = 0;
 
@@ -1627,7 +2161,7 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
     }
 
     /* quick and dirty option so that some output choice exists */
-    ignore = xf86GetOptValString(rhdPtr->Options, OPTION_IGNORECONNECTOR);
+    RhdGetOptValString (rhdPtr->Options, OPTION_IGNORECONNECTOR, &ignore, "");
 
     /* handle cards with DMS-59 connectors appropriately. The DMS-59 to VGA
        adapter does not raise HPD at all, so we need a fallback there. */
@@ -1645,10 +2179,15 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
 	if (!Connector)
 	    continue;
 
-	if (ignore && !strcasecmp(Connector->Name, ignore)) {
-	    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO,
-		       "Skipping connector \"%s\"\n", ignore);
-	    continue;
+	switch(RhdParseBooleanOption(&ignore, Connector->Name)) {
+	    case RHD_OPTION_ON:
+	    case RHD_OPTION_DEFAULT:
+		xf86DrvMsg(rhdPtr->scrnIndex, X_INFO,
+		           "Skipping connector \"%s\"\n", Connector->Name);
+		continue;
+	    case RHD_OPTION_OFF:
+	    case RHD_OPTION_NOT_SET:
+		break;
 	}
 
 	if (Connector->HPDCheck) {
@@ -1678,7 +2217,7 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
 		xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, "Unable to attach a"
 			   " monitor to connector \"%s\"\n", Connector->Name);
 		Output->Active = FALSE;
-	    } else {
+	    } else if (!Output->AllocFree || Output->AllocFree(Output, RHD_OUTPUT_ALLOC)){
 		Connector->Monitor = Monitor;
 
 		Output->Active = TRUE;
@@ -1687,6 +2226,14 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
 		i++;
 
 		Output->Crtc->Active = TRUE;
+
+		if (RHDScalePolicy(Monitor, Connector)) {
+		    Output->Crtc->ScaledToMode = RHDModeCopy(Monitor->NativeMode);
+		    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO,
+			       "Crtc[%i]: found native mode from Monitor[%s]: ",
+			       Output->Crtc->Id, Monitor->Name);
+		    RHDPrintModeline(Output->Crtc->ScaledToMode);
+		}
 
 		Found = TRUE;
 
@@ -1715,6 +2262,16 @@ rhdModeLayoutSelect(RHDPtr rhdPtr)
 			       " information.\n", Connector->Name);
 	    }
 	}
+
+    /* Now validate the scaled modes attached to crtcs */
+    for (i = 0; i < 2; i++) {
+	struct rhdCrtc *crtc = rhdPtr->Crtc[i];
+	if (crtc->ScaledToMode && RHDValidateScaledToMode(crtc, crtc->ScaledToMode) != MODE_OK) {
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR, "Crtc[%i]: scaled mode invalid.\n", crtc->Id);
+	    xfree(crtc->ScaledToMode);
+	    crtc->ScaledToMode = NULL;
+	}
+    }
 
     return Found;
 }
@@ -1900,17 +2457,16 @@ rhdModeLayoutPrint(RHDPtr rhdPtr)
 /*
  *
  */
-static void
-rhdPrepareMode(RHDPtr rhdPtr)
+void
+RHDPrepareMode(RHDPtr rhdPtr)
 {
     RHDFUNC(rhdPtr);
 
+    /* Stop crap from being shown: gets reenabled through SaveScreen */
+    rhdPtr->Crtc[0]->Blank(rhdPtr->Crtc[0], TRUE);
+    rhdPtr->Crtc[1]->Blank(rhdPtr->Crtc[1], TRUE);
     /* no active outputs == no mess */
     RHDOutputsPower(rhdPtr, RHD_POWER_RESET);
-
-    /* Disable CRTCs to stop noise from appearing. */
-    rhdPtr->Crtc[0]->Power(rhdPtr->Crtc[0], RHD_POWER_RESET);
-    rhdPtr->Crtc[1]->Power(rhdPtr->Crtc[1], RHD_POWER_RESET);
 }
 
 /*
@@ -1924,18 +2480,6 @@ rhdModeInit(ScrnInfoPtr pScrn, DisplayModePtr mode)
     RHDFUNC(rhdPtr);
     pScrn->vtSema = TRUE;
 
-    /* Stop crap from being shown: gets reenabled through SaveScreen */
-    rhdPtr->Crtc[0]->Blank(rhdPtr->Crtc[0], TRUE);
-    rhdPtr->Crtc[1]->Blank(rhdPtr->Crtc[1], TRUE);
-
-    rhdPrepareMode(rhdPtr);
-
-    /* now disable our VGA Mode */
-    RHDVGADisable(rhdPtr);
-
-    /* now set up the MC */
-    RHDMCSetup(rhdPtr);
-
     rhdSetMode(pScrn, mode);
 }
 
@@ -1946,7 +2490,7 @@ static void
 rhdSetMode(ScrnInfoPtr pScrn, DisplayModePtr mode)
 {
     RHDPtr rhdPtr = RHDPTR(pScrn);
-    struct rhdCrtc *Crtc;
+    int i;
 
     RHDFUNC(rhdPtr);
 
@@ -1954,32 +2498,28 @@ rhdSetMode(ScrnInfoPtr pScrn, DisplayModePtr mode)
 	       mode->name, mode->CrtcHDisplay, mode->CrtcVDisplay,
 	       mode->VRefresh);
 
-    /* Set up D1 and appendages */
-    Crtc = rhdPtr->Crtc[0];
-    if (Crtc->Active) {
-	Crtc->FBSet(Crtc, pScrn->displayWidth, pScrn->virtualX, pScrn->virtualY,
-		    pScrn->depth, rhdPtr->FbScanoutStart);
-	Crtc->ModeSet(Crtc, mode);
-	if (Crtc->ScaleSet)
-	    Crtc->ScaleSet(Crtc, RHD_CRTC_SCALE_TYPE_NONE, mode, NULL);
-	RHDPLLSet(Crtc->PLL, mode->Clock);
-	Crtc->PLLSelect(Crtc, Crtc->PLL);
-	Crtc->LUTSelect(Crtc, Crtc->LUT);
-	RHDOutputsMode(rhdPtr, Crtc, mode);
-    }
+    /* Set up D1/D2 and appendages */
+    for (i = 0; i < 2; i++) {
+	struct rhdCrtc *Crtc;
 
-    /* Set up D2 and appendages */
-    Crtc = rhdPtr->Crtc[1];
-    if (Crtc->Active) {
-	Crtc->FBSet(Crtc, pScrn->displayWidth, pScrn->virtualX, pScrn->virtualY,
-		    pScrn->depth, rhdPtr->FbScanoutStart);
-	Crtc->ModeSet(Crtc, mode);
-	if (Crtc->ScaleSet)
-	    Crtc->ScaleSet(Crtc, RHD_CRTC_SCALE_TYPE_NONE, mode, NULL);
-	RHDPLLSet(Crtc->PLL, mode->Clock);
-	Crtc->PLLSelect(Crtc, Crtc->PLL);
-	Crtc->LUTSelect(Crtc, Crtc->LUT);
-	RHDOutputsMode(rhdPtr, Crtc, mode);
+	Crtc = rhdPtr->Crtc[i];
+	if (Crtc->Active) {
+	    Crtc->FBSet(Crtc, pScrn->displayWidth, pScrn->virtualX, pScrn->virtualY,
+			pScrn->depth, rhdPtr->FbScanoutStart);
+	    if (Crtc->ScaledToMode) {
+		Crtc->ModeSet(Crtc, Crtc->ScaledToMode);
+		if (Crtc->ScaleSet)
+		    Crtc->ScaleSet(Crtc, Crtc->ScaleType, mode, Crtc->ScaledToMode);
+	    } else {
+		Crtc->ModeSet(Crtc, mode);
+		if (Crtc->ScaleSet)
+		    Crtc->ScaleSet(Crtc, RHD_CRTC_SCALE_TYPE_NONE, mode, NULL);
+	    }
+	    RHDPLLSet(Crtc->PLL, mode->Clock);
+	    Crtc->LUTSelect(Crtc, Crtc->LUT);
+	    RHDOutputsMode(rhdPtr, Crtc, Crtc->ScaledToMode
+			   ? Crtc->ScaledToMode : mode);
+	}
     }
 
     /* shut down that what we don't use */
@@ -2009,18 +2549,23 @@ rhdSave(RHDPtr rhdPtr)
 
     RHDFUNC(rhdPtr);
 
-    RHDSaveMC(rhdPtr);
+    RHDMCSave(rhdPtr);
 
     RHDVGASave(rhdPtr);
 
     RHDOutputsSave(rhdPtr);
-
+#ifdef ATOM_BIOS
+    rhdPtr->BIOSScratch = RHDSaveBiosScratchRegisters(rhdPtr);
+#endif
     RHDPLLsSave(rhdPtr);
+    RHDAudioSave(rhdPtr);
     RHDLUTsSave(rhdPtr);
 
-    rhdPtr->Crtc[0]->Save(rhdPtr->Crtc[0]);
-    rhdPtr->Crtc[1]->Save(rhdPtr->Crtc[1]);
+    RHDCrtcSave(rhdPtr->Crtc[0]);
+    RHDCrtcSave(rhdPtr->Crtc[1]);
     rhdSaveCursor(pScrn);
+
+    RHDPmSave(rhdPtr);
 }
 
 /*
@@ -2033,52 +2578,26 @@ rhdRestore(RHDPtr rhdPtr)
 
     RHDFUNC(rhdPtr);
 
-    RHDRestoreMC(rhdPtr);
+    RHDMCRestore(rhdPtr);
 
-    if (rhdPtr->CursorInfo)
-	rhdRestoreCursor(pScrn);
+    rhdRestoreCursor(pScrn);
 
     RHDPLLsRestore(rhdPtr);
+    RHDAudioRestore(rhdPtr);
     RHDLUTsRestore(rhdPtr);
 
     RHDVGARestore(rhdPtr);
 
-    rhdPtr->Crtc[0]->Restore(rhdPtr->Crtc[0]);
-    rhdPtr->Crtc[1]->Restore(rhdPtr->Crtc[1]);
+    /* restore after restoring CRTCs - check rhd_crtc.c for why */
+    RHDCrtcRestore(rhdPtr->Crtc[0]);
+    RHDCrtcRestore(rhdPtr->Crtc[1]);
+
+    RHDPmRestore(rhdPtr);
 
     RHDOutputsRestore(rhdPtr);
-}
-
-/*
- *
- */
-CARD32
-_RHDRegRead(int scrnIndex, CARD16 offset)
-{
-    return *(volatile CARD32 *)((CARD8 *) RHDPTR(xf86Screens[scrnIndex])->MMIOBase + offset);
-}
-
-/*
- *
- */
-void
-_RHDRegWrite(int scrnIndex, CARD16 offset, CARD32 value)
-{
-    *(volatile CARD32 *)((CARD8 *) RHDPTR(xf86Screens[scrnIndex])->MMIOBase + offset) = value;
-}
-
-/*
- * This one might seem clueless, but it is an actual lifesaver.
- */
-void
-_RHDRegMask(int scrnIndex, CARD16 offset, CARD32 value, CARD32 mask)
-{
-    CARD32 tmp;
-
-    tmp = _RHDRegRead(scrnIndex, offset);
-    tmp &= ~mask;
-    tmp |= (value & mask);
-    _RHDRegWrite(scrnIndex, offset, tmp);
+#ifdef ATOM_BIOS
+    RHDRestoreBiosScratchRegisters(rhdPtr, rhdPtr->BIOSScratch);
+#endif
 }
 
 #ifdef RHD_DEBUG
@@ -2088,7 +2607,7 @@ _RHDRegMask(int scrnIndex, CARD16 offset, CARD32 value, CARD32 mask)
 CARD32
 _RHDRegReadD(int scrnIndex, CARD16 offset)
 {
-    CARD32 tmp =  *(volatile CARD32 *)((CARD8 *) RHDPTR(xf86Screens[scrnIndex])->MMIOBase + offset);
+    CARD32 tmp =  MMIO_IN32(RHDPTR(xf86Screens[scrnIndex])->MMIOBase, offset);
     xf86DrvMsg(scrnIndex, X_INFO, "RHDRegRead(0x%4.4x) = 0x%4.4x\n",offset,tmp);
     return tmp;
 }
@@ -2100,7 +2619,7 @@ void
 _RHDRegWriteD(int scrnIndex, CARD16 offset, CARD32 value)
 {
     xf86DrvMsg(scrnIndex, X_INFO, "RHDRegWrite(0x%4.4x,0x%4.4x)\n",offset,tmp);
-    *(volatile CARD32 *)((CARD8 *) RHDPTR(xf86Screens[scrnIndex])->MMIOBase + offset) = value;
+    MMIO_OUT32(RHDPTR(xf86Screens[scrnIndex])->MMIOBase, offset, value);
 }
 
 /*
@@ -2123,24 +2642,28 @@ CARD32
 _RHDReadMC(int scrnIndex, CARD32 addr)
 {
     RHDPtr rhdPtr = RHDPTR(xf86Screens[scrnIndex]);
-    CARD32 ret;
+    CARD32 ret = 0;
 
-    if (rhdPtr->ChipSet < RHD_RS690) {
-	_RHDRegWrite(scrnIndex, MC_IND_INDEX, addr);
-	ret = _RHDRegRead(scrnIndex, MC_IND_DATA);
+    if (rhdPtr->ChipSet < RHD_RS600) {
+	RHDRegWrite(rhdPtr, MC_IND_INDEX, addr);
+	ret = RHDRegRead(rhdPtr, MC_IND_DATA);
+    } else if (rhdPtr->ChipSet == RHD_RS600) {
+	RHDRegWrite(rhdPtr, RS600_MC_INDEX, ((addr & RS600_MC_INDEX_ADDR_MASK) | RS600_MC_INDEX_CITF_ARB0));
+	ret = RHDRegRead(rhdPtr, RS600_MC_DATA);
+    } else if (rhdPtr->ChipSet == RHD_RS690 || rhdPtr->ChipSet == RHD_RS740) {
+	RHDRegWrite(rhdPtr, RS690_MC_INDEX, (addr & RS690_MC_INDEX_ADDR_MASK));
+        ret = RHDRegRead(rhdPtr, RS690_MC_DATA);
+    } else if (rhdPtr->ChipSet == RHD_RS780 || rhdPtr->ChipSet == RHD_RS880) {
+	RHDRegWrite(rhdPtr, RS780_MC_INDEX, (addr & RS780_MC_INDEX_ADDR_MASK));
+	ret = RHDRegRead(rhdPtr, RS780_MC_DATA);
     } else {
-#ifdef XSERVER_LIBPCIACCESS
-	CARD32 data = addr & ~RS69_C_IND_WR_EN;
-	pci_device_cfg_write(rhdPtr->NBPciInfo, &(data), RS69_MC_INDEX, 4, NULL);
-	pci_device_cfg_read(rhdPtr->NBPciInfo, &ret, RS69_MC_DATA, 4, NULL);
-#else
-	pciWriteLong(rhdPtr->NBPciTag, RS69_MC_INDEX, addr & ~RS69_C_IND_WR_EN);
-	ret = pciReadLong(rhdPtr->NBPciTag, RS69_MC_DATA);
-#endif
+	xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR,
+		   "%s: shouldn't be here\n", __func__);
     }
-
+#ifdef RHD_DEBUG
     RHDDebug(scrnIndex,"%s(0x%08X) = 0x%08X\n",__func__,(unsigned int)addr,
 	     (unsigned int)ret);
+#endif
     return ret;
 }
 
@@ -2149,37 +2672,44 @@ _RHDWriteMC(int scrnIndex, CARD32 addr, CARD32 data)
 {
     RHDPtr rhdPtr = RHDPTR(xf86Screens[scrnIndex]);
 
+#ifdef RHD_DEBUG
     RHDDebug(scrnIndex,"%s(0x%08X, 0x%08X)\n",__func__,(unsigned int)addr,
 	     (unsigned int)data);
-
-    if (rhdPtr->ChipSet < RHD_RS690) {
-	_RHDRegWrite(scrnIndex, MC_IND_INDEX, addr | MC_IND_WR_EN);
-	_RHDRegWrite(scrnIndex, MC_IND_DATA, data);
-    } else {
-#ifdef XSERVER_LIBPCIACCESS
-	CARD32 tmp = addr & ~RS69_C_IND_WR_EN;
-	pci_device_cfg_write(rhdPtr->NBPciInfo, &tmp, RS69_MC_INDEX, 4, NULL);
-	pci_device_cfg_write(rhdPtr->NBPciInfo, &data, RS69_MC_DATA, 4, NULL);
-#else
-	pciWriteLong(rhdPtr->NBPciTag, RS69_MC_INDEX, addr | RS69_C_IND_WR_EN);
-	pciWriteLong(rhdPtr->NBPciTag, RS69_MC_DATA, data);
 #endif
 
+    if (rhdPtr->ChipSet < RHD_RS600) {
+	RHDRegWrite(rhdPtr, MC_IND_INDEX, addr | MC_IND_WR_EN);
+	RHDRegWrite(rhdPtr, MC_IND_DATA, data);
+    } else if (rhdPtr->ChipSet == RHD_RS600) {
+        RHDRegWrite(rhdPtr, RS600_MC_INDEX, ((addr & RS600_MC_INDEX_ADDR_MASK) | RS600_MC_INDEX_CITF_ARB0 | RS600_MC_INDEX_WR_EN));
+        RHDRegWrite(rhdPtr, RS600_MC_DATA, data);
+    } else if (rhdPtr->ChipSet == RHD_RS690 || rhdPtr->ChipSet == RHD_RS740) {
+	RHDRegWrite(rhdPtr, RS690_MC_INDEX, ((addr & RS690_MC_INDEX_ADDR_MASK) | RS690_MC_INDEX_WR_EN));
+        RHDRegWrite(rhdPtr, RS690_MC_DATA, data);
+        RHDRegWrite(rhdPtr, RS690_MC_INDEX, RS690_MC_INDEX_WR_ACK);
+    } else if (rhdPtr->ChipSet == RHD_RS780 || rhdPtr->ChipSet == RHD_RS880) {
+	RHDRegWrite(rhdPtr, RS780_MC_INDEX, ((addr & RS780_MC_INDEX_ADDR_MASK) | RS780_MC_INDEX_WR_EN));
+        RHDRegWrite(rhdPtr, RS780_MC_DATA, data);
+    } else {
+	xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR,
+		   "%s: shouldn't be here\n", __func__);
     }
 }
 
 CARD32
 _RHDReadPLL(int scrnIndex, CARD16 offset)
 {
-    _RHDRegWrite(scrnIndex, CLOCK_CNTL_INDEX, (offset & PLL_ADDR));
-    return _RHDRegRead(scrnIndex, CLOCK_CNTL_DATA);
+    RHDPtr rhdPtr = RHDPTR(xf86Screens[scrnIndex]);
+    RHDRegWrite(rhdPtr, CLOCK_CNTL_INDEX, (offset & PLL_ADDR));
+    return RHDRegRead(rhdPtr, CLOCK_CNTL_DATA);
 }
 
 void
 _RHDWritePLL(int scrnIndex, CARD16 offset, CARD32 data)
 {
-    _RHDRegWrite(scrnIndex, CLOCK_CNTL_INDEX, (offset & PLL_ADDR) | PLL_WR_EN);
-    _RHDRegWrite(scrnIndex, CLOCK_CNTL_DATA, data);
+    RHDPtr rhdPtr = RHDPTR(xf86Screens[scrnIndex]);
+    RHDRegWrite(rhdPtr, CLOCK_CNTL_INDEX, (offset & PLL_ADDR) | PLL_WR_EN);
+    RHDRegWrite(rhdPtr, CLOCK_CNTL_DATA, data);
 }
 
 /*
@@ -2201,6 +2731,8 @@ rhdAccelOptionsHandle(ScrnInfoPtr pScrn)
     if (method.set) {
 	if (!strcasecmp(method.val.string, "none"))
 	    rhdPtr->AccelMethod = RHD_ACCEL_NONE;
+	else if (!strcasecmp(method.val.string, "force-shadowfb"))
+	    rhdPtr->AccelMethod = RHD_ACCEL_FORCE_SHADOWFB;
 	else if (!strcasecmp(method.val.string, "shadowfb"))
 	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
 	else if (!strcasecmp(method.val.string, "xaa"))
@@ -2220,9 +2752,17 @@ rhdAccelOptionsHandle(ScrnInfoPtr pScrn)
 	rhdPtr->AccelMethod = RHD_ACCEL_DEFAULT;
 
     if (rhdPtr->AccelMethod == RHD_ACCEL_DEFAULT) {
+#ifdef USE_EXA
+        rhdPtr->AccelMethod = RHD_ACCEL_EXA;
+#else
 	if (rhdPtr->ChipSet < RHD_R600)
 	    rhdPtr->AccelMethod = RHD_ACCEL_XAA;
 	else
+	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
+#endif /* USE_EXA */
+	/* RV740: EXA is extremely slow due to DFS breaking for <32x32 images
+	 * and Composite breaking with partial DFS */
+	if (rhdPtr->ChipSet == RHD_RV740)
 	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
     }
 
@@ -2230,14 +2770,6 @@ rhdAccelOptionsHandle(ScrnInfoPtr pScrn)
 	(rhdPtr->AccelMethod > RHD_ACCEL_SHADOWFB)) {
 	xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "Disabling HW 2D acceleration.\n");
 	rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
-    }
-
-    if (rhdPtr->ChipSet >= RHD_R600) {
-	if (rhdPtr->AccelMethod > RHD_ACCEL_SHADOWFB) {
-	    xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, "%s: HW 2D acceleration is"
-		       " not implemented yet.\n",  pScrn->chipset);
-	    rhdPtr->AccelMethod = RHD_ACCEL_SHADOWFB;
-	}
     }
 
     /* Now for some pretty print */
@@ -2250,6 +2782,9 @@ rhdAccelOptionsHandle(ScrnInfoPtr pScrn)
     case RHD_ACCEL_XAA:
 	xf86DrvMsg(rhdPtr->scrnIndex, X_CONFIG, "Selected XAA 2D acceleration.\n");
 	break;
+    case RHD_ACCEL_FORCE_SHADOWFB:
+	xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, "Selected forced ShadowFB (even with DRI). Known to have issues.\n");
+	break;
     case RHD_ACCEL_SHADOWFB:
 	xf86DrvMsg(rhdPtr->scrnIndex, X_CONFIG, "Selected ShadowFB.\n");
 	break;
@@ -2258,6 +2793,14 @@ rhdAccelOptionsHandle(ScrnInfoPtr pScrn)
 	xf86DrvMsg(rhdPtr->scrnIndex, X_WARNING, /* corny */
 		   "All methods of acceleration have been disabled.\n");
 	break;
+    }
+
+    /* If shadowfb is explicitely selected AND dri is not explicitely asked
+     * for, disable dri as they don't go along */
+    if (rhdPtr->AccelMethod == RHD_ACCEL_SHADOWFB && ! rhdPtr->useDRI.set) {
+	xf86DrvMsg(rhdPtr->scrnIndex, X_CONFIG,
+		   "Disabling DRI by default with AccelMethod shadowfb.\n");
+	rhdPtr->useDRI.val.bool = FALSE;
     }
 }
 
@@ -2269,6 +2812,10 @@ rhdProcessOptions(ScrnInfoPtr pScrn)
 {
     RHDPtr rhdPtr = RHDPTR(pScrn);
     RHDOpt hpd;
+#ifdef ATOM_BIOS
+    RHDOpt atombios;
+#endif
+
     /* Collect all of the relevant option flags (fill in pScrn->options) */
     xf86CollectOptions(pScrn, NULL);
     rhdPtr->Options = xnfcalloc(sizeof(RHDOptions), 1);
@@ -2287,12 +2834,40 @@ rhdProcessOptions(ScrnInfoPtr pScrn)
 			&hpd, "auto");
     RhdGetOptValBool   (rhdPtr->Options, OPTION_NORANDR,
 			&rhdPtr->noRandr, FALSE);
-    RhdGetOptValBool   (rhdPtr->Options, OPTION_RRUSEXF86EDID,
-			&rhdPtr->rrUseXF86Edid, FALSE);
     RhdGetOptValString (rhdPtr->Options, OPTION_RROUTPUTORDER,
 			&rhdPtr->rrOutputOrder, NULL);
+    RhdGetOptValBool   (rhdPtr->Options, OPTION_DRI,
+			&rhdPtr->useDRI, TRUE);
     RhdGetOptValString (rhdPtr->Options, OPTION_TV_MODE,
 			&rhdPtr->tvModeName, NULL);
+    RhdGetOptValString (rhdPtr->Options, OPTION_SCALE_TYPE,
+		       &rhdPtr->scaleTypeOpt, "default");
+    RhdGetOptValBool   (rhdPtr->Options, OPTION_UNVERIFIED_FEAT,
+			&rhdPtr->unverifiedFeatures, FALSE);
+    RhdGetOptValBool   (rhdPtr->Options, OPTION_AUDIO,
+			&rhdPtr->audio, TRUE);
+    RhdGetOptValString (rhdPtr->Options, OPTION_AUDIO_WORKAROUND,
+			&rhdPtr->audioWorkaround, "none");
+    RhdGetOptValString (rhdPtr->Options, OPTION_HDMI,
+			&rhdPtr->hdmi, "none");
+    RhdGetOptValString(rhdPtr->Options, OPTION_COHERENT,
+		       &rhdPtr->coherent, NULL);
+    RhdGetOptValBool   (rhdPtr->Options, OPTION_FORCE_LOW_POWER,
+                        &rhdPtr->lowPowerMode, FALSE);
+    RhdGetOptValInteger(rhdPtr->Options, OPTION_LOW_POWER_CLOCK,
+                        &rhdPtr->lowPowerModeEngineClock, 0);
+
+#ifdef ATOM_BIOS
+    RhdGetOptValBool   (rhdPtr->Options, OPTION_USE_ATOMBIOS,
+			&rhdPtr->UseAtomBIOS, FALSE);
+    RhdGetOptValString (rhdPtr->Options, OPTION_ATOMBIOS,
+			&atombios, NULL);
+    if (atombios.set && atombios.val.string) {
+	if (! rhdUpdateAtomBIOSUsage (rhdPtr, atombios.val.string))
+	    xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR, "Cannot parse AtomBIOS usage string: %s\n",
+		       atombios.val.string);
+    }
+#endif
 
     rhdAccelOptionsHandle(pScrn);
 
@@ -2313,6 +2888,7 @@ rhdProcessOptions(ScrnInfoPtr pScrn)
 	"     This shall only be used to work around broken connector tables.\n"
 	"     Please report your findings to radeonhd@opensuse.org\n");
 }
+
 
 /*
  *  rhdDoReadPCIBios(): do the actual reading, return size and copy in ptr
@@ -2336,7 +2912,7 @@ rhdDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
     xf86DrvMsg(rhdPtr->scrnIndex,X_INFO,"Getting BIOS copy from PCI ROM\n");
 
 #ifdef XSERVER_LIBPCIACCESS
-    if (pci_device_read_rom(rhdPtr->PciInfo, ptr)) {
+    if (pci_device_read_rom(rhdPtr->PciInfo, *ptr)) {
 	xf86DrvMsg(rhdPtr->scrnIndex,X_ERROR,
 		   "Cannot read BIOS image\n");
 	xfree(*ptr);
@@ -2344,7 +2920,7 @@ rhdDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
     }
 #else
     if ((read_len =
-	 xf86ReadPciBIOS(0, rhdPtr->PciTag, -1, *ptr, size)) < 0) {
+	 xf86ReadPciBIOS(0, rhdPtr->PciTag, -1, *ptr, size)) <= 0) {
 	xf86DrvMsg(rhdPtr->scrnIndex,X_ERROR,
 		   "Cannot read BIOS image\n");
 	xfree(*ptr);
@@ -2362,17 +2938,23 @@ rhdDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
 /*
  * rhdR5XXDoReadPCIBios(): enables access to R5xx BIOS, wraps rhdDoReadPCIBios()
  */
-static unsigned int
-rhdR5XXDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
+unsigned int
+RHDReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
 {
     unsigned int ret;
-    CARD32 save_seprom_cntl1,
+    CARD32 save_seprom_cntl1 = 0,
 	save_gpiopad_a, save_gpiopad_en, save_gpiopad_mask,
 	save_viph_cntl,
 	save_bus_cntl,
-	save_d1vga_control, save_d2vga_control, save_vga_render_control;
+	save_d1vga_control, save_d2vga_control, save_vga_render_control,
+	save_rom_cntl = 0,
+	save_gen_pwrmgt = 0,
+	save_low_vid_lower_gpio_cntl = 0, save_med_vid_lower_gpio_cntl = 0,
+	save_high_vid_lower_gpio_cntl = 0, save_ctxsw_vid_lower_gpio_cntl = 0,
+	save_lower_gpio_en = 0;
 
-    save_seprom_cntl1 = RHDRegRead(rhdPtr, SEPROM_CNTL1);
+    if (rhdPtr->ChipSet < RHD_R600)
+	save_seprom_cntl1 = RHDRegRead(rhdPtr, SEPROM_CNTL1);
     save_gpiopad_en = RHDRegRead(rhdPtr, GPIOPAD_EN);
     save_gpiopad_a = RHDRegRead(rhdPtr, GPIOPAD_A);
     save_gpiopad_mask = RHDRegRead(rhdPtr, GPIOPAD_MASK);
@@ -2381,8 +2963,19 @@ rhdR5XXDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
     save_d1vga_control = RHDRegRead(rhdPtr, D1VGA_CONTROL);
     save_d2vga_control = RHDRegRead(rhdPtr, D2VGA_CONTROL);
     save_vga_render_control = RHDRegRead(rhdPtr, VGA_RENDER_CONTROL);
+    if (rhdPtr->ChipSet >= RHD_R600) {
+	save_rom_cntl                  = RHDRegRead(rhdPtr, ROM_CNTL);
+	save_gen_pwrmgt                = RHDRegRead(rhdPtr, GENERAL_PWRMGT);
+	save_low_vid_lower_gpio_cntl   = RHDRegRead(rhdPtr, LOW_VID_LOWER_GPIO_CNTL);
+	save_med_vid_lower_gpio_cntl   = RHDRegRead(rhdPtr, MEDIUM_VID_LOWER_GPIO_CNTL);
+	save_high_vid_lower_gpio_cntl  = RHDRegRead(rhdPtr, HIGH_VID_LOWER_GPIO_CNTL);
+	save_ctxsw_vid_lower_gpio_cntl = RHDRegRead(rhdPtr, CTXSW_VID_LOWER_GPIO_CNTL);
+	save_lower_gpio_en             = RHDRegRead(rhdPtr, LOWER_GPIO_ENABLE);
+    }
+
     /* Set SPI ROM prescale value to change the SCK period */
-    RHDRegMask(rhdPtr, SEPROM_CNTL1, 0x0C << 24, SCK_PRESCALE);
+    if (rhdPtr->ChipSet < RHD_R600)
+	RHDRegMask(rhdPtr, SEPROM_CNTL1, 0x0C << 24, SCK_PRESCALE);
     /* Let chip control GPIO pads - this is the default state after power up */
     RHDRegWrite(rhdPtr, GPIOPAD_EN, 0);
     RHDRegWrite(rhdPtr, GPIOPAD_A, 0);
@@ -2398,10 +2991,23 @@ rhdR5XXDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
     RHDRegMask(rhdPtr, D2VGA_CONTROL, 0,
 	       D2VGA_MODE_ENABLE | D2VGA_TIMING_SELECT);
     RHDRegMask(rhdPtr, VGA_RENDER_CONTROL, 0, VGA_VSTATUS_CNTL);
+    if (rhdPtr->ChipSet >= RHD_R600) {
+	RHDRegMask(rhdPtr, ROM_CNTL, SCK_OVERWRITE
+		   | 1 << SCK_PRESCALE_CRYSTAL_CLK_SHIFT,
+		   SCK_OVERWRITE
+		   | 1 << SCK_PRESCALE_CRYSTAL_CLK_SHIFT);
+	RHDRegMask(rhdPtr, GENERAL_PWRMGT, 0, OPEN_DRAIN_PADS);
+	RHDRegMask(rhdPtr, LOW_VID_LOWER_GPIO_CNTL, 0, 0x400);
+	RHDRegMask(rhdPtr, MEDIUM_VID_LOWER_GPIO_CNTL, 0, 0x400);
+	RHDRegMask(rhdPtr, HIGH_VID_LOWER_GPIO_CNTL, 0, 0x400);
+	RHDRegMask(rhdPtr, CTXSW_VID_LOWER_GPIO_CNTL, 0, 0x400);
+	RHDRegMask(rhdPtr, LOWER_GPIO_ENABLE, 0x400, 0x400);
+    }
 
     ret = rhdDoReadPCIBios(rhdPtr, ptr);
 
-    RHDRegWrite(rhdPtr, SEPROM_CNTL1, save_seprom_cntl1);
+    if (rhdPtr->ChipSet < RHD_R600)
+	RHDRegWrite(rhdPtr, SEPROM_CNTL1, save_seprom_cntl1);
     RHDRegWrite(rhdPtr, GPIOPAD_EN, save_gpiopad_en);
     RHDRegWrite(rhdPtr, GPIOPAD_A, save_gpiopad_a);
     RHDRegWrite(rhdPtr, GPIOPAD_MASK, save_gpiopad_mask);
@@ -2410,39 +3016,17 @@ rhdR5XXDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
     RHDRegWrite(rhdPtr, D1VGA_CONTROL, save_d1vga_control);
     RHDRegWrite(rhdPtr, D2VGA_CONTROL, save_d2vga_control);
     RHDRegWrite(rhdPtr, VGA_RENDER_CONTROL, save_vga_render_control);
+    if (rhdPtr->ChipSet >= RHD_R600) {
+	RHDRegWrite(rhdPtr, ROM_CNTL, save_rom_cntl);
+	RHDRegWrite(rhdPtr, GENERAL_PWRMGT, save_gen_pwrmgt);
+	RHDRegWrite(rhdPtr, LOW_VID_LOWER_GPIO_CNTL, save_low_vid_lower_gpio_cntl);
+	RHDRegWrite(rhdPtr, MEDIUM_VID_LOWER_GPIO_CNTL, save_med_vid_lower_gpio_cntl);
+	RHDRegWrite(rhdPtr, HIGH_VID_LOWER_GPIO_CNTL, save_high_vid_lower_gpio_cntl);
+	RHDRegWrite(rhdPtr, CTXSW_VID_LOWER_GPIO_CNTL, save_ctxsw_vid_lower_gpio_cntl);
+	RHDRegWrite(rhdPtr, LOWER_GPIO_ENABLE, save_lower_gpio_en);
+    }
 
     return ret;
-}
-
-/*
- *
- */
-static unsigned int
-rhdR6XXDoReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
-{
-    unsigned int ret;
-    CARD32 save_600;
-
-    save_600 = RHDRegRead(rhdPtr, 0x600);
-    RHDRegMask(rhdPtr, 0x600, 0x02000000, 0x02000000);
-
-    ret = rhdDoReadPCIBios(rhdPtr, ptr);
-
-    RHDRegWrite(rhdPtr, 0x600, save_600);
-
-    return ret;
-}
-
-/*
- *
- */
-unsigned int
-RHDReadPCIBios(RHDPtr rhdPtr, unsigned char **ptr)
-{
-    if (rhdPtr->ChipSet < RHD_R600)
-	return rhdR5XXDoReadPCIBios(rhdPtr, ptr);
-    else
-	return rhdR6XXDoReadPCIBios(rhdPtr, ptr);
 }
 
 /*
@@ -2456,12 +3040,81 @@ rhdGetIGPNorthBridgeInfo(RHDPtr rhdPtr)
 	    break;
 	case RHD_RS690:
 	case RHD_RS740:
+	case RHD_RS780:
 #ifdef XSERVER_LIBPCIACCESS
 	    rhdPtr->NBPciInfo = pci_device_find_by_slot(0,0,0,0);
 #else
 	    rhdPtr->NBPciTag = pciTag(0,0,0);
 #endif
 	    break;
+	default:
+	    break;
     }
-
 }
+
+
+/*
+ *
+ */
+static enum rhdCardType
+rhdGetCardType(RHDPtr rhdPtr)
+{
+    uint32_t cmd_stat;
+
+    if (rhdPtr->ChipSet == RHD_RS780)
+	return RHD_CARD_PCIE;
+
+#ifdef XSERVER_LIBPCIACCESS
+    pci_device_cfg_read_u32(rhdPtr->PciInfo, &cmd_stat, PCI_CMD_STAT_REG);
+#else
+    cmd_stat = pciReadLong(rhdPtr->PciTag, PCI_CMD_STAT_REG);
+#endif
+    if (cmd_stat & 0x100000) {
+        uint32_t cap_ptr, cap_id;
+
+#ifdef XSERVER_LIBPCIACCESS
+        pci_device_cfg_read_u32(rhdPtr->PciInfo, &cap_ptr, 0x34);
+#else
+	cap_ptr = pciReadLong(rhdPtr->PciTag, 0x34);
+#endif
+        cap_ptr &= 0xfc;
+
+        while (cap_ptr) {
+#ifdef XSERVER_LIBPCIACCESS
+            pci_device_cfg_read_u32(rhdPtr->PciInfo, &cap_id, cap_ptr);
+#else
+	    cap_id = pciReadLong(rhdPtr->PciTag, cap_ptr);
+#endif
+	    switch (cap_id & 0xff) {
+	    case RHD_PCI_CAPID_AGP:
+		xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "AGP Card Detected\n");
+		return RHD_CARD_AGP;
+	    case RHD_PCI_CAPID_PCIE:
+		xf86DrvMsg(rhdPtr->scrnIndex, X_INFO, "PCIE Card Detected\n");
+		return RHD_CARD_PCIE;
+	    }
+            cap_ptr = (cap_id >> 8) & 0xff;
+        }
+    }
+    return RHD_CARD_NONE;
+}
+
+/* Allocate a chunk of the framebuffer. -1 on fail. So far no free()! */
+unsigned int RHDAllocFb(RHDPtr rhdPtr, unsigned int size, const char *name)
+{
+    unsigned int chunk;
+    size = RHD_FB_CHUNK(size);
+    if (rhdPtr->FbFreeSize < size) {
+	xf86DrvMsg(rhdPtr->scrnIndex, X_ERROR,
+		   "FB: Failed allocating %s (%d KB)\n", name, size/1024);
+	return -1;
+    }
+    chunk = rhdPtr->FbFreeStart;
+    rhdPtr->FbFreeStart += size;
+    rhdPtr->FbFreeSize  -= size;
+    xf86DrvMsg(rhdPtr->scrnIndex, X_INFO,
+	       "FB: Allocated %s at offset 0x%08X (size = 0x%08X)\n",
+	       name, chunk, size);
+    return chunk;
+}
+

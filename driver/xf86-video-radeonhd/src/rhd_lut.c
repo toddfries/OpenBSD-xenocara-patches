@@ -1,8 +1,7 @@
 /*
- * Copyright 2007  Luc Verhaegen <lverhaegen@novell.com>
- * Copyright 2007  Matthias Hopf <mhopf@novell.com>
- * Copyright 2007  Egbert Eich   <eich@novell.com>
- * Copyright 2007  Advanced Micro Devices, Inc.
+ * Copyright 2007-2008  Luc Verhaegen <libv@exsuse.de>
+ * Copyright 2007-2008  Matthias Hopf <mhopf@novell.com>
+ * Copyright 2007-2008  Egbert Eich   <eich@novell.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -33,6 +32,8 @@
 #include "rhd_lut.h"
 #include "rhd_regs.h"
 
+#include <compiler.h>
+
 #define RHD_REGOFFSET_LUTA 0x000
 #define RHD_REGOFFSET_LUTB 0x800
 
@@ -44,6 +45,7 @@ LUTxSave(struct rhdLUT *LUT)
 {
     CARD16 RegOff;
     int i;
+    RHDFUNC(LUT);
 
     if (LUT->Id == RHD_LUT_A)
 	RegOff = RHD_REGOFFSET_LUTA;
@@ -67,8 +69,8 @@ LUTxSave(struct rhdLUT *LUT)
 	RHDRegWrite(LUT, DC_LUT_READ_PIPE_SELECT, 1);
 
     RHDRegWrite(LUT, DC_LUT_RW_INDEX, 0);
-    for (i = 0; i < 0x300; i++)
-	LUT->StoreEntry[i] = RHDRegRead(LUT, DC_LUT_SEQ_COLOR);
+    for (i = 0; i < 256; i++)
+	LUT->StoreEntry[i] = RHDRegRead(LUT, DC_LUT_30_COLOR);
 
     LUT->Stored = TRUE;
 }
@@ -81,6 +83,7 @@ LUTxRestore(struct rhdLUT *LUT)
 {
     CARD16 RegOff;
     int i;
+    RHDFUNC(LUT);
 
     if (!LUT->Stored) {
 	xf86DrvMsg(LUT->scrnIndex, X_ERROR, "%s: %s: nothing stored!\n",
@@ -109,21 +112,25 @@ LUTxRestore(struct rhdLUT *LUT)
     RHDRegWrite(LUT, DC_LUT_RW_MODE, 0); /* Table */
     RHDRegWrite(LUT, DC_LUT_WRITE_EN_MASK, 0x0000003F);
     RHDRegWrite(LUT, DC_LUT_RW_INDEX, 0);
-    for (i = 0; i < 0x300; i++)
-	RHDRegWrite(LUT, DC_LUT_SEQ_COLOR, LUT->StoreEntry[i]);
+    for (i = 0; i < 256; i++)
+	RHDRegWrite(LUT, DC_LUT_30_COLOR, LUT->StoreEntry[i]);
 
     RHDRegWrite(LUT, RegOff + DC_LUTA_CONTROL, LUT->StoreControl);
 }
 
 /*
+ * Load a new LUT
  *
+ * Assumes 256 rows of input. It's up to the caller to ensure there are exactly
+ * 256 rows of data, as that's what the hardware exepcts.
  */
 static void
-LUTxSet(struct rhdLUT *LUT, int numColors, int *indices, LOCO *colors)
+rhdLUTSet(struct rhdLUT *LUT, CARD16 *red, CARD16 *green, CARD16 *blue)
 {
-    ScrnInfoPtr pScrn = xf86Screens[LUT->scrnIndex];
     CARD16 RegOff;
-    int i, index;
+    int i;
+
+    LUT->Initialised = TRUE; /* thank you RandR */
 
     if (LUT->Id == RHD_LUT_A)
 	RegOff = RHD_REGOFFSET_LUTA;
@@ -148,41 +155,43 @@ LUTxSet(struct rhdLUT *LUT, int numColors, int *indices, LOCO *colors)
     RHDRegWrite(LUT, DC_LUT_RW_MODE, 0); /* table */
     RHDRegWrite(LUT, DC_LUT_WRITE_EN_MASK, 0x0000003F);
 
-    switch (pScrn->depth) {
-    case 8:
-    case 24:
-    case 32:
-	for (i = 0; i < numColors; i++) {
-	    index = indices[i];
-	    RHDRegWrite(LUT, DC_LUT_RW_INDEX, index);
-	    RHDRegWrite(LUT, DC_LUT_30_COLOR, (colors[index].red << 22) |
-			(colors[index].green << 12) | (colors[index].blue << 2));
-	}
-	break;
-    case 16:
-	for (i = 0; i < numColors; i++) {
-	    int j;
+    RHDRegWrite(LUT, DC_LUT_RW_INDEX, 0);
+    for (i = 0; i < 256; i++) {
+        RHDRegWrite(LUT, DC_LUT_30_COLOR,
+                    ((red[i] & 0xFFC0) << 14) | ((green[i] & 0xFFC0) << 4) | (blue[i] >> 6));
+    }
+}
 
-	    index = indices[i];
-	    RHDRegWrite(LUT, DC_LUT_RW_INDEX, 4 * index);
+/*
+ * Set specific rows of the LUT
+ *
+ * Assumes LUTs are already initialized to a sane state, and will only update
+ * specific rows.  Use ONLY when just specific rows need to be updated.
+ */
+static void
+rhdLUTSetRows(struct rhdLUT *LUT, int numColors, int *indices, LOCO *colors)
+{
+    CARD16 RegOff;
+    int i, index;
 
-	    for (j = 0; j < 4; j++)
-		RHDRegWrite(LUT, DC_LUT_30_COLOR, (colors[index/2].red << 24) |
-			    (colors[index].green << 14) | (colors[index/2].blue << 4));
-	}
-	break;
-    case 15:
-	for (i = 0; i < numColors; i++) {
-	    int j;
+    if (LUT->Id == RHD_LUT_A)
+	RegOff = RHD_REGOFFSET_LUTA;
+    else
+	RegOff = RHD_REGOFFSET_LUTB;
 
-	    index = indices[i];
-	    RHDRegWrite(LUT, DC_LUT_RW_INDEX, 8 * index);
+    if (LUT->Id == RHD_LUT_A)
+	RHDRegWrite(LUT, DC_LUT_RW_SELECT, 0);
+    else
+	RHDRegWrite(LUT, DC_LUT_RW_SELECT, 1);
 
-	    for (j = 0; j < 8; j++)
-		RHDRegWrite(LUT, DC_LUT_30_COLOR, (colors[index].red << 25) |
-			    (colors[index].green << 15) | (colors[index].blue << 5));
-	}
-	break;
+    RHDRegWrite(LUT, DC_LUT_RW_MODE, 0); /* table */
+    RHDRegWrite(LUT, DC_LUT_WRITE_EN_MASK, 0x0000003F);
+
+    for (i = 0; i < numColors; i++) {
+        index = indices[i];
+        RHDRegWrite(LUT, DC_LUT_RW_INDEX, index);
+        RHDRegWrite(LUT, DC_LUT_30_COLOR,
+                    (colors[index].red << 20) | (colors[index].green << 10) | (colors[index].blue));
     }
 }
 
@@ -204,7 +213,8 @@ RHDLUTsInit(RHDPtr rhdPtr)
 
     LUT->Save = LUTxSave;
     LUT->Restore = LUTxRestore;
-    LUT->Set = LUTxSet;
+    LUT->Set = rhdLUTSet;
+    LUT->SetRows = rhdLUTSetRows;
 
     rhdPtr->LUT[0] = LUT;
 
@@ -216,7 +226,8 @@ RHDLUTsInit(RHDPtr rhdPtr)
 
     LUT->Save = LUTxSave;
     LUT->Restore = LUTxRestore;
-    LUT->Set = LUTxSet;
+    LUT->Set = rhdLUTSet;
+    LUT->SetRows = rhdLUTSetRows;
 
     rhdPtr->LUT[1] = LUT;
 }
@@ -296,4 +307,34 @@ RHDLUTsDestroy(RHDPtr rhdPtr)
     xfree(rhdPtr->LUT[0]);
     xfree(rhdPtr->LUT[1]);
     xfree(rhdPtr->LUTStore);
+}
+
+/*
+ * Workaround for missing RandR functionality. Initialise this
+ * LUT with the content of the other LUT.
+ */
+void
+RHDLUTCopyForRR(struct rhdLUT *LUT)
+{
+    CARD16 red[256], green[256], blue[256];
+    CARD32 entry;
+    int i;
+
+    RHDDebug(LUT->scrnIndex, "%s: %s\n", __func__, LUT->Name);
+
+    RHDRegWrite(LUT, DC_LUT_RW_MODE, 0); /* Table */
+
+    if (LUT->Id == RHD_LUT_A)
+	RHDRegWrite(LUT, DC_LUT_READ_PIPE_SELECT, 1);
+    else
+	RHDRegWrite(LUT, DC_LUT_READ_PIPE_SELECT, 0);
+
+    for (i = 0; i < 256; i++) {
+        entry = RHDRegRead(LUT, DC_LUT_30_COLOR);
+        red[i] = (entry >> 14) & 0xFFC0;
+        green[i] = (entry >> 4) & 0xFFC0;
+        blue[i] = (entry << 6) & 0xFFC0;
+    }
+
+    rhdLUTSet(LUT, red, green, blue);
 }

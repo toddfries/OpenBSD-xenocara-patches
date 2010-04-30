@@ -35,8 +35,6 @@
 /*
  * splitarcs.c++
  *
- * $Date: 2007/11/24 17:27:09 $ $Revision: 1.1.1.2 $
- * $Header: /cvs/xenocara/dist/Mesa/src/glu/sgi/libnurbs/internals/splitarcs.cc,v 1.1.1.2 2007/11/24 17:27:09 matthieu Exp $
  */
 
 #include "glimports.h"

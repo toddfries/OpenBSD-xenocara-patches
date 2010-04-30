@@ -15,28 +15,36 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: kbfunc.c,v 1.32 2008/07/11 15:18:29 okan Exp $
+ * $Id: kbfunc.c,v 1.51 2010/02/10 01:23:05 okan Exp $
  */
 
-#include <paths.h>
+#include <sys/param.h>
+#include <sys/queue.h>
 
-#include "headers.h"
+#include <dirent.h>
+#include <err.h>
+#include <errno.h>
+#include <paths.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "calmwm.h"
 
 #define KNOWN_HOSTS	".ssh/known_hosts"
 #define HASH_MARKER	"|1|"
-#define MOVE_AMOUNT	1
 
 extern int		_xev_quit;
 
 void
-kbfunc_client_lower(struct client_ctx *cc, void *arg)
+kbfunc_client_lower(struct client_ctx *cc, union arg *arg)
 {
 	client_lower(cc);
 }
 
 void
-kbfunc_client_raise(struct client_ctx *cc, void *arg)
+kbfunc_client_raise(struct client_ctx *cc, union arg *arg)
 {
 	client_raise(cc);
 }
@@ -44,17 +52,17 @@ kbfunc_client_raise(struct client_ctx *cc, void *arg)
 #define typemask	(CWM_MOVE | CWM_RESIZE | CWM_PTRMOVE)
 #define movemask	(CWM_UP | CWM_DOWN | CWM_LEFT | CWM_RIGHT)
 void
-kbfunc_moveresize(struct client_ctx *cc, void *arg)
+kbfunc_moveresize(struct client_ctx *cc, union arg *arg)
 {
 	struct screen_ctx	*sc;
 	int			 x, y, flags, amt;
 	u_int			 mx, my;
 
-	sc = screen_current();
+	sc = cc->sc;
 	mx = my = 0;
 
-	flags = (int)arg;
-	amt = MOVE_AMOUNT;
+	flags = arg->i;
+	amt = Conf.mamount;
 
 	if (flags & CWM_BIGMOVE) {
 		flags -= CWM_BIGMOVE;
@@ -80,17 +88,17 @@ kbfunc_moveresize(struct client_ctx *cc, void *arg)
 		cc->geom.y += my;
 		if (cc->geom.y + cc->geom.height < 0)
 			cc->geom.y = -cc->geom.height;
-		if (cc->geom.y > cc->sc->ymax)
-			cc->geom.y = cc->sc->ymax;
+		if (cc->geom.y > cc->sc->ymax - 1)
+			cc->geom.y = cc->sc->ymax - 1;
 
 		cc->geom.x += mx;
 		if (cc->geom.x + cc->geom.width < 0)
 			cc->geom.x = -cc->geom.width;
-		if (cc->geom.x > cc->sc->xmax)
-			cc->geom.x = cc->sc->xmax;
+		if (cc->geom.x > cc->sc->xmax - 1)
+			cc->geom.x = cc->sc->xmax - 1;
 
 		client_move(cc);
-		xu_ptr_getpos(cc->pwin, &x, &y);
+		xu_ptr_getpos(cc->win, &x, &y);
 		cc->ptr.y = y + my;
 		cc->ptr.x = x + mx;
 		client_ptrwarp(cc);
@@ -103,7 +111,7 @@ kbfunc_moveresize(struct client_ctx *cc, void *arg)
 		client_resize(cc);
 
 		/* Make sure the pointer stays within the window. */
-		xu_ptr_getpos(cc->pwin, &cc->ptr.x, &cc->ptr.y);
+		xu_ptr_getpos(cc->win, &cc->ptr.x, &cc->ptr.y);
 		if (cc->ptr.x > cc->geom.width)
 			cc->ptr.x = cc->geom.width - cc->bwidth;
 		if (cc->ptr.y > cc->geom.height)
@@ -112,8 +120,8 @@ kbfunc_moveresize(struct client_ctx *cc, void *arg)
 		break;
 	case CWM_PTRMOVE:
 		if (cc) {
-			xu_ptr_getpos(cc->pwin, &x, &y);
-			xu_ptr_setpos(cc->pwin, x + mx, y + my);
+			xu_ptr_getpos(cc->win, &x, &y);
+			xu_ptr_setpos(cc->win, x + mx, y + my);
 		} else {
 			xu_ptr_getpos(sc->rootwin, &x, &y);
 			xu_ptr_setpos(sc->rootwin, x + mx, y + my);
@@ -125,24 +133,26 @@ kbfunc_moveresize(struct client_ctx *cc, void *arg)
 }
 
 void
-kbfunc_client_search(struct client_ctx *scratch, void *arg)
+kbfunc_client_search(struct client_ctx *cc, union arg *arg)
 {
-	struct client_ctx	*cc, *old_cc;
+	struct screen_ctx	*sc;
+	struct client_ctx	*old_cc;
 	struct menu		*mi;
 	struct menu_q		 menuq;
 
+	sc = cc->sc;
 	old_cc = client_current();
 
 	TAILQ_INIT(&menuq);
 
 	TAILQ_FOREACH(cc, &Clientq, entry) {
-		XCALLOC(mi, struct menu);
+		mi = xcalloc(1, sizeof(*mi));
 		strlcpy(mi->text, cc->name, sizeof(mi->text));
 		mi->ctx = cc;
 		TAILQ_INSERT_TAIL(&menuq, mi, entry);
 	}
 
-	if ((mi = menu_filter(&menuq, "window", NULL, 0,
+	if ((mi = menu_filter(sc, &menuq, "window", NULL, 0,
 	    search_match_client, search_print_client)) != NULL) {
 		cc = (struct client_ctx *)mi->ctx;
 		if (cc->flags & CLIENT_HIDDEN)
@@ -160,22 +170,24 @@ kbfunc_client_search(struct client_ctx *scratch, void *arg)
 }
 
 void
-kbfunc_menu_search(struct client_ctx *scratch, void *arg)
+kbfunc_menu_search(struct client_ctx *cc, union arg *arg)
 {
-	struct cmd	*cmd;
-	struct menu	*mi;
-	struct menu_q	 menuq;
+	struct screen_ctx	*sc;
+	struct cmd		*cmd;
+	struct menu		*mi;
+	struct menu_q		 menuq;
 
+	sc = cc->sc;
 	TAILQ_INIT(&menuq);
 
 	TAILQ_FOREACH(cmd, &Conf.cmdq, entry) {
-		XCALLOC(mi, struct menu);
+		mi = xcalloc(1, sizeof(*mi));
 		strlcpy(mi->text, cmd->label, sizeof(mi->text));
 		mi->ctx = cmd;
 		TAILQ_INSERT_TAIL(&menuq, mi, entry);
 	}
 
-	if ((mi = menu_filter(&menuq, "application", NULL, 0,
+	if ((mi = menu_filter(sc, &menuq, "application", NULL, 0,
 	    search_match_text, NULL)) != NULL)
 		u_spawn(((struct cmd *)mi->ctx)->image);
 
@@ -186,59 +198,57 @@ kbfunc_menu_search(struct client_ctx *scratch, void *arg)
 }
 
 void
-kbfunc_client_cycle(struct client_ctx *scratch, void *arg)
+kbfunc_client_cycle(struct client_ctx *cc, union arg *arg)
 {
 	struct screen_ctx	*sc;
 
-	sc = screen_current();
+	sc = cc->sc;
 
 	/* XXX for X apps that ignore events */
 	XGrabKeyboard(X_Dpy, sc->rootwin, True,
 	    GrabModeAsync, GrabModeAsync, CurrentTime);
 
-	client_cycle((int)arg);
+	client_cycle(sc, arg->i);
 }
 
 void
-kbfunc_client_hide(struct client_ctx *cc, void *arg)
+kbfunc_client_hide(struct client_ctx *cc, union arg *arg)
 {
 	client_hide(cc);
 }
 
 void
-kbfunc_cmdexec(struct client_ctx *cc, void *arg)
+kbfunc_cmdexec(struct client_ctx *cc, union arg *arg)
 {
-	u_spawn((char *)arg);
+	u_spawn(arg->c);
 }
 
 void
-kbfunc_term(struct client_ctx *cc, void *arg)
+kbfunc_term(struct client_ctx *cc, union arg *arg)
 {
 	u_spawn(Conf.termpath);
 }
 
 void
-kbfunc_lock(struct client_ctx *cc, void *arg)
+kbfunc_lock(struct client_ctx *cc, union arg *arg)
 {
 	u_spawn(Conf.lockpath);
 }
 
 void
-kbfunc_exec(struct client_ctx *scratch, void *arg)
+kbfunc_exec(struct client_ctx *cc, union arg *arg)
 {
 #define NPATHS 256
-	char		**ap, *paths[NPATHS], *path, *pathcpy, *label;
-	char		 tpath[MAXPATHLEN];
-	int		 l, i, j, ngroups;
-	gid_t		 mygroups[NGROUPS_MAX];
-	uid_t		 ruid, euid, suid;
-	DIR		*dirp;
-	struct dirent	*dp;
-	struct menu	*mi;
-	struct menu_q	 menuq;
-	struct stat	 sb;
+	struct screen_ctx	*sc;
+	char			**ap, *paths[NPATHS], *path, *pathcpy, *label;
+	char			 tpath[MAXPATHLEN];
+	DIR			*dirp;
+	struct dirent		*dp;
+	struct menu		*mi;
+	struct menu_q		 menuq;
+	int			 l, i, cmd = arg->i;
 
-	int cmd = (int)arg;
+	sc = cc->sc;
 	switch (cmd) {
 		case CWM_EXEC_PROGRAM:
 			label = "exec";
@@ -250,11 +260,6 @@ kbfunc_exec(struct client_ctx *scratch, void *arg)
 			err(1, "kbfunc_exec: invalid cmd %d", cmd);
 			/*NOTREACHED*/
 	}
-
-	if (getgroups(0, mygroups) == -1)
-		err(1, "getgroups failure");
-	if ((ngroups = getresuid(&ruid, &euid, &suid)) == -1)
-		err(1, "getresuid failure");
 
 	TAILQ_INIT(&menuq);
 
@@ -282,39 +287,20 @@ kbfunc_exec(struct client_ctx *scratch, void *arg)
 			/* check for truncation etc */
 			if (l == -1 || l >= (int)sizeof(tpath))
 				continue;
-			/* just ignore on stat failure */
-			if (stat(tpath, &sb) == -1)
-				continue;
-			/* may we execute this file? */
-			if (euid == sb.st_uid) {
-					if (sb.st_mode & S_IXUSR)
-						goto executable;
-					else
-						continue;
+			if (access(tpath, X_OK) == 0) {
+				mi = xcalloc(1, sizeof(*mi));
+				strlcpy(mi->text, dp->d_name, sizeof(mi->text));
+				TAILQ_INSERT_TAIL(&menuq, mi, entry);
 			}
-			for (j = 0; j < ngroups; j++) {
-				if (mygroups[j] == sb.st_gid) {
-					if (sb.st_mode & S_IXGRP)
-						goto executable;
-					else
-						continue;
-				}
-			}
-			if (sb.st_mode & S_IXOTH)
-				goto executable;
-			continue;
-		executable:
-			/* the thing in tpath, we may execute */
-			XCALLOC(mi, struct menu);
-			strlcpy(mi->text, dp->d_name, sizeof(mi->text));
-			TAILQ_INSERT_TAIL(&menuq, mi, entry);
 		}
 		(void)closedir(dirp);
 	}
 	xfree(path);
 
-	if ((mi = menu_filter(&menuq, label, NULL, 1,
+	if ((mi = menu_filter(sc, &menuq, label, NULL, 1,
 	    search_match_exec, NULL)) != NULL) {
+		if (mi->text[0] == '\0')
+			goto out;
 		switch (cmd) {
 			case CWM_EXEC_PROGRAM:
 				u_spawn(mi->text);
@@ -328,7 +314,7 @@ kbfunc_exec(struct client_ctx *scratch, void *arg)
 				break;
 		}
 	}
-
+out:
 	if (mi != NULL && mi->dummy)
 		xfree(mi);
 	while ((mi = TAILQ_FIRST(&menuq)) != NULL) {
@@ -338,16 +324,19 @@ kbfunc_exec(struct client_ctx *scratch, void *arg)
 }
 
 void
-kbfunc_ssh(struct client_ctx *scratch, void *arg)
+kbfunc_ssh(struct client_ctx *cc, union arg *arg)
 {
-	struct menu	*mi;
-	struct menu_q	 menuq;
-	FILE		*fp;
-	char		*buf, *lbuf, *p, *home;
-	char		 hostbuf[MAXHOSTNAMELEN], filename[MAXPATHLEN];
-	char		 cmd[256];
-	int		 l;
-	size_t		 len;
+	struct screen_ctx	*sc;
+	struct menu		*mi;
+	struct menu_q		 menuq;
+	FILE			*fp;
+	char			*buf, *lbuf, *p, *home;
+	char			 hostbuf[MAXHOSTNAMELEN], filename[MAXPATHLEN];
+	char			 cmd[256];
+	int			 l;
+	size_t			 len;
+
+	sc = cc->sc;
 
 	if ((home = getenv("HOME")) == NULL)
 		return;
@@ -381,21 +370,23 @@ kbfunc_ssh(struct client_ctx *scratch, void *arg)
 		if (p - buf + 1 > sizeof(hostbuf))
 			continue;
 		(void) strlcpy(hostbuf, buf, p - buf + 1);
-		XCALLOC(mi, struct menu);
+		mi = xcalloc(1, sizeof(*mi));
 		(void) strlcpy(mi->text, hostbuf, sizeof(mi->text));
 		TAILQ_INSERT_TAIL(&menuq, mi, entry);
 	}
 	xfree(lbuf);
 	fclose(fp);
 
-	if ((mi = menu_filter(&menuq, "ssh", NULL, 1,
+	if ((mi = menu_filter(sc, &menuq, "ssh", NULL, 1,
 	    search_match_exec, NULL)) != NULL) {
+		if (mi->text[0] == '\0')
+			goto out;
 		l = snprintf(cmd, sizeof(cmd), "%s -e ssh %s", Conf.termpath,
 		    mi->text);
 		if (l != -1 && l < sizeof(cmd))
 			u_spawn(cmd);
 	}
-
+out:
 	if (mi != NULL && mi->dummy)
 		xfree(mi);
 	while ((mi = TAILQ_FIRST(&menuq)) != NULL) {
@@ -405,82 +396,97 @@ kbfunc_ssh(struct client_ctx *scratch, void *arg)
 }
 
 void
-kbfunc_client_label(struct client_ctx *cc, void *arg)
+kbfunc_client_label(struct client_ctx *cc, union arg *arg)
 {
 	struct menu	*mi;
 	struct menu_q	 menuq;
-	char		*current;
 
 	TAILQ_INIT(&menuq);
-	
-	if (cc->label != NULL)
-		current = cc->label;
-	else
-		current = NULL;
 
-	if ((mi = menu_filter(&menuq, "label", current, 1,
-	    search_match_text, NULL)) != NULL) {
+	/* dummy is set, so this will always return */
+	mi = menu_filter(cc->sc, &menuq, "label", cc->label, 1,
+	    search_match_text, NULL);
+
+	if (!mi->abort) {
 		if (cc->label != NULL)
 			xfree(cc->label);
 		cc->label = xstrdup(mi->text);
-		xfree(mi);
 	}
+	xfree(mi);
 }
 
 void
-kbfunc_client_delete(struct client_ctx *cc, void *arg)
+kbfunc_client_delete(struct client_ctx *cc, union arg *arg)
 {
 	client_send_delete(cc);
 }
 
 void
-kbfunc_client_group(struct client_ctx *cc, void *arg)
+kbfunc_client_group(struct client_ctx *cc, union arg *arg)
 {
-	group_hidetoggle(KBTOGROUP((int)arg));
+	group_hidetoggle(cc->sc, KBTOGROUP(arg->i));
 }
 
 void
-kbfunc_client_cyclegroup(struct client_ctx *cc, void *arg)
+kbfunc_client_grouponly(struct client_ctx *cc, union arg *arg)
 {
-	group_cycle((int)arg);
+	group_only(cc->sc, KBTOGROUP(arg->i));
 }
 
 void
-kbfunc_client_nogroup(struct client_ctx *cc, void *arg)
+kbfunc_client_cyclegroup(struct client_ctx *cc, union arg *arg)
 {
-	group_alltoggle();
+	group_cycle(cc->sc, arg->i);
 }
 
 void
-kbfunc_client_grouptoggle(struct client_ctx *cc, void *arg)
+kbfunc_client_nogroup(struct client_ctx *cc, union arg *arg)
+{
+	group_alltoggle(cc->sc);
+}
+
+void
+kbfunc_client_grouptoggle(struct client_ctx *cc, union arg *arg)
 {
 	/* XXX for stupid X apps like xpdf and gvim */
-	XGrabKeyboard(X_Dpy, cc->pwin, True,
+	XGrabKeyboard(X_Dpy, cc->win, True,
 	    GrabModeAsync, GrabModeAsync, CurrentTime);
 
 	group_sticky_toggle_enter(cc);
 }
 
 void
-kbfunc_client_maximize(struct client_ctx *cc, void *arg)
+kbfunc_client_movetogroup(struct client_ctx *cc, union arg *arg)
+{
+	group_movetogroup(cc, KBTOGROUP(arg->i));
+}
+
+void
+kbfunc_client_maximize(struct client_ctx *cc, union arg *arg)
 {
 	client_maximize(cc);
 }
 
 void
-kbfunc_client_vmaximize(struct client_ctx *cc, void *arg)
+kbfunc_client_vmaximize(struct client_ctx *cc, union arg *arg)
 {
 	client_vertmaximize(cc);
 }
 
 void
-kbfunc_quit_wm(struct client_ctx *cc, void *arg)
+kbfunc_client_hmaximize(struct client_ctx *cc, union arg *arg)
+{
+	client_horizmaximize(cc);
+}
+
+void
+kbfunc_quit_wm(struct client_ctx *cc, union arg *arg)
 {
 	_xev_quit = 1;
 }
 
 void
-kbfunc_reload(struct client_ctx *cc, void *arg)
+kbfunc_reload(struct client_ctx *cc, union arg *arg)
 {
 	conf_reload(&Conf);
 }

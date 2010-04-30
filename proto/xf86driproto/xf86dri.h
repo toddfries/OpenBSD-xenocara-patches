@@ -1,4 +1,3 @@
-/* $XFree86: xc/lib/GL/dri/xf86dri.h,v 1.8 2002/10/30 12:51:25 alanh Exp $ */
 /**************************************************************************
 
 Copyright 1998-1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -39,7 +38,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef _XF86DRI_H_
 #define _XF86DRI_H_
 
-#include <X11/Xfuncproto.h>
 #include <xf86drm.h>
 
 #define X_XF86DRIQueryVersion			0
@@ -62,61 +60,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XF86DRIClientNotLocal		0
 #define XF86DRIOperationNotSupported	1
 #define XF86DRINumberErrors		(XF86DRIOperationNotSupported + 1)
-
-#ifndef _XF86DRI_SERVER_
-
-#include <GL/internal/dri_interface.h>
-
-_XFUNCPROTOBEGIN
-
-Bool XF86DRIQueryExtension( Display *dpy, int *event_base, int *error_base );
-
-Bool XF86DRIQueryVersion( Display *dpy, int *majorVersion, int *minorVersion,
-    int *patchVersion );
-
-Bool XF86DRIQueryDirectRenderingCapable( Display *dpy, int screen,
-    Bool *isCapable );
-
-Bool XF86DRIOpenConnection( Display *dpy, int screen, drm_handle_t *hSAREA,
-    char **busIDString );
-
-Bool XF86DRIAuthConnection( Display *dpy, int screen, drm_magic_t magic );
-
-Bool XF86DRICloseConnection( Display *dpy, int screen );
-
-Bool XF86DRIGetClientDriverName( Display *dpy, int screen,
-    int *ddxDriverMajorVersion, int *ddxDriverMinorVersion,
-    int *ddxDriverPatchVersion, char **clientDriverName );
-
-Bool XF86DRICreateContext( Display *dpy, int screen, Visual *visual,
-    XID *ptr_to_returned_context_id, drm_context_t *hHWContext );
-
-Bool XF86DRICreateContextWithConfig( Display *dpy, int screen, int configID,
-    XID *ptr_to_returned_context_id, drm_context_t *hHWContext );
-
-extern GLboolean XF86DRIDestroyContext( __DRInativeDisplay *dpy, int screen,
-    __DRIid context_id );
-
-extern GLboolean XF86DRICreateDrawable( __DRInativeDisplay *dpy, int screen,
-    __DRIid drawable, drm_drawable_t *hHWDrawable );
-
-extern GLboolean XF86DRIDestroyDrawable( __DRInativeDisplay *dpy, int screen, 
-    __DRIid drawable);
-
-Bool XF86DRIGetDrawableInfo( Display *dpy, int screen, Drawable drawable,
-    unsigned int *index, unsigned int *stamp, 
-    int *X, int *Y, int *W, int *H,
-    int *numClipRects, drm_clip_rect_t ** pClipRects,
-    int *backX, int *backY,
-    int *numBackClipRects, drm_clip_rect_t **pBackClipRects );
-
-Bool XF86DRIGetDeviceInfo( Display *dpy, int screen,
-    drm_handle_t *hFrameBuffer, int *fbOrigin, int *fbSize,
-    int *fbStride, int *devPrivateSize, void **pDevPrivate );
-
-_XFUNCPROTOEND
-
-#endif /* _XF86DRI_SERVER_ */
 
 #endif /* _XF86DRI_H_ */
 

@@ -25,8 +25,12 @@
 #include "xf86DDC.h"
 
 #include "globals.h"
+#ifdef HAVE_X11_EXTENSIONS_DPMSCONST_H
+#include <X11/extensions/dpmsconst.h>
+#else
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
+#endif
 
 extern int vgaHWGetIndex(void);
 
@@ -156,7 +160,7 @@ typedef struct _vgaHWRec {
 						   = pioreg */
     vgaHWReadProcPtr		readEnable;
     vgaHWWriteProcPtr		writeEnable;
-    PCITAG			Tag;
+    struct pci_device          *dev;
 } vgaHWRec;
 
 /* Some macros that VGA drivers can use in their ChipProbe() function */

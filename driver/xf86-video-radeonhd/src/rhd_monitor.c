@@ -1,5 +1,5 @@
 /*
- * Copyright 2007, 2008  Luc Verhaegen <lverhaegen@novell.com>
+ * Copyright 2007, 2008  Luc Verhaegen <libv@exsuse.de>
  * Copyright 2007, 2008  Matthias Hopf <mhopf@novell.com>
  * Copyright 2007, 2008  Egbert Eich   <eich@novell.com>
  * Copyright 2007, 2008  Advanced Micro Devices, Inc.
@@ -133,6 +133,10 @@ rhdMonitorFromConfig(int scrnIndex, MonPtr Config)
         Monitor->ReducedAllowed = TRUE;
 #endif
 
+    /* allow user to override settings globally */
+    if (RHDPTRI(Monitor)->forceReduced.set)
+	Monitor->ReducedAllowed = RHDPTRI(Monitor)->forceReduced.val.bool;
+
 #ifdef MONREC_HAS_BANDWIDTH
     if (Config->maxPixClock)
         Monitor->Bandwidth = Config->maxPixClock;
@@ -175,6 +179,10 @@ rhdMonitorFromDefault(int scrnIndex, MonPtr Config)
     if (Config)
 	for (Mode = Config->Modes; Mode; Mode = Mode->next)
 	    Monitor->Modes = RHDModesAdd(Monitor->Modes, RHDModeCopy(Mode));
+
+    /* allow user to override settings globally */
+    if (RHDPTRI(Monitor)->forceReduced.set)
+	Monitor->ReducedAllowed = RHDPTRI(Monitor)->forceReduced.val.bool;
 
     return Monitor;
 }
@@ -276,8 +284,8 @@ rhdPanelEDIDModesFilter(struct rhdMonitor *Monitor)
     Best->next = NULL;
     Best->prev = NULL;
     Best->type |= M_T_PREFERRED;
-    Monitor->Modes = Best;
-
+    Monitor->NativeMode = Best;
+    Monitor->Modes = Monitor->NativeMode;
     Monitor->numHSync = 1;
     Monitor->HSync[0].lo = Best->HSync;
     Monitor->HSync[0].hi = Best->HSync;
@@ -310,6 +318,8 @@ rhdMonitorPanel(struct rhdConnector *Connector)
     DisplayModeRec *Mode = NULL;
     xf86MonPtr EDID = NULL;
 
+    RHDFUNC(Connector);
+
     /* has priority over AtomBIOS EDID */
     if (Connector->DDC)
 	EDID = xf86DoEDID_DDC2(Connector->scrnIndex, Connector->DDC);
@@ -321,7 +331,7 @@ rhdMonitorPanel(struct rhdConnector *Connector)
 	AtomBiosResult Result;
 
 	Result = RHDAtomBiosFunc(Connector->scrnIndex, rhdPtr->atomBIOS,
-				 ATOMBIOS_GET_PANEL_MODE, &data);
+				 ATOM_GET_PANEL_MODE, &data);
 	if (Result == ATOM_SUCCESS) {
 	    Mode = data.mode;
 	    Mode->type |= M_T_PREFERRED;
@@ -329,7 +339,7 @@ rhdMonitorPanel(struct rhdConnector *Connector)
 	if (!EDID) {
 	    Result = RHDAtomBiosFunc(Connector->scrnIndex,
 				     rhdPtr->atomBIOS,
-				     ATOMBIOS_GET_PANEL_EDID, &data);
+				     ATOM_GET_PANEL_EDID, &data);
 	    if (Result == ATOM_SUCCESS)
 		EDID = xf86InterpretEDID(Connector->scrnIndex,
 					 data.EDIDBlock);
@@ -345,6 +355,7 @@ rhdMonitorPanel(struct rhdConnector *Connector)
     if (Mode) {
 	Monitor->Name = xstrdup("LVDS Panel");
 	Monitor->Modes = RHDModesAdd(Monitor->Modes, Mode);
+	Monitor->NativeMode = Mode;
 	Monitor->numHSync = 1;
 	Monitor->HSync[0].lo = Mode->HSync;
 	Monitor->HSync[0].hi = Mode->HSync;
@@ -369,6 +380,21 @@ rhdMonitorPanel(struct rhdConnector *Connector)
 		   "%s: No panel mode information found.\n", __func__);
 	xfree(Monitor);
 	return NULL;
+    }
+
+    /* Fixup some broken modes - if we can do so, otherwise we might have no
+     * chance of driving the panel at all */
+    if (Monitor->NativeMode) {
+
+	/* Some Panels have H or VSyncEnd values greater than H or VTotal. */
+	if (Monitor->NativeMode->HTotal <= Monitor->NativeMode->HSyncEnd)
+	    Monitor->NativeMode->HTotal =  Monitor->NativeMode->CrtcHTotal = Monitor->NativeMode->HSyncEnd + 1;
+	if (Monitor->NativeMode->VTotal <= Monitor->NativeMode->VSyncEnd)
+	    Monitor->NativeMode->VTotal =  Monitor->NativeMode->CrtcVTotal = Monitor->NativeMode->VSyncEnd + 1;
+	if (Monitor->NativeMode->CrtcHBlankEnd <= Monitor->NativeMode->CrtcHSyncEnd)
+	    Monitor->NativeMode->CrtcHBlankEnd  = Monitor->NativeMode->CrtcHSyncEnd + 1;
+	if (Monitor->NativeMode->CrtcVBlankEnd <= Monitor->NativeMode->CrtcVSyncEnd)
+	    Monitor->NativeMode->CrtcVBlankEnd =  Monitor->NativeMode->CrtcVSyncEnd + 1;
     }
 
     /* panel should be driven at native resolution only. */
@@ -397,7 +423,7 @@ rhdMonitorTV(struct rhdConnector *Connector)
     RHDFUNC(Connector);
 
     arg.tvMode = rhdPtr->tvMode;
-    if (RHDAtomBiosFunc(Connector->scrnIndex, rhdPtr->atomBIOS, 
+    if (RHDAtomBiosFunc(Connector->scrnIndex, rhdPtr->atomBIOS,
 			ATOM_ANALOG_TV_MODE, &arg)
 	!= ATOM_SUCCESS)
 	return NULL;
@@ -412,6 +438,7 @@ rhdMonitorTV(struct rhdConnector *Connector)
 
     Monitor->Name      = xstrdup("TV");
     Monitor->Modes     = RHDModesAdd(Monitor->Modes, Mode);
+    Monitor->NativeMode= Mode;
     Monitor->numHSync  = 1;
     Monitor->HSync[0].lo = Mode->HSync;
     Monitor->HSync[0].hi = Mode->HSync;
@@ -423,8 +450,8 @@ rhdMonitorTV(struct rhdConnector *Connector)
     /* TV should be driven at native resolution only. */
     Monitor->UseFixedModes = TRUE;
     Monitor->ReducedAllowed = FALSE;
-    /* 
-     *  hack: the TV encoder takes care of that. 
+    /*
+     *  hack: the TV encoder takes care of that.
      *  The mode that goes in isn't what comes out.
      */
     Mode->Flags &= ~(V_INTERLACE);
@@ -452,6 +479,7 @@ RHDMonitorInit(struct rhdConnector *Connector)
 	    Monitor = xnfcalloc(sizeof(struct rhdMonitor), 1);
 	    Monitor->scrnIndex = Connector->scrnIndex;
 	    Monitor->EDID      = EDID;
+	    Monitor->NativeMode = NULL;
 
 	    RHDMonitorEDIDSet(Monitor, EDID);
 	    rhdMonitorPrintEDID(Monitor, EDID);

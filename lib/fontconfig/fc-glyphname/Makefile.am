@@ -13,9 +13,9 @@
 # representations about the suitability of this software for any purpose.  It
 # is provided "as is" without express or implied warranty.
 #
-# KEITH PACKARD DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# THE AUTHOR(S) DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
 # INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
-# EVENT SHALL KEITH PACKARD BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY SPECIAL, INDIRECT OR
 # CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
 # DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
 # TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
@@ -26,7 +26,7 @@ CC = @CC_FOR_BUILD@
 EXEEXT = @EXEEXT_FOR_BUILD@
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
-INCLUDES=-I${top_srcdir}/src -I${top_srcdir} $(FREETYPE_CFLAGS) $(WARN_CFLAGS)
+INCLUDES=-I${top_srcdir}/src -I${top_srcdir} $(WARN_CFLAGS)
 
 TMPL=fcglyphname.tmpl.h
 STMPL=${top_srcdir}/fc-glyphname/${TMPL}
@@ -34,24 +34,21 @@ TARG=fcglyphname.h
 
 noinst_PROGRAMS=fc-glyphname
 
-noinst_HEADERS=$(TARG)
-
-noinst_MANS=fc-glyphname.man
-
 GLYPHNAME=zapfdingbats.txt
 SGLYPHNAME=${top_srcdir}/fc-glyphname/zapfdingbats.txt
 
 EXTRA_DIST=$(TMPL) $(GLYPHNAME)
 
 $(TARG): $(STMPL) fc-glyphname$(EXEEXT) $(SGLYPHNAME)
-	rm -f $(TARG)
-	./fc-glyphname$(EXEEXT) $(SGLYPHNAME) < $(STMPL) > $(TARG)
+	$(AM_V_GEN) $(RM) $(TARG); \
+	./fc-glyphname$(EXEEXT) $(SGLYPHNAME) < $(STMPL) > $(TARG).tmp && \
+	mv $(TARG).tmp $(TARG)
 
 ALIAS_FILES = fcalias.h fcaliastail.h
 
-BUILT_SOURCES = $(ALIAS_FILES)
+BUILT_SOURCES = $(ALIAS_FILES) $(TARG)
 
-$(ALIAS_FILES): 
+$(ALIAS_FILES):
 	touch $(ALIAS_FILES)
 
 CLEANFILES=$(TARG) $(ALIAS_FILES)

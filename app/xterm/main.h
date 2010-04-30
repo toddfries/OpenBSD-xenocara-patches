@@ -1,7 +1,7 @@
-/* $XTermId: main.h,v 1.38 2008/01/27 17:40:31 tom Exp $ */
+/* $XTermId: main.h,v 1.51 2010/01/01 19:53:42 tom Exp $ */
 
 /*
- * Copyright 2000-2007,2008 by Thomas E. Dickey
+ * Copyright 2000-2009,2010 by Thomas E. Dickey
  *
  *                         All Rights Reserved
  *
@@ -72,7 +72,7 @@
 #endif
 
 #ifndef DEFXIMFONT
-#define DEFXIMFONT		"*"
+#define DEFXIMFONT		"fixed"
 #endif
 
 #ifndef DEFBOLDFONT
@@ -89,6 +89,42 @@
 
 #ifndef DEFFACESIZE
 #define DEFFACESIZE		"14.0"
+#endif
+
+#ifndef DEF_ALLOW_COLOR
+#define DEF_ALLOW_COLOR		True
+#endif
+
+#ifndef DEF_ALLOW_FONT
+#define DEF_ALLOW_FONT		True
+#endif
+
+#ifndef DEF_ALLOW_TCAP
+#define DEF_ALLOW_TCAP		True
+#endif
+
+#ifndef DEF_ALLOW_TITLE
+#define DEF_ALLOW_TITLE		True
+#endif
+
+#ifndef DEF_ALLOW_WINDOW
+#define DEF_ALLOW_WINDOW	False
+#endif
+
+#ifndef DEF_DISALLOWED_COLOR
+#define DEF_DISALLOWED_COLOR	"SetColor,GetColor,GetAnsiColor"
+#endif
+
+#ifndef DEF_DISALLOWED_FONT
+#define DEF_DISALLOWED_FONT	"SetFont,GetFont"
+#endif
+
+#ifndef DEF_DISALLOWED_TCAP
+#define DEF_DISALLOWED_TCAP	"SetTcap,GetTcap"
+#endif
+
+#ifndef DEF_DISALLOWED_WINDOW
+#define DEF_DISALLOWED_WINDOW	"20,21,SetXprop,SetSelection"
 #endif
 
 #if OPT_BLINK_TEXT
@@ -129,6 +165,10 @@
 #endif
 #endif
 
+#ifndef DEF_TITLE_MODES
+#define DEF_TITLE_MODES		0
+#endif
+
 #ifndef PROJECTROOT
 #define PROJECTROOT		"/usr/X11R6"
 #endif
@@ -152,5 +192,10 @@
 #define DEFLOCALEFILTER1(x)	DEFLOCALEFILTER2(x)
 #define DEFLOCALEFILTER		DEFLOCALEFILTER1(PROJECTROOT) "/bin/luit"
 #endif
+
+/*
+ * See lib/Xt/Resources.c
+ */
+#define MAXRESOURCES            400
 
 #endif	/* included_main_h */
