@@ -1,4 +1,4 @@
-#	$OpenBSD: Makefile,v 1.3 2008/03/25 23:41:50 matthieu Exp $
+#	$OpenBSD: Makefile,v 1.5 2010/05/08 21:09:51 matthieu Exp $
 
 .include <bsd.own.mk>
 
