@@ -1,11 +1,11 @@
-# $OpenBSD: Makefile,v 1.12 2010/05/13 17:38:57 espie Exp $
+# $OpenBSD: Makefile,v 1.14 2010/05/22 21:17:25 matthieu Exp $
 
 .include <bsd.own.mk>
 DEBUG?=
 
 MESA_MAJOR=	7
-MESA_MINOR=	4
-MESA_TINY=	2
+MESA_MINOR=	8
+MESA_TINY=	1
 
 LIB=	GLU
 
@@ -140,7 +140,14 @@ includes:
 
 glu.pc: ${DIST}/src/glu/glu.pc.in Makefile
 	sed -e 's,@INSTALL_DIR@,$(X11BASE),' \
+	    -e 's,@INSTALL_LIB_DIR@,$(X11BASE)/lib,' \
+	    -e 's,@INSTALL_INC_DIR@,$(X11BASE)/include,' \
 	    -e 's,@LIB_DIR@,lib,' \
+	    -e 's,@GLU_LIB@,GLU,' \
+	    -e 's,@GLU_PC_LIB_PRIV@,,' \
+	    -e 's,@GLU_PC_CFLAGS@,,' \
+	    -e 's,@GLU_PC_REQ@,gl,' \
+	    -e 's,@GLU_PC_REQ_PRIV@,,' \
 	    -e 's,@VERSION@,$(MESA_MAJOR).$(MESA_MINOR).$(MESA_TINY),' \
 	< ${DIST}/src/glu/glu.pc.in > glu.pc
 
