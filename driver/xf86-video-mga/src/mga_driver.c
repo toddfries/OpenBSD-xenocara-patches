@@ -98,7 +98,7 @@
 #include "shadowfb.h"
 #include "fbdevhw.h"
 
-#ifdef XF86DRI
+#ifdef MGADRI
 #include "dri.h"
 #endif
 
@@ -369,11 +369,27 @@ static const struct mga_device_attributes attribs[] = {
 	    MGA_HOST_PCI       /* Host interface */
 	},
 
-	8192, 0x4000,          /* Memory probe size & offset values */
+	16384, 0x4000,          /* Memory probe size & offset values */
     },
 
     /* G200WB */
     [13] = { 0, 1, 0, 0, 1, 0, 0, 0, new_BARs,
+            (TRANSC_SOLID_FILL | TWO_PASS_COLOR_EXPAND | USE_LINEAR_EXPANSION),
+	{
+	    { 50000, 230000 }, /* System VCO frequencies */
+	    { 50000, 203400 }, /* Pixel VCO frequencies */
+	    { 0, 0 },          /* Video VCO frequencies */
+	    45000,            /* Memory clock */
+	    27050,             /* PLL reference frequency */
+	    0,                 /* Supports fast bitblt? */
+	    MGA_HOST_PCI       /* Host interface */
+	},
+
+	8192, 0x4000,          /* Memory probe size & offset values */
+    },
+
+    /* G200EH */
+    [14] = { 0, 1, 0, 0, 1, 0, 0, 0, new_BARs,
             (TRANSC_SOLID_FILL | TWO_PASS_COLOR_EXPAND | USE_LINEAR_EXPANSION),
 	{
 	    { 50000, 230000 }, /* System VCO frequencies */
@@ -415,6 +431,8 @@ static const struct pci_id_match mga_device_match[] = {
 
     MGA_DEVICE_MATCH( PCI_CHIP_MGAG200_WINBOND_PCI, 13 ),
 
+    MGA_DEVICE_MATCH( PCI_CHIP_MGAG200_EH_PCI, 14 ),
+
     { 0, 0, 0 },
 };
 #endif
@@ -433,6 +451,7 @@ static SymTabRec MGAChipsets[] = {
     { PCI_CHIP_MGAG200_SE_B_PCI,	"mgag200 SE B PCI" },
     { PCI_CHIP_MGAG200_EV_PCI,	"mgag200 EV Maxim" },
     { PCI_CHIP_MGAG200_WINBOND_PCI,	"mgag200 eW Nuvoton" },
+    { PCI_CHIP_MGAG200_EH_PCI,	"mgag200eH" },
     { PCI_CHIP_MGAG400,		"mgag400" },
     { PCI_CHIP_MGAG550,		"mgag550" },
     {-1,			NULL }
@@ -454,6 +473,8 @@ static PciChipsets MGAPciChipsets[] = {
     { PCI_CHIP_MGAG200_EV_PCI, PCI_CHIP_MGAG200_EV_PCI,
 	RES_SHARED_VGA },
     { PCI_CHIP_MGAG200_WINBOND_PCI, PCI_CHIP_MGAG200_WINBOND_PCI,
+	RES_SHARED_VGA },
+    { PCI_CHIP_MGAG200_EH_PCI, PCI_CHIP_MGAG200_EH_PCI,
 	RES_SHARED_VGA },
     { PCI_CHIP_MGAG400,	    PCI_CHIP_MGAG400,	RES_SHARED_VGA },
     { PCI_CHIP_MGAG550,	    PCI_CHIP_MGAG550,	RES_SHARED_VGA },
@@ -889,6 +910,10 @@ MGAProbe(DriverPtr drv, int flags)
                 attrib_no = 13;
                 break;
 
+            case PCI_CHIP_MGAG200_EH_PCI:
+                attrib_no = 14;
+                break;
+
 	    default:
 		return FALSE;
             }
@@ -1112,7 +1137,7 @@ MGACountRam(ScrnInfoPtr pScrn)
 	OUTREG8(MGAREG_CRTCEXT_DATA, tmp | 0x80);
 
 	/* apparently the G200 IP don't have a BIOS to read */
-	if (pMga->is_G200SE || pMga->is_G200EV || pMga->is_G200WB) {
+	if (pMga->is_G200SE || pMga->is_G200EV || pMga->is_G200WB || pMga->is_G200EH) {
 	    CARD32 MemoryAt0, MemoryAt1, Offset;
 	    CARD32 FirstMemoryVal1, FirstMemoryVal2;
 	    CARD32 SecondMemoryVal1, SecondMemoryVal2;
@@ -1474,7 +1499,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
 
     pMga = MGAPTR(pScrn);
     /* Set here until dri is enabled */
-#ifdef XF86DRI
+#ifdef MGADRI
     pMga->haveQuiescense = 1;
 #endif
     /* Get the entity, and make sure it is PCI. */
@@ -1594,6 +1619,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
 	|| (pMga->Chipset == PCI_CHIP_MGAG200_SE_B_PCI);
     pMga->is_G200EV = (pMga->Chipset == PCI_CHIP_MGAG200_EV_PCI);
     pMga->is_G200WB = (pMga->Chipset == PCI_CHIP_MGAG200_WINBOND_PCI);
+    pMga->is_G200EH = (pMga->Chipset == PCI_CHIP_MGAG200_EH_PCI);
 
 #ifdef USEMGAHAL
     if (pMga->chip_attribs->HAL_chipset) {
@@ -1674,13 +1700,13 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     if (pMga->DualHeadEnabled) {
-#ifdef XF86DRI
+#ifdef MGADRI
         pMga->GetQuiescence = MGAGetQuiescenceShared;
 #endif
     } else {                                              /* single-head mode */
         pMga->SecondCrtc = FALSE;
         pMga->HWCursor = TRUE;
-#ifdef XF86DRI
+#ifdef MGADRI
         pMga->GetQuiescence = MGAGetQuiescence;
 #endif
     }
@@ -1917,7 +1943,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
     if (pScrn->depth == 8)
 	pScrn->rgbBits = 8;
 
-#ifdef XF86DRI
+#ifdef MGADRI
     from = X_DEFAULT;
     pMga->agpMode = MGA_DEFAULT_AGP_MODE;
 
@@ -2115,6 +2141,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
     case PCI_CHIP_MGAG200_SE_B_PCI:
     case PCI_CHIP_MGAG200_WINBOND_PCI:
     case PCI_CHIP_MGAG200_EV_PCI:
+    case PCI_CHIP_MGAG200_EH_PCI:
     case PCI_CHIP_MGAG400:
     case PCI_CHIP_MGAG550:
 	MGAGSetupFuncs(pScrn);
@@ -2227,6 +2254,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
 	  case PCI_CHIP_MGAG200_SE_B_PCI:
           case PCI_CHIP_MGAG200_WINBOND_PCI:
 	  case PCI_CHIP_MGAG200_EV_PCI:
+      case PCI_CHIP_MGAG200_EH_PCI:
 	    pMga->SrcOrg = 0;
 	    pMga->DstOrg = 0;
 	    break;
@@ -2413,6 +2441,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
 	case PCI_CHIP_MGAG200_SE_B_PCI:
         case PCI_CHIP_MGAG200_WINBOND_PCI:
 	case PCI_CHIP_MGAG200_EV_PCI:
+    case PCI_CHIP_MGAG200_EH_PCI:
 	case PCI_CHIP_MGAG400:
 	case PCI_CHIP_MGAG550:
 	   maxPitch = 4096;
@@ -2713,7 +2742,7 @@ MGAPreInit(ScrnInfoPtr pScrn, int flags)
 	}
     }
 
-#ifdef XF86DRI
+#ifdef MGADRI
     /* Load the dri module if requested. */
     if (xf86ReturnOptValBool(pMga->Options, OPTION_DRI, FALSE)) {
        xf86LoadSubModule(pScrn, "dri");
@@ -3170,7 +3199,7 @@ MGA_HAL(
 );	/* MGA_HAL */
 #endif
 
-#ifdef XF86DRI
+#ifdef MGADRI
    if (pMga->directRenderingEnabled) {
        DRILock(screenInfo.screens[pScrn->scrnIndex], 0);
    }
@@ -3242,7 +3271,7 @@ MGA_HAL(
 	pMga->M1currentMode = (DisplayModePtr)mode->Private;
     }
 
-#ifdef XF86DRI
+#ifdef MGADRI
    if (pMga->directRenderingEnabled)
      DRIUnlock(screenInfo.screens[pScrn->scrnIndex]);
 #endif
@@ -3399,7 +3428,7 @@ MGAScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     MGAEntPtr pMgaEnt = NULL;
     int f;
     CARD32 VRTemp, FBTemp;
-#ifdef XF86DRI
+#ifdef MGADRI
     MessageType driFrom = X_DEFAULT;
 #endif
     DPMSSetProcPtr mga_dpms_set_proc = NULL;
@@ -3639,7 +3668,7 @@ MGAScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	FBStart = pMga->FbStart;
     }
 
-#ifdef XF86DRI
+#ifdef MGADRI
      /*
       * Setup DRI after visuals have been established.
       *
@@ -3680,7 +3709,7 @@ MGAScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
        driFrom = X_PROBED;
     }
     else {
-       pMga->directRenderingEnabled = MGADRIScreenInit(pScreen);
+       pMga->directRenderingEnabled = XF86DRIScreenInit(pScreen);
     }
 #endif
 
@@ -3795,7 +3824,7 @@ MGAScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     MGAInitVideo(pScreen);
 
-#ifdef XF86DRI
+#ifdef MGADRI
     if (pMga->directRenderingEnabled) {
        /* Now that mi, drm and others have done their thing,
 	* complete the DRI setup.
@@ -4043,7 +4072,7 @@ MGAEnterVT(int scrnIndex, int flags)
 
     pMga = MGAPTR(pScrn);
 
-#ifdef XF86DRI
+#ifdef MGADRI
     if (pMga->directRenderingEnabled) {
 	if (pMga->irq) {
 	    /* Need to make sure interrupts are enabled */
@@ -4069,7 +4098,7 @@ static Bool
 MGAEnterVTFBDev(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
-#ifdef XF86DRI
+#ifdef MGADRI
     ScreenPtr pScreen;
     MGAPtr pMga;
 
@@ -4108,7 +4137,7 @@ MGALeaveVT(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     vgaHWPtr hwp = VGAHWPTR(pScrn);
-#ifdef XF86DRI
+#ifdef MGADRI
     MGAPtr pMga = MGAPTR(pScrn);
     ScreenPtr pScreen;
 #endif
@@ -4118,7 +4147,7 @@ MGALeaveVT(int scrnIndex, int flags)
 
     if (xf86IsPc98())
 	outb(0xfac, 0x00);
-#ifdef XF86DRI
+#ifdef MGADRI
     if (pMga->directRenderingEnabled) {
         pScreen = screenInfo.screens[scrnIndex];
         DRILock(pScreen, 0);
@@ -4163,7 +4192,7 @@ MGACloseScreen(int scrnIndex, ScreenPtr pScreen)
 	    vgaHWUnmapMem(pScrn);
 	}
     }
-#ifdef XF86DRI
+#ifdef MGADRI
    if (pMga->directRenderingEnabled) {
        MGADRICloseScreen(pScreen);
        pMga->directRenderingEnabled=FALSE;
@@ -4316,7 +4345,10 @@ MGAValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
 	    return MODE_BANDWIDTH;
     } else if (pMga->is_G200EV
 	       && (xf86ModeBandwidth(mode, pScrn->bitsPerPixel) > 327)) {
-	return MODE_BANDWIDTH;
+        return MODE_BANDWIDTH;
+    } else if (pMga->is_G200EH
+               && (xf86ModeBandwidth(mode, pScrn->bitsPerPixel) > 375)) {
+        return MODE_BANDWIDTH;
     }
 
     lace = 1 + ((mode->Flags & V_INTERLACE) != 0);

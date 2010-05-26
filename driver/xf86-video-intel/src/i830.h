@@ -66,7 +66,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define _XF86DRI_SERVER_
 #include "dri.h"
 #include "GL/glxint.h"
-#include "i830_dri.h"
 #include "intel_bufmgr.h"
 #include "i915_drm.h"
 
@@ -599,7 +598,7 @@ typedef struct intel_screen_private {
 
 	Bool directRenderingOpen;
 	int drmSubFD;
-	char deviceName[64];
+	char *deviceName;
 
 	/* Broken-out options. */
 	OptionInfoPtr Options;
@@ -965,7 +964,7 @@ static inline int i830_fb_compression_supported(intel_screen_private *intel)
      * that device. See this bug report for more details:
      * https://bugs.freedesktop.org/show_bug.cgi?id=16257
      */
-    if (IS_I965GM(intel))
+    if (IS_I965GM(intel) || IS_I915GM(intel) || IS_I945GM(intel))
 	return FALSE;
     return TRUE;
 }
