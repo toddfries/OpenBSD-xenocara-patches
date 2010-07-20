@@ -1,4 +1,4 @@
-/* $OpenBSD: wsfb_driver.c,v 1.20 2010/02/04 06:24:47 matthieu Exp $ */
+/* $OpenBSD: wsfb_driver.c,v 1.22 2010/07/18 20:10:12 matthieu Exp $ */
 /*
  * Copyright (c) 2001 Matthieu Herrb
  * All rights reserved.
@@ -917,7 +917,7 @@ WsfbScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	if (fPtr->shadowFB) {
 		fPtr->shadow = xcalloc(1, pScrn->virtualX * pScrn->virtualY *
-		    pScrn->bitsPerPixel);
+		    pScrn->bitsPerPixel/8);
 		
 		if (!fPtr->shadow) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -1065,7 +1065,8 @@ WsfbCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	TRACE_ENTER("WsfbCloseScreen");
 
 	pPixmap = pScreen->GetScreenPixmap(pScreen);
-	shadowRemove(pScreen, pPixmap);
+	if (fPtr->shadowFB) 
+		shadowRemove(pScreen, pPixmap);
 
 	if (pScrn->vtSema) {
 		WsfbRestore(pScrn);
