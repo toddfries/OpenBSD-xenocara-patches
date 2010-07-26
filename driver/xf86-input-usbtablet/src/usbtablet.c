@@ -24,7 +24,7 @@
  * SUCH DAMAGE.
  */
 
-/* $OpenBSD: usbtablet.c,v 1.6 2009/11/26 21:30:19 matthieu Exp $ */
+/* $OpenBSD: usbtablet.c,v 1.10 2010/07/25 19:53:35 matthieu Exp $ */
 
 /*
  * Driver for USB HID tablet devices.
@@ -88,7 +88,7 @@ typedef struct {
 	hid_item_t	hidInvert;
 	int		reportSize;
 	int		reportId;
-	int 		nSwitch;
+	int		nSwitch;
 	USBTDevicePtr	currentProxDev;
 } USBTCommon, *USBTCommonPtr;
 
@@ -111,16 +111,13 @@ struct USBTDevice {
 static MODULESETUPPROTO(SetupProc);
 static void TearDownProc(pointer);
 
-static LocalDevicePtr UsbTabletAllocateStylus(InputDriverPtr);
-static LocalDevicePtr UsbTabletAllocateEraser(InputDriverPtr);
-static LocalDevicePtr UsbTabletAllocate(InputDriverPtr, char *, int);
+static InputInfoPtr UsbTabletAllocateStylus(InputDriverPtr);
+static InputInfoPtr UsbTabletAllocateEraser(InputDriverPtr);
+static InputInfoPtr UsbTabletAllocate(InputDriverPtr, char *, int);
 static InputInfoPtr UsbTabletPreInit(InputDriverPtr, IDevPtr, int);
 static int UsbTabletProc(DeviceIntPtr, int);
 static void UsbTabletReadInput(InputInfoPtr);
-static int UsbTabletChangeControl(InputInfoPtr, xDeviceCtl *);
-static int UsbTabletSwitchMode(ClientPtr, DeviceIntPtr, int);
 static void UsbTabletClose(InputInfoPtr);
-static void UsbTabletControlProc(DeviceIntPtr, PtrCtrl *);
 static int UsbTabletOpenDevice(DeviceIntPtr);
 static void UsbTabletSendEvents(InputInfoPtr, int, USBTState *);
 static void UsbTabletSendButtons(InputInfoPtr, int, int, int, int, int, int);
@@ -154,7 +151,7 @@ InputDriverRec USBTABLET = {
 	0
 };
 
-/* 
+/*
  * Debugging macro
  */
 #ifdef DBG
@@ -187,19 +184,19 @@ SetupProc(pointer module,
 
 	if (!Initialised) {
 		Initialised = TRUE;
-		
+
 		xf86Msg(X_INFO, "USB Tablet driver\n");
 		xf86AddInputDriver(&USBTABLET, module, 0);
 	}
 	return module;
 }
 
-static void 
+static void
 TearDownProc(pointer p)
 {
 	DBG(1, ErrorF("USB Tablet TearDownProc Called\n"));
 }
-	
+
 
 static int
 UsbTabletProc(DeviceIntPtr pUSBT, int what)
@@ -225,41 +222,35 @@ UsbTabletProc(DeviceIntPtr pUSBT, int what)
 			btn_labels,
 #endif
 			map) == FALSE) {
-			xf86Msg(X_ERROR, 
+			xf86Msg(X_ERROR,
 				"unable to allocate Button class device\n");
 			return !Success;
 		}
 		if (InitFocusClassDeviceStruct(pUSBT) == FALSE) {
-			xf86Msg(X_ERROR, 
+			xf86Msg(X_ERROR,
 				"unable to init Focus class device\n");
 			return !Success;
 		}
-          
-		if (InitPtrFeedbackClassDeviceStruct(pUSBT,
-					UsbTabletControlProc) == FALSE) {
-			xf86Msg(X_ERROR, "unable to init ptr feedback\n");
-			return !Success;
-		}
-	    
+
 		if (InitProximityClassDeviceStruct(pUSBT) == FALSE) {
-			xf86Msg(X_ERROR, 
+			xf86Msg(X_ERROR,
 				"unable to init proximity class device\n");
 			return !Success;
 		}
 
 		if (InitValuatorClassDeviceStruct(
-			pUSBT, NAXES, 
+			pUSBT, NAXES,
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
 			axes_labels,
 #endif
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 3
-			xf86GetMotionEvents, 
+			xf86GetMotionEvents,
 #endif
 			pInfo->history_size,
 			((priv->flags & ABSOLUTE_FLAG) ? Absolute : Relative) |
 			 OutOfProximity) == FALSE) {
 			xf86Msg(X_ERROR,
-				"unable to allocate Valuator class device\n"); 
+				"unable to allocate Valuator class device\n");
 			return !Success;
 		} else {
 			/* allocate the motion history buffer if needed */
@@ -269,7 +260,8 @@ UsbTabletProc(DeviceIntPtr pUSBT, int what)
 		}
 
 		/* open the device to gather informations */
-		UsbTabletOpenDevice(pUSBT);
+		if (!UsbTabletOpenDevice(pUSBT))
+		    return !Success;
 		break;
 
 	case DEVICE_ON:
@@ -279,7 +271,7 @@ UsbTabletProc(DeviceIntPtr pUSBT, int what)
 		}
 		xf86AddEnabledDevice(pInfo);
 		pUSBT->public.on = TRUE;
-		
+
 		break;
 	case DEVICE_OFF:
 		DBG(1, ErrorF("UsbTabletProc DEVICE_OFF\n"));
@@ -294,7 +286,7 @@ UsbTabletProc(DeviceIntPtr pUSBT, int what)
 		DBG(1, ErrorF("UsbTabletProc DEVICE_CLOSE\n"));
 		UsbTabletClose(pInfo);
 		break;
-		
+
 	default:
 		xf86Msg(X_ERROR, "UsbTabletProc: unsupported mode %d\n",
 			what);
@@ -311,7 +303,7 @@ UsbTabletReadInput(InputInfoPtr pInfo)
 	int		invert, len, i;
 	unsigned char	buffer[200], *p;
 	USBTState	ds;
-  
+
 	DBG(7, ErrorF("UsbTabletReadInput BEGIN device=%s fd=%d\n",
 		      comm->devName, pInfo->fd));
 
@@ -322,14 +314,14 @@ UsbTabletReadInput(InputInfoPtr pInfo)
 
 		len = xf86ReadSerial(pInfo->fd, p, comm->reportSize);
 		DBG(8, ErrorF("UsbTabletReadInput len=%d\n", len));
-	    
+
 		if (len <= 0) {
 			if (errno != EAGAIN) {
 				Error("error reading USBT device");
 			}
 			break;
 		}
-	    
+
 		ds.x = hid_get_data(p, &comm->hidX);
 		ds.y = hid_get_data(p, &comm->hidY);
 		ds.buttons = 0;
@@ -376,13 +368,13 @@ UsbTabletOutOfProx(USBTDevicePtr prx)
 	if (prx->state.buttons) {
 		/* Report buttons up when the device goes out of proximity. */
 		DBG(9, ErrorF("xf86USBTOutOfProx: reset buttons\n"));
-		UsbTabletSendButtons(prx->info, 0, 
-				   ods->x, ods->y, ods->pressure, 
+		UsbTabletSendButtons(prx->info, 0,
+				   ods->x, ods->y, ods->pressure,
 				   ods->xTilt, ods->yTilt);
 		prx->state.buttons = 0;
 	}
 	DBG(1, ErrorF("xf86USBTSendEvents: out proximity\n"));
-	xf86PostProximityEvent(prx->info->dev, 0, 0, 5, 
+	xf86PostProximityEvent(prx->info->dev, 0, 0, 5,
 			       ods->x, ods->y, ods->pressure,
 			       ods->xTilt, ods->yTilt);
 }
@@ -398,14 +390,14 @@ UsbTabletIntoProx(USBTDevicePtr prx, USBTState *ds)
 	DBG(1, ErrorF("Into proximity %s\n", prx->info->name));
 
 	DBG(1, ErrorF("xf86USBTSendEvents: in proximity\n"));
-	xf86PostProximityEvent(prx->info->dev, 1, 0, 5, 
+	xf86PostProximityEvent(prx->info->dev, 1, 0, 5,
 			       ds->x, ds->y, ds->pressure,
 			       ds->xTilt, ds->yTilt);
-	
+
 }
 
 static void
-UsbTabletSendButtons(InputInfoPtr pInfo, int buttons, 
+UsbTabletSendButtons(InputInfoPtr pInfo, int buttons,
 		     int rx, int ry, int rz,
 		     int rtx, int rty)
 {
@@ -414,9 +406,9 @@ UsbTabletSendButtons(InputInfoPtr pInfo, int buttons,
 
 	for (button = 1; button < NBUTTONS; button++) {
 		mask = 1 << (button-1);
-	
+
 		if ((mask & priv->state.buttons) != (mask & buttons)) {
-			DBG(4, ErrorF("UsbTabletSendButtons button=%d is %d\n", 
+			DBG(4, ErrorF("UsbTabletSendButtons button=%d is %d\n",
 				      button, (buttons & mask) != 0));
 			xf86PostButtonEvent(pInfo->dev,
 					    (priv->flags & ABSOLUTE_FLAG),
@@ -461,33 +453,21 @@ UsbTabletSendEvents(InputInfoPtr pInfo, int invert, USBTState *ds)
 	is_abs = 1;
 	/* XXX scaling done here, since Xorg 7.3 does not call UsbTabletConvert */
 	rx = ds->x * comm->factorX; ry = ds->y * comm->factorY;
-	rz = ds->pressure; 
+	rz = ds->pressure;
 	rtx = ds->xTilt; rty = ds->yTilt;
 
 	if (rx != ods->x || ry != ods->y || rz != ods->pressure ||
 	    rtx != ods->xTilt || rty != ods->yTilt) {
 		DBG(9, ErrorF("UsbTabletSendEvents: motion\n"));
-		xf86PostMotionEvent(pInfo->dev, is_abs, 0, 5, 
-				    rx, ry, rz, rtx, rty); 
-		
+		xf86PostMotionEvent(pInfo->dev, is_abs, 0, 5,
+				    rx, ry, rz, rtx, rty);
+
 	}
 	if (ds->buttons != ods->buttons)
-		UsbTabletSendButtons(pInfo, ds->buttons, 
+		UsbTabletSendButtons(pInfo, ds->buttons,
 				   rx, ry, rz, rtx, rty);
 
 	*ods = *ds;
-}
-
-static int
-UsbTabletChangeControl(InputInfoPtr pInfo, xDeviceCtl *control)
-{
-	return BadMatch;
-}
-
-static int
-UsbTabletSwitchMode(ClientPtr client, DeviceIntPtr dev, int mode)
-{
-	return BadMatch;
 }
 
 static void
@@ -496,23 +476,17 @@ UsbTabletClose(InputInfoPtr pInfo)
 	USBTDevicePtr	priv = (USBTDevicePtr)pInfo->private;
 	USBTCommonPtr	comm = priv->comm;
 	int		num, i;
-    
+
 	for (num = 0, i = 0; i < comm->nDevs;  i++)
 		if (comm->devices[i]->fd >= 0)
 			num++;
 	DBG(4, ErrorF("USB tablet number of open devices = %d\n", num));
-	
-	if (num == 1) {		    
+
+	if (num == 1) {
 		SYSCALL(close(pInfo->fd));
 	}
-	
-	pInfo->fd = -1;
-}
 
-static void
-UsbTabletControlProc(DeviceIntPtr device, PtrCtrl *ctrl)
-{
-	DBG(2, ErrorF("UsbTabletControlProc\n"));
+	pInfo->fd = -1;
 }
 
 static Bool
@@ -520,6 +494,7 @@ UsbTabletOpen(InputInfoPtr pInfo)
 {
 	USBTDevicePtr	priv = (USBTDevicePtr)pInfo->private;
 	USBTCommonPtr	comm = priv->comm;
+	InputInfoPtr	dev;
 	hid_data_t     d;
 	hid_item_t     h;
 	report_desc_t rd;
@@ -528,6 +503,15 @@ UsbTabletOpen(InputInfoPtr pInfo)
 
 	DBG(1, ErrorF("opening %s\n", comm->devName));
 
+	for (dev = comm->devices[0]; dev != NULL; dev = dev->next) {
+	    if (dev->fd != -1 && dev != pInfo)
+		pInfo->fd = dev->fd;
+	}
+	if (pInfo->fd != -1) {
+	    DBG(1, ErrorF("UsbTabletOpen: shared device already open %x\n",
+			  (unsigned int)pInfo->fd));
+	    return Success;
+	}
 	/* Use this since O_NDELAY is not implemented by libc open wrapper */
 	pInfo->fd = xf86OpenSerial(pInfo->options);
 	if (pInfo->fd == -1) {
@@ -537,20 +521,20 @@ UsbTabletOpen(InputInfoPtr pInfo)
 	}
 	SYSCALL(r = ioctl(pInfo->fd, USB_GET_REPORT_ID, &comm->reportId));
 	if (r == -1) {
-		ErrorF("Error ioctl USB_GET_REPORT_ID on %s : %s\n", 
+		ErrorF("Error ioctl USB_GET_REPORT_ID on %s : %s\n",
 		       comm->devName, strerror(errno));
 		return !Success;
 	}
 
 	DBG(1, ErrorF("initializing tablet\n"));
-    
+
 	rd = hid_get_report_desc(pInfo->fd);
 	if (rd == 0) {
 		Error(comm->devName);
 		SYSCALL(close(pInfo->fd));
 		return !Success;
 	}
-    
+
 	memset(&comm->hidX, 0, sizeof (hid_item_t));
 	memset(&comm->hidY, 0, sizeof (hid_item_t));
 	memset(&comm->hidTiltX, 0, sizeof (hid_item_t));
@@ -561,7 +545,7 @@ UsbTabletOpen(InputInfoPtr pInfo)
 	for (i = 0; i < NBUTTONS; i++) {
 		memset(&comm->hidBarrel_Switch[i], 0, sizeof (hid_item_t));
 	}
-	for (d = hid_start_parse(rd, 1<<hid_input, comm->reportId); 
+	for (d = hid_start_parse(rd, 1<<hid_input, comm->reportId);
 	     hid_get_item(d, &h); ) {
 		if (h.kind != hid_input || (h.flags & HIO_CONST))
 			continue;
@@ -589,24 +573,24 @@ UsbTabletOpen(InputInfoPtr pInfo)
 	if (comm->hidX.report_size == 0 ||
 	    comm->hidY.report_size == 0 ||
 	    comm->hidIn_Range.report_size == 0) {
-		xf86Msg(X_ERROR, "%s has no X, Y, or In_Range report\n", 
+		xf86Msg(X_ERROR, "%s has no X, Y, or In_Range report\n",
 			comm->devName);
 		return !Success;
 	}
-	DBG(2, ErrorF("Found X at %d, size=%d\n", 
+	DBG(2, ErrorF("Found X at %d, size=%d\n",
 		      comm->hidX.pos, comm->hidX.report_size));
-	DBG(2, ErrorF("Found Y at %d, size=%d\n", 
+	DBG(2, ErrorF("Found Y at %d, size=%d\n",
 		      comm->hidY.pos, comm->hidY.report_size));
-	DBG(2, ErrorF("Found Invert at %d, size=%d\n", 
+	DBG(2, ErrorF("Found Invert at %d, size=%d\n",
 		      comm->hidInvert.pos, comm->hidInvert.report_size));
-	DBG(2, ErrorF("Found In_Range at %d, size=%d\n", 
+	DBG(2, ErrorF("Found In_Range at %d, size=%d\n",
 		      comm->hidIn_Range.pos, comm->hidIn_Range.report_size));
-	DBG(2, ErrorF("Found Tip_Pressure at %d, size=%d\n", 
-		      comm->hidTip_Pressure.pos, 
+	DBG(2, ErrorF("Found Tip_Pressure at %d, size=%d\n",
+		      comm->hidTip_Pressure.pos,
 		      comm->hidTip_Pressure.report_size));
 	for (i = 0; i < comm->nSwitch; i++) {
-		DBG(2, ErrorF("Found Barrel_Switch at %d, size=%d\n", 
-			      comm->hidBarrel_Switch[i].pos, 
+		DBG(2, ErrorF("Found Barrel_Switch at %d, size=%d\n",
+			      comm->hidBarrel_Switch[i].pos,
 			      comm->hidBarrel_Switch[i].report_size));
 	}
 	DBG(2, ErrorF("Report size=%d, report id=%d\n",
@@ -616,18 +600,18 @@ UsbTabletOpen(InputInfoPtr pInfo)
 		/ (comm->hidX.logical_maximum - comm->hidX.logical_minimum);
 	comm->factorY = ((double) screenInfo.screens[0]->height)
 		/ (comm->hidY.logical_maximum - comm->hidY.logical_minimum);
-    
+
 	xf86Msg(X_PROBED, "USBT tablet X=%d..%d, Y=%d..%d",
-		    comm->hidX.logical_minimum, 
-		    comm->hidX.logical_maximum, 
-		    comm->hidY.logical_minimum, 
+		    comm->hidX.logical_minimum,
+		    comm->hidX.logical_maximum,
+		    comm->hidY.logical_minimum,
 		    comm->hidY.logical_maximum);
 	if (comm->hidTip_Pressure.report_size != 0)
 		xf86Msg(X_NONE, ", pressure=%d..%d",
-			    comm->hidTip_Pressure.logical_minimum, 
+			    comm->hidTip_Pressure.logical_minimum,
 			    comm->hidTip_Pressure.logical_maximum);
 	xf86Msg(X_NONE, "\n");
-  
+
 	return Success;
 }
 
@@ -642,7 +626,7 @@ UsbTabletOpenDevice(DeviceIntPtr pUSBT)
 	Atom axes_labels[NAXES] = {0};
 #endif
 	hid_item_t	*h = &comm->hidTip_Pressure;
-    
+
 	DBG(1, ErrorF("UsbTabletOpenDevice start\n"));
 	if (pInfo->fd < 0) {
 		DBG(2, ErrorF("UsbTabletOpenDevice really open\n"));
@@ -659,15 +643,15 @@ UsbTabletOpenDevice(DeviceIntPtr pUSBT)
 		}
 	}
 
-	priv->threshold = 
-	    h->logical_minimum + 
+	priv->threshold =
+	    h->logical_minimum +
 	    (h->logical_maximum - h->logical_minimum) * priv->thresCent / 100;
 	if (h->report_size != 0)
-		xf86Msg(X_PROBED, 
+		xf86Msg(X_PROBED,
 			"USBT %s pressure threshold=%d, suppress=%d\n",
 			pInfo->name, priv->threshold, priv->suppress);
 
-	
+
 	/* Set the real values */
 	/* XXX scaling done here, since Xorg 7.3 does not call UsbTabletConvert */
 	InitValuatorAxisStruct(pUSBT,
@@ -729,16 +713,16 @@ UsbTabletAllocate(InputDriverPtr drv, char *name, int flag)
 	InputInfoPtr pInfo = xf86AllocateInput(drv, 0);
 	USBTDevicePtr priv;
 	USBTCommonPtr comm;
-	
+
 	if (pInfo == NULL) {
 		return NULL;
 	}
-	
+
 	priv = (USBTDevicePtr)xalloc(sizeof(USBTDevice));
 	if (priv == NULL) {
 		return NULL;
 	}
-	
+
 	comm = (USBTCommonPtr)xalloc(sizeof(USBTCommon));
 	if (comm == NULL) {
 		xfree(priv);
@@ -746,29 +730,29 @@ UsbTabletAllocate(InputDriverPtr drv, char *name, int flag)
 	}
 	memset(priv, 0, sizeof *priv);
 	memset(comm, 0, sizeof *comm);
-	
+
 	pInfo->name = name;
 	pInfo->device_control = UsbTabletProc;
 	pInfo->read_input = UsbTabletReadInput;
-	pInfo->control_proc = UsbTabletChangeControl;
-	pInfo->switch_mode = UsbTabletSwitchMode;
+	pInfo->control_proc = NULL;
+	pInfo->switch_mode = NULL;
 	pInfo->conversion_proc = NULL;
 	pInfo->reverse_conversion_proc = NULL;
 	pInfo->fd = -1;
 	pInfo->private = priv;
 	pInfo->old_x = -1;
 	pInfo->old_y = -1;
-	
+
 	priv->info = pInfo;
 	priv->comm = comm;
 	priv->flags = ABSOLUTE_FLAG | flag;
 	priv->suppress = 2;
 	priv->thresCent = 5;
-	
+
 	comm->nDevs = 1;
 	comm->devices = (InputInfoPtr*)xalloc(sizeof(InputInfoPtr));
 	comm->devices[0] = pInfo;
-	
+
 	return pInfo;
 }
 
@@ -776,7 +760,7 @@ static InputInfoPtr
 UsbTabletAllocateStylus(InputDriverPtr drv)
 {
 	InputInfoPtr pInfo = UsbTabletAllocate(drv, STYLUS_XI, STYLUS_ID);
-	
+
 	if (pInfo == NULL) {
 		return NULL;
 	}
@@ -788,7 +772,7 @@ static InputInfoPtr
 UsbTabletAllocateEraser(InputDriverPtr drv)
 {
 	InputInfoPtr pInfo = UsbTabletAllocate(drv, ERASER_XI, ERASER_ID);
-	
+
 	if (pInfo == NULL) {
 		return NULL;
 	}
@@ -796,8 +780,8 @@ UsbTabletAllocateEraser(InputDriverPtr drv)
 	return pInfo;
 }
 
-/* 
- * Called when the InputDevice Section is found in XF86Config 
+/*
+ * Called when the InputDevice Section is found in XF86Config
  */
 static InputInfoPtr
 UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
@@ -817,7 +801,7 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 	fake->conf_idev = dev;
 	xf86CollectInputOptions(fake, NULL, NULL);
 	s = xf86FindOptionValue(fake->options, "Type");
-	
+
 	if (s != NULL) {
 		if (xf86NameCmp(s, "stylus") == 0) {
 			pInfo = UsbTabletAllocateStylus(drv);
@@ -850,12 +834,12 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 
 	comm->devName = xf86FindOptionValue(pInfo->options, "Device");
 	if (comm->devName == NULL) {
-		xf86Msg(X_ERROR, "%s: No Device specified.\n", 
+		xf86Msg(X_ERROR, "%s: No Device specified.\n",
 			dev->identifier);
 		goto PreInit_fail;
 	}
 
-	/* Lookup to see if there is another device sharing 
+	/* Lookup to see if there is another device sharing
 	  * the same device
 	  */
 	localDevices = xf86FirstLocalDevice();
@@ -864,7 +848,7 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 		p = (USBTDevicePtr)localDevices->private;
 		c = p->comm;
 
-		if ((pInfo != localDevices) && 
+		if ((pInfo != localDevices) &&
 		    (localDevices->device_control == UsbTabletProc) &&
 		    (strcmp(c->devName, comm->devName) == 0)) {
 			DBG(2, ErrorF("UsbTabletPreInit port share between"
@@ -875,7 +859,7 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 			comm = priv->comm = c;
 			comm->nDevs++;
 			comm->devices = (InputInfoPtr *)
-				xrealloc(comm->devices, 
+				xrealloc(comm->devices,
 					 sizeof(InputInfoPtr)* comm->nDevs);
 			comm->devices[comm->nDevs - 1] = pInfo;
 			break;
@@ -888,7 +872,7 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 	xf86Msg(X_CONFIG, "%s device is %s\n", dev->identifier, comm->devName);
 
 	/* XXX Handle options */
-	debug_level = xf86SetIntOption(pInfo->options, "DebugLevel", 
+	debug_level = xf86SetIntOption(pInfo->options, "DebugLevel",
 				       debug_level);
 	if (debug_level > 0) {
 		xf86Msg(X_CONFIG, "UsbTablet: debug level set to %d\n",
@@ -907,10 +891,10 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 				"Using default.\n", dev->identifier);
 		}
 	}
-	xf86Msg(X_CONFIG, "%s is in %s mode\n", pInfo->name, 
+	xf86Msg(X_CONFIG, "%s is in %s mode\n", pInfo->name,
 		(priv->flags & ABSOLUTE_FLAG) ? "absolute" : "relative");
 
-	
+
 #if 0
 	pInfo->history_size = xf86SetIntOption(pInfo->options, "HistorySize",
 					pInfo->history_size);
@@ -918,21 +902,21 @@ UsbTabletPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
 	i = xf86SetIntOption(pInfo->options, "ThreshHold", -1);
 	if (i != -1) {
 		priv->thresCent = i;
-	}		
+	}
 	xf86Msg(i != -1 ? X_CONFIG : X_DEFAULT, "%s: threshold = %d\n",
 		dev->identifier, priv->thresCent);
-	
+
 
 	i = xf86SetIntOption(pInfo->options, "Suppress", -1);
 	if (i != -1) {
 		priv->suppress = i;
-	}		
+	}
 	xf86Msg(i != -1 ? X_CONFIG : X_DEFAULT, "%s: suppress = %d\n",
 		dev->identifier, priv->suppress);
 
 
 	pInfo->flags |= XI86_POINTER_CAPABLE | XI86_CONFIGURED;
-	
+
 	return pInfo;
 
 PreInit_fail:

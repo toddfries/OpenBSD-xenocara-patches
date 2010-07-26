@@ -106,7 +106,7 @@ driOpenDriver(const char *driverName)
    int len;
 
    /* Attempt to make sure libGL symbols will be visible to the driver */
-   glhandle = dlopen("libGL.so.1", RTLD_NOW | RTLD_GLOBAL);
+   glhandle = dlopen("libGL.so", RTLD_NOW | RTLD_GLOBAL);
 
    libPaths = NULL;
    if (geteuid() == getuid()) {
@@ -402,6 +402,11 @@ dri2BindExtensions(__GLXscreenConfigs *psc)
 	 psc->f = (__DRI2flushExtension *) extensions[i];
 	 /* internal driver extension, no GL extension exposed */
       }
+#endif
+
+#ifdef __DRI2_CONFIG_QUERY
+      if ((strcmp(extensions[i]->name, __DRI2_CONFIG_QUERY) == 0))
+	 psc->config = (__DRI2configQueryExtension *) extensions[i];
 #endif
    }
 }

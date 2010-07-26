@@ -196,11 +196,10 @@ extern char *__progname;
 void
 usage(void)
 {
-	fprintf(stderr,
-		"Usage: %s [-v] [-a adaptor] [-e encoding] [-f file]\n"
-		"          [-i input] [-o output] [-O output] [-r rate]\n"
-		"          [-s size]\n",
-		__progname);
+	fprintf(stderr, "usage: %s [-v] "
+	    "[-a adaptor] [-e encoding] [-f file] [-i input] [-O output]\n"
+	    "       %*s [-o output] [-r rate] [-s size]\n", __progname,
+	    (int)strlen(__progname), "");
 }
 
 int
@@ -764,7 +763,7 @@ dev_get_sizes(struct video *vid)
 	d->sizes[0].w = sizes[0].w;
 	d->sizes[0].h = sizes[0].h;
 	d->nsizes = 1;
-	for (i = 0; i < nsizes; i++) {
+	for (i = 1; i < nsizes; i++) {
 		for (j = 0; j < d->nsizes; j++) {
 			if (sizes[i].w < d->sizes[j].w)
 				break;
@@ -1028,9 +1027,12 @@ choose_size(struct video *vid)
 	}
 	if (vid->mode & M_IN_DEV) {
 		i = 0;
-		while (d->sizes[i].h <= vid->height &&
+		while (i < d->nsizes &&
+		    d->sizes[i].h <= vid->height &&
 		    d->sizes[i].w <= vid->width)
 			i++;
+		if (i >= d->nsizes)
+			i = d->nsizes - 1;
 		if (i > 0 && (d->sizes[i].h > vid->height ||
 		    d->sizes[i].w > vid->width))
 			i--;
