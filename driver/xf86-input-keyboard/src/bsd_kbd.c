@@ -22,6 +22,7 @@
 #include "xf86.h"
 #include "xf86Priv.h"
 #include "xf86_OSlib.h"
+#include "xf86Parser.h"
 
 #include "xf86Xinput.h"
 #include "xf86OSKbd.h"
@@ -58,6 +59,8 @@ struct nameint kbdopt[] = {
 
 extern void KbdGetMapping(InputInfoPtr pInfo, KeySymsPtr pKeySyms,
                           CARD8 *pModMap);
+
+extern int priv_open_device(const char *dev);
 
 extern Bool VTSwitchEnabled;
 
@@ -328,51 +331,6 @@ SoundBell(InputInfoPtr pInfo, int loudness, int pitch, int duration)
     }
 }
 
-#define ModifierSet(k) ((modifiers & (k)) == (k))
-
-static
-Bool SpecialKey(InputInfoPtr pInfo, int key, Bool down, int modifiers)
-{
-  KbdDevPtr pKbd = (KbdDevPtr) pInfo->private;
-
-  if(!pKbd->vtSwitchSupported)
-      return FALSE;
-
-  if ((ModifierSet(ControlMask | AltMask)) ||
-      (ModifierSet(ControlMask | AltLangMask))) {
-      if (VTSwitchEnabled && !xf86Info.vtSysreq && !xf86Info.dontVTSwitch) {
-         switch (key) {
-             case KEY_F1:
-             case KEY_F2:
-             case KEY_F3:
-             case KEY_F4:
-             case KEY_F5:
-             case KEY_F6:
-             case KEY_F7:
-             case KEY_F8:
-             case KEY_F9:
-             case KEY_F10:
-#ifdef VT_ACTIVATE
-                  if (down) {
-                    ioctl(xf86Info.consoleFd, VT_ACTIVATE, key - KEY_F1 + 1);
-                    return TRUE;
-                  }
-#endif
-             case KEY_F11:
-             case KEY_F12:
-#ifdef VT_ACTIVATE
-                  if (down) {
-                    ioctl(xf86Info.consoleFd, VT_ACTIVATE, key - KEY_F11 + 11);
-                    return TRUE;
-                  }
-#endif
-         }
-      }
-    }
-
-    return FALSE;
-}
-
 static void
 stdReadInput(InputInfoPtr pInfo)
 {
@@ -541,8 +499,6 @@ OpenKeyboard(InputInfoPtr pInfo)
      * XkbLayout has been specified.  Do this even if the protocol is
      * not wskbd.
      */
-    if (xf86findOption(pInfo->options, "XkbLayout") != NULL)
-        return TRUE;
 
     if (ioctl(pInfo->fd, WSKBDIO_GETENCODING, &wsenc) == -1) {
 	/* Ignore the error, we just use the defaults */
@@ -550,9 +506,11 @@ OpenKeyboard(InputInfoPtr pInfo)
 		pInfo->name, strerror(errno));
 	return TRUE;
     }
-    if (KB_ENCODING(wsenc) == KB_USER)
-	/* Don't try to set XkbLayout */
+    if (KB_ENCODING(wsenc) == KB_USER) {
+	/* Ignore wscons "user" layout */
+	xf86Msg(X_INFO, "%s: ignoring \"user\" wscons layout", pInfo->name);
 	return TRUE;
+    }
 
     for (i = 0; kbdenc[i].val; i++)
 	if(KB_ENCODING(wsenc) == kbdenc[i].val) {
@@ -594,10 +552,8 @@ xf86OSKbdPreInit(InputInfoPtr pInfo)
     pKbd->GetLeds	= GetKbdLeds;
     pKbd->SetKbdRepeat	= SetKbdRepeat;
     pKbd->KbdGetMapping	= KbdGetMapping;
-    pKbd->SpecialKey	= SpecialKey;
 
     pKbd->RemapScanCode = NULL;
-    pKbd->GetSpecialKey = NULL;
 
     pKbd->OpenKeyboard = OpenKeyboard;
     pKbd->vtSwitchSupported = FALSE;
