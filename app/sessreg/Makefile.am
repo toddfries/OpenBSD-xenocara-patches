@@ -20,7 +20,7 @@
 
 bin_PROGRAMS = sessreg
 
-AM_CFLAGS = $(SESSREG_CFLAGS)
+AM_CFLAGS = $(CWARNFLAGS) $(SESSREG_CFLAGS)
 
 sessreg_SOURCES =	\
 	sessreg.h	\
@@ -32,7 +32,8 @@ appmandir = $(APP_MAN_DIR)
 
 appman_DATA = $(appman_PRE:man=@APP_MAN_SUFFIX@)
 
-EXTRA_DIST = $(appman_PRE) filenames.sed.c ChangeLog
+EXTRA_DIST = $(appman_PRE) filenames.sed.c 
+MAINTAINERCLEANFILES = ChangeLog INSTALL
 CLEANFILES = $(appman_DATA) filenames.sed
 
 SED = sed
@@ -57,13 +58,14 @@ MAN_SUBSTS = -f filenames.sed \
 SUFFIXES = .$(APP_MAN_SUFFIX) .man
 
 .man.$(APP_MAN_SUFFIX):
-	sed $(MAN_SUBSTS) < $< > $@
+	$(AM_V_GEN)$(SED) $(MAN_SUBSTS) < $< > $@
 
 sessreg.$(APP_MAN_SUFFIX): filenames.sed
 
 filenames.sed: filenames.sed.c
-	$(CPP) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	    $(CPPFLAGS) $(srcdir)/filenames.sed.c | grep 's|__' > $@
+	$(AM_V_GEN)$(CPP) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
+	    $(AM_CPPFLAGS) $(CPPFLAGS) $(srcdir)/filenames.sed.c | \
+	    grep 's|__' > $@
 
 if LINT
 ALL_LINT_FLAGS=$(LINT_FLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
@@ -73,11 +75,13 @@ lint:
 	$(LINT) $(ALL_LINT_FLAGS) $(sessreg_SOURCES)
 endif LINT
 
-MAINTAINERCLEANFILES=ChangeLog
 
-.PHONY: ChangeLog
+.PHONY: ChangeLog INSTALL
+
+INSTALL:
+	$(INSTALL_CMD)
 
 ChangeLog:
-	git-log > ChangeLog
+	$(CHANGELOG_CMD)
 
-dist-hook: ChangeLog
+dist-hook: ChangeLog INSTALL
