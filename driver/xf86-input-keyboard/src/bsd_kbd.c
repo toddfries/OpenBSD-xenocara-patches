@@ -499,6 +499,8 @@ OpenKeyboard(InputInfoPtr pInfo)
      * XkbLayout has been specified.  Do this even if the protocol is
      * not wskbd.
      */
+    if (xf86findOption(pInfo->options, "XkbLayout") != NULL)
+        return TRUE;
 
     if (ioctl(pInfo->fd, WSKBDIO_GETENCODING, &wsenc) == -1) {
 	/* Ignore the error, we just use the defaults */
@@ -509,6 +511,7 @@ OpenKeyboard(InputInfoPtr pInfo)
     if (KB_ENCODING(wsenc) == KB_USER) {
 	/* Ignore wscons "user" layout */
 	xf86Msg(X_INFO, "%s: ignoring \"user\" wscons layout\n", pInfo->name);
+	xf86addNewOption(pInfo->options, "XkbLayout", "us");
 	return TRUE;
     }
 

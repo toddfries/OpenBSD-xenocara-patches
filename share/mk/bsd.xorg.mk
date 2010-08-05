@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.xorg.mk,v 1.34 2010/05/08 10:32:12 matthieu Exp $ -*- makefile  -*-
+# $OpenBSD: bsd.xorg.mk,v 1.36 2010/08/04 22:56:00 espie Exp $ -*- makefile  -*-
 #
 # Copyright © 2006 Matthieu Herrb
 #
@@ -51,6 +51,8 @@ CONFIG_SITE=	${XSRCDIR}/etc/config.site
 .endif
 
 _SRCDIR?=	${.CURDIR}
+
+XENOCARA_PATH?=	/bin:/sbin:/usr/bin:/usr/sbin:/usr/X11R6/bin
 
 CONFIGURE_ENV=	PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)" \
 		CONFIG_SITE=$(CONFIG_SITE) \
@@ -166,7 +168,8 @@ config.status:
 			;; \
 		esac; done
 .endif
-	${CONFIGURE_ENV} exec sh ${_SRCDIR}/configure --prefix=${X11BASE} \
+	${CONFIGURE_ENV} PATH=$(XENOCARA_PATH) \
+		exec sh ${_SRCDIR}/configure --prefix=${X11BASE} \
 		--sysconfdir=/etc \
 		--mandir=${X11BASE}/man \
 		${_cache} \
