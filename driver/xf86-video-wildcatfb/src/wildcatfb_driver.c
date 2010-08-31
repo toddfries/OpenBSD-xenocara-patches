@@ -1,4 +1,4 @@
-/*	$OpenBSD: wildcatfb_driver.c,v 1.6 2010/07/23 15:20:33 miod Exp $	*/
+/*	$OpenBSD: wildcatfb_driver.c,v 1.8 2010/08/29 15:20:40 matthieu Exp $	*/
 
 /*
  * Copyright (c) 2009 Miodrag Vallat.
@@ -83,6 +83,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/time.h>
@@ -204,18 +206,6 @@ static const OptionInfoRec WildcatFBOptions[] = {
 	{ -1, NULL, OPTV_NONE, {0}, FALSE}
 };
 
-/* Symbols needed from other modules. */
-static const char *fbSymbols[] = {
-	"fbPictureInit",
-	"fbScreenInit",
-	NULL
-};
-static const char *shadowSymbols[] = {
-	"shadowAdd",
-	"shadowSetup",
-	NULL
-};
-
 #ifdef XFree86LOADER
 static XF86ModuleVersionInfo WildcatFBVersRec = {
 	"wildcatfb",
@@ -252,7 +242,6 @@ WildcatFBSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 	if (!setupDone) {
 		setupDone = TRUE;
 		xf86AddDriver(&WILDCATFB, module, HaveDriverFuncs);
-		LoaderRefSymLists(fbSymbols, shadowSymbols, NULL);
 		return (pointer)1;
 	} else {
 		if (errmaj != NULL)
@@ -580,14 +569,11 @@ WildcatFBPreInit(ScrnInfoPtr pScrn, int flags)
 		WildcatFBFreeRec(pScrn);
 		return FALSE;
 	}
-	xf86LoaderReqSymLists(shadowSymbols, NULL);
 
 	if (xf86LoadSubModule(pScrn, "fb") == NULL) {
 		WildcatFBFreeRec(pScrn);
 		return FALSE;
 	}
-	xf86LoaderReqSymLists(fbSymbols, NULL);
-
 	TRACE_EXIT("PreInit");
 	return TRUE;
 }
