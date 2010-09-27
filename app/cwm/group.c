@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: group.c,v 1.46 2010/07/30 12:28:19 okan Exp $
+ * $Id: group.c,v 1.48 2010/09/25 20:01:27 okan Exp $
  */
 
 #include <sys/param.h>
@@ -179,19 +179,19 @@ group_init(struct screen_ctx *sc)
 }
 
 void
-group_make_autogroup(struct conf *conf, char *class, int no)
+group_make_autogroup(struct conf *conf, char *val, int no)
 {
 	struct autogroupwin	*aw;
 	char			*p;
 
 	aw = xcalloc(1, sizeof(*aw));
 
-	if ((p = strchr(class, ',')) == NULL) {
+	if ((p = strchr(val, ',')) == NULL) {
 		aw->name = NULL;
-		aw->class = xstrdup(class);
+		aw->class = xstrdup(val);
 	} else {
 		*(p++) = '\0';
-		aw->name = xstrdup(class);
+		aw->name = xstrdup(val);
 		aw->class = xstrdup(p);
 	}
 	aw->num = no;
@@ -426,6 +426,7 @@ group_autogroup(struct client_ctx *cc)
 
 	if (cc->app_class == NULL || cc->app_name == NULL)
 		return;
+
 	if (xu_getprop(cc->win, _NET_WM_DESKTOP, XA_CARDINAL,
 	    1, (unsigned char **)&grpno) > 0) {
 		if (*grpno == 0xffffffff)
