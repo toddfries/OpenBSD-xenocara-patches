@@ -1,4 +1,4 @@
-/*	$OpenBSD: video.c,v 1.6 2010/09/26 23:47:17 jakemsr Exp $	*/
+/*	$OpenBSD: video.c,v 1.8 2010/10/15 14:21:20 jakemsr Exp $	*/
 /*
  * Copyright (c) 2010 Jacob Meuser <jakemsr@openbsd.org>
  *
@@ -195,7 +195,7 @@ void got_shutdown(int);
 int find_enc(char *);
 void usage(void);
 
-volatile sig_atomic_t play, shutdown, hold, wout;
+static volatile sig_atomic_t play, shutdown, hold, wout;
 extern char *__progname;
 
 void
@@ -1496,6 +1496,7 @@ main(int argc, char *argv[])
 	x->cur_adap = -1;
 	vid.dev.fd = vid.iofile_fd = -1;
 	vid.mode = M_IN_DEV | M_OUT_XV;
+	vid.enc = -1;
 	wout = 1;
 
 	while ((ch = getopt(argc, argv, "va:e:f:i:O:o:r:s:")) != -1) {
