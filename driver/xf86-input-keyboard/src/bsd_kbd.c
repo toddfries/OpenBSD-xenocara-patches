@@ -8,12 +8,11 @@
  * Copyright 1993 by David Dawes <dawes@xfree86.org>
  */
 
-#define NEED_EVENTS
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include <xorg-server.h>
 #include <X11/X.h>
 #include <termios.h>
 
@@ -35,10 +34,10 @@
 #define KB_OVRENC \
 	{ KB_UK,	"gb" }, \
 	{ KB_SV,	"se" }, \
-	{ KB_SG,	"ch(de)" }, \
-	{ KB_SF,	"ch(fr)" }, \
+	{ KB_SG,	"ch" }, \
+	{ KB_SF,	"ch" }, \
 	{ KB_LA,	"latam" }, \
-	{ KB_CF,	"ca(fr)" }
+	{ KB_CF,	"ca" }
 
 struct nameint {
   int val;
@@ -46,8 +45,13 @@ struct nameint {
 } kbdenc[] = { KB_OVRENC, KB_ENCTAB, { 0 } };
 
 struct nameint kbdvar[] = {
-	{ KB_NODEAD, "nodeadkeys" },
-	{ KB_DVORAK, "dvorak" },
+	{ KB_NODEAD | KB_SG,	"de_nodeadkeys" },
+	{ KB_NODEAD | KB_SF,	"fr_nodeadkeys" },
+	{ KB_SF,		"fr" },
+	{ KB_DVORAK | KB_CF,	"fr-dvorak" },
+	{ KB_CF,		"fr-legacy" },
+	{ KB_NODEAD,	"nodeadkeys" },
+	{ KB_DVORAK,	"dvorak" },
 	{ 0 }
 };
 
@@ -119,8 +123,10 @@ SetKbdLeds(InputInfoPtr pInfo, int leds)
 
     switch (pKbd->consType) {
 
+#ifdef PCCONS_SUPPORT
 	case PCCONS:
 		break;
+#endif
 #if defined (SYSCONS_SUPPORT) || defined (PCVT_SUPPORT)
 	case SYSCONS:
 	case PCVT:
@@ -142,8 +148,11 @@ GetKbdLeds(InputInfoPtr pInfo)
     int leds = 0, real_leds = 0;
 
     switch (pKbd->consType) {
+
+#ifdef PCCONS_SUPPORT
 	case PCCONS:
 	     break;
+#endif
 #if defined (SYSCONS_SUPPORT) || defined (PCVT_SUPPORT)
 	case SYSCONS:
 	case PCVT:
@@ -176,8 +185,10 @@ SetKbdRepeat(InputInfoPtr pInfo, char rad)
     KbdDevPtr pKbd = (KbdDevPtr) pInfo->private;
     switch (pKbd->consType) {
 
+#ifdef PCCONS_SUPPORT
 	case PCCONS:
 		break;
+#endif
 #if defined (SYSCONS_SUPPORT) || defined (PCVT_SUPPORT)
 	case SYSCONS:
 	case PCVT:
@@ -524,7 +535,8 @@ OpenKeyboard(InputInfoPtr pInfo)
         }
     if (xf86findOption(pInfo->options, "XkbVariant") == NULL)
         for (i = 0; kbdvar[i].val; i++)
-            if (KB_VARIANT(wsenc) == kbdvar[i].val) {
+            if (wsenc == kbdvar[i].val ||
+		KB_VARIANT(wsenc) == kbdvar[i].val) {
 		xf86Msg(X_PROBED, "%s: using wscons variant %s\n",
 			pInfo->name, kbdvar[i].name);
                 xf86addNewOption(pInfo->options, "XkbVariant", kbdvar[i].name);
