@@ -1,73 +1,45 @@
-#	$OpenBSD: Makefile,v 1.2 2009/06/06 19:42:19 matthieu Exp $
+#	$OpenBSD: Makefile,v 1.3 2011/01/10 14:42:48 shadchin Exp $
 
 XKB_SUBDIR=	rules/compat
-TOP=		../../../..
 
-transform_files=layoutRename.lst variantRename.lst
+COMPAT_PARTS=	base.ml2_s.part base.ml3_s.part base.ml4_s.part \
+		base.ml2v2_s.part base.ml3v3_s.part base.ml4v4_s.part \
+		base.ml_s.part base.ml1_s.part base.mlv_s.part \
+		base.ml1v1_s.part
 
-transform_scripts= \
-	ln_s.sh \
-	lnv_s.sh \
-	ml_s.sh \
-	mlv_s.sh \
-	ml1_s.sh \
-	ml1v_s.sh \
-	ml1v1_s.sh
+depend all:	${COMPAT_PARTS}
 
-dist_parts=base.o_s.part
+base.ml2_s.part:	${LST_FILES}
+	sh ${BINDIR}/mln_s.sh 2 ${SRCDIR}
 
-scripts= \
-	base.l2_s.part \
-	base.l3_s.part \
-	base.l4_s.part \
-	base.l2v2_s.part \
-	base.l3v3_s.part \
-	base.l4v4_s.part \
-	base.ml_s.part \
-	base.ml1_s.part \
-	base.mlv_s.part \
-	base.ml1v1_s.part \
-	base.ml_s.part
+base.ml3_s.part:	${LST_FILES}
+	sh ${BINDIR}/mln_s.sh 3 ${SRCDIR}
 
-depend all:	${scripts}
+base.ml4_s.part:	${LST_FILES}
+	sh ${BINDIR}/mln_s.sh 4 ${SRCDIR}
 
-srcdir=	${XKB_DIR}/${XKB_SUBDIR}
+base.ml2v2_s.part:	${LST_FILES}
+	sh ${BINDIR}/mlnvn_s.sh 2 ${SRCDIR}
 
-base.l2_s.part: ln_s.sh $(transform_files)
-	sh  ${srcdir}/ln_s.sh 2
+base.ml3v3_s.part:	${LST_FILES}
+	sh ${BINDIR}/mlnvn_s.sh 3 ${SRCDIR}
 
-base.l3_s.part: ln_s.sh $(transform_files)
-	sh ${srcdir}/ln_s.sh 3
+base.ml4v4_s.part:	${LST_FILES}
+	sh ${BINDIR}/mlnvn_s.sh 4 ${SRCDIR}
 
-base.l4_s.part: ln_s.sh $(transform_files)
-	sh ${srcdir}/ln_s.sh 4
+base.ml_s.part:	${LST_FILES}
+	sh ${BINDIR}/ml_s.sh ${SRCDIR}
 
-base.l2v2_s.part: lnv_s.sh $(transform_files)
-	sh ${srcdir}/lnv_s.sh 2
+base.ml1_s.part:	${LST_FILES}
+	sh ${BINDIR}/ml1_s.sh ${SRCDIR}
 
-base.l3v3_s.part: lnv_s.sh $(transform_files)
-	sh ${srcdir}/lnv_s.sh 3
+base.mlv_s.part:	${LST_FILES}
+	sh ${BINDIR}/mlv_s.sh ${SRCDIR}
 
-base.l4v4_s.part: lnv_s.sh $(transform_files)
-	sh ${srcdir}/lnv_s.sh 4
-
-base.ml_s.part: ml_s.sh $(transform_files)
-	sh ${srcdir}/ml_s.sh
-
-base.ml1_s.part: ml1_s.sh $(transform_files)
-	sh ${srcdir}/ml1_s.sh
-
-base.mlv_s.part: mlv_s.sh $(transform_files)
-	sh ${srcdir}/mlv_s.sh
-
-base.ml1v1_s.part: ml1v1_s.sh $(transform_files)
-	sh ${srcdir}/ml1v1_s.sh
+base.ml1v1_s.part:	${LST_FILES}
+	sh ${BINDIR}/ml1v1_s.sh ${SRCDIR}
 
 clean:
-	rm -f ${scripts}
+	rm -f ${COMPAT_PARTS}
 
-.include "../../Makefile.inc"
 .include <bsd.xorg.mk>
-
-.SUFFIXES: .sh
-.PATH: ${XSRCDIR}/dist/xkeyboard-config/rules/compat
