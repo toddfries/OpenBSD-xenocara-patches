@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: calmwm.h,v 1.118 2010/05/22 22:10:31 okan Exp $
+ * $Id: calmwm.h,v 1.122 2011/03/22 10:57:31 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -50,6 +50,10 @@
 #define MenuGrabMask	(ButtonMask|ButtonMotionMask|StructureNotifyMask|\
 			PointerMotionMask)
 #define SearchMask	(KeyPressMask|ExposureMask)
+
+#ifndef nitems
+#define nitems(_a) (sizeof((_a)) / sizeof((_a)[0]))
+#endif
 
 enum cwmcolor {
 	CWM_COLOR_BORDOR_ACTIVE,
@@ -189,7 +193,6 @@ struct client_ctx {
 
 	char			*app_class;
 	char			*app_name;
-	char			*app_cliarg;
 };
 
 extern const char *shortcut_to_name[];
@@ -325,12 +328,6 @@ struct menu {
 
 TAILQ_HEAD(menu_q, menu);
 
-enum ctltype {
-	CTL_NONE = -1,
-	CTL_ERASEONE = 0, CTL_WIPE, CTL_UP, CTL_DOWN, CTL_RETURN,
-	CTL_ABORT, CTL_ALL
-};
-
 /* MWM hints */
 
 struct mwm_hints {
@@ -345,9 +342,6 @@ struct mwm_hints {
 #define	MWM_HINTS_DECORATIONS	(1 << 1)
 #define	MWM_DECOR_ALL		(1 << 0)
 #define	MWM_DECOR_BORDER	(1 << 1)
-
-int			 input_keycodetrans(KeyCode, u_int, enum ctltype *,
-			     char *);
 
 __dead void		 usage(void);
 
@@ -384,9 +378,6 @@ struct menu  		*menu_filter(struct screen_ctx *, struct menu_q *,
 			     void (*)(struct menu *, int));
 void			 menu_init(struct screen_ctx *);
 
-/* XXX should be xu_ */
-void			  xev_reconfig(struct client_ctx *);
-
 void			 xev_loop(void);
 
 void			 xu_getatoms(void);
@@ -399,6 +390,7 @@ void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_getpos(Window, int *, int *);
 void			 xu_key_grab(Window, int, int);
 void			 xu_key_ungrab(Window, int, int);
+void			 xu_configure(struct client_ctx *);
 void			 xu_sendmsg(Window, Atom, long);
 int			 xu_getprop(Window, Atom, Atom, long, u_char **);
 int			 xu_getstrprop(Window, Atom, char **);
