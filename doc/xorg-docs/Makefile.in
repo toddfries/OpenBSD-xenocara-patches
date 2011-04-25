@@ -58,10 +58,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-DIST_COMMON = README $(am__configure_deps) $(dist_x11doc_DATA) \
+DIST_COMMON = README $(am__configure_deps) $(dist_doc_DATA) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
-	$(top_srcdir)/configure config.guess config.sub install-sh \
-	missing
+	$(top_srcdir)/configure ChangeLog INSTALL config.guess \
+	config.sub install-sh missing
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -85,9 +85,9 @@ am__vpath_adj = case $$p in \
     *) f=$$p;; \
   esac;
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(x11docdir)"
-dist_x11docDATA_INSTALL = $(INSTALL_DATA)
-DATA = $(dist_x11doc_DATA)
+am__installdirs = "$(DESTDIR)$(docdir)"
+dist_docDATA_INSTALL = $(INSTALL_DATA)
+DATA = $(dist_doc_DATA)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -105,35 +105,68 @@ distcleancheck_listfiles = find . -type f -print
 ACLOCAL = @ACLOCAL@
 ADMIN_MAN_DIR = @ADMIN_MAN_DIR@
 ADMIN_MAN_SUFFIX = @ADMIN_MAN_SUFFIX@
+AMDEP_FALSE = @AMDEP_FALSE@
+AMDEP_TRUE = @AMDEP_TRUE@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 APP_MAN_DIR = @APP_MAN_DIR@
 APP_MAN_SUFFIX = @APP_MAN_SUFFIX@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+CC = @CC@
+CCDEPMODE = @CCDEPMODE@
+CFLAGS = @CFLAGS@
+CHANGELOG_CMD = @CHANGELOG_CMD@
+CPP = @CPP@
+CPPFLAGS = @CPPFLAGS@
+CWARNFLAGS = @CWARNFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
+DEPDIR = @DEPDIR@
 DRIVER_MAN_DIR = @DRIVER_MAN_DIR@
 DRIVER_MAN_SUFFIX = @DRIVER_MAN_SUFFIX@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
+EGREP = @EGREP@
+ENABLE_DOCS_FALSE = @ENABLE_DOCS_FALSE@
+ENABLE_DOCS_TRUE = @ENABLE_DOCS_TRUE@
+ENABLE_SPECS_FALSE = @ENABLE_SPECS_FALSE@
+ENABLE_SPECS_TRUE = @ENABLE_SPECS_TRUE@
+EXEEXT = @EXEEXT@
 FILE_MAN_DIR = @FILE_MAN_DIR@
 FILE_MAN_SUFFIX = @FILE_MAN_SUFFIX@
-HARDCOPYDIR = @HARDCOPYDIR@
+FOP = @FOP@
+GREP = @GREP@
+HAVE_FOP_FALSE = @HAVE_FOP_FALSE@
+HAVE_FOP_TRUE = @HAVE_FOP_TRUE@
+HAVE_STYLESHEETS_FALSE = @HAVE_STYLESHEETS_FALSE@
+HAVE_STYLESHEETS_TRUE = @HAVE_STYLESHEETS_TRUE@
+HAVE_XMLTO_FALSE = @HAVE_XMLTO_FALSE@
+HAVE_XMLTO_TEXT_FALSE = @HAVE_XMLTO_TEXT_FALSE@
+HAVE_XMLTO_TEXT_TRUE = @HAVE_XMLTO_TEXT_TRUE@
+HAVE_XMLTO_TRUE = @HAVE_XMLTO_TRUE@
+INSTALL_CMD = @INSTALL_CMD@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIB_MAN_DIR = @LIB_MAN_DIR@
 LIB_MAN_SUFFIX = @LIB_MAN_SUFFIX@
 LTLIBOBJS = @LTLIBOBJS@
+MAINT = @MAINT@
+MAINTAINER_MODE_FALSE = @MAINTAINER_MODE_FALSE@
+MAINTAINER_MODE_TRUE = @MAINTAINER_MODE_TRUE@
 MAKEINFO = @MAKEINFO@
+MAN_SUBSTS = @MAN_SUBSTS@
 MISC_MAN_DIR = @MISC_MAN_DIR@
 MISC_MAN_SUFFIX = @MISC_MAN_SUFFIX@
+OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -141,13 +174,23 @@ PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PKG_CONFIG = @PKG_CONFIG@
+SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+STYLESHEET_SRCDIR = @STYLESHEET_SRCDIR@
 VERSION = @VERSION@
-X11DOCDIR = @X11DOCDIR@
-ac_ct_STRIP = @ac_ct_STRIP@
+XMLTO = @XMLTO@
+XORG_MAN_PAGE = @XORG_MAN_PAGE@
+XORG_SGML_PATH = @XORG_SGML_PATH@
+XSL_STYLESHEET = @XSL_STYLESHEET@
+ac_ct_CC = @ac_ct_CC@
+am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
+am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
+am__include = @am__include@
 am__leading_dot = @am__leading_dot@
+am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
 bindir = @bindir@
@@ -157,253 +200,52 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
+datarootdir = @datarootdir@
+docdir = @docdir@
+dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
+htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
+pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
+psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 SUBDIRS = man
-x11docdir = @X11DOCDIR@
-dist_x11doc_DATA = MAINTAINERS
+dist_doc_DATA = MAINTAINERS
+MAINTAINERCLEANFILES = ChangeLog INSTALL
 EXTRA_DIST = \
-	MAINTAINERS \
 	misc/xlogo.epsi \
+	misc/xlogo.svg \
 	registry \
 	specs/BDF/bdf.ms \
 	specs/BDF/fig1.ps \
 	specs/BDF/fig2.ps \
-	specs/CTEXT/ctext.tbl.ms \
-	specs/FSProtocol/protocol.ms \
-	specs/GL/libGL.txt \
-	specs/i18n/Framework.ms \
-	specs/i18n/LocaleDB.ms \
-	specs/i18n/Trans.ms \
-	specs/ICCCM/icccm.ms \
-	specs/ICCCM/indexmacros.t \
-	specs/ICE/ICElib.ms \
-	specs/ICE/ice.ms \
-	specs/PM/PM_spec \
-	specs/Randr/protocol.txt \
-	specs/Render/library \
-	specs/Render/protocol \
-	specs/rstart/fix.awk \
-	specs/rstart/fix.nawk \
-	specs/rstart/fix.sed \
-	specs/rstart/rstartd.txt \
-	specs/rstart/rstart.ms \
-	specs/rstart/tmac.rfc \
-	specs/RX/RX.mif \
-	specs/saver/saver.ms \
-	specs/SIAddresses/hostname.txt \
-	specs/SIAddresses/IPv6.txt \
-	specs/SIAddresses/localuser.txt \
-	specs/SIAddresses/README \
-	specs/SM/SMlib.ms \
-	specs/SM/xsmp.ms \
-	specs/specindex.html \
-	specs/X11/abstract.t \
-	specs/X11/AppA \
-	specs/X11/AppB \
-	specs/X11/AppC \
-	specs/X11/AppD \
-	specs/X11/CH01 \
-	specs/X11/CH02 \
-	specs/X11/CH03 \
-	specs/X11/CH04 \
-	specs/X11/CH05 \
-	specs/X11/CH06 \
-	specs/X11/CH07 \
-	specs/X11/CH08 \
-	specs/X11/CH09 \
-	specs/X11/CH10 \
-	specs/X11/CH11 \
-	specs/X11/CH12 \
-	specs/X11/CH13 \
-	specs/X11/CH14 \
-	specs/X11/CH15 \
-	specs/X11/CH16 \
-	specs/X11/credits.t \
-	specs/X11/glossary \
-	specs/X11/indexmacros.t \
-	specs/X11/postproc \
-	specs/Xaw/AsciiSink \
-	specs/Xaw/AsciiSource \
-	specs/Xaw/AsciiText \
-	specs/Xaw/block.awk \
-	specs/Xaw/Box \
-	specs/Xaw/CH1 \
-	specs/Xaw/CH2 \
-	specs/Xaw/CH3.intro \
-	specs/Xaw/CH4.intro \
-	specs/Xaw/CH5.intro \
-	specs/Xaw/CH6.intro \
-	specs/Xaw/CH7.intro \
-	specs/Xaw/Command \
-	specs/Xaw/Dialog \
-	specs/Xaw/fixindex.awk \
-	specs/Xaw/Form \
-	specs/Xaw/Grip \
-	specs/Xaw/Label \
-	specs/Xaw/List \
-	specs/Xaw/MenuButton \
-	specs/Xaw/Paned \
-	specs/Xaw/Panner \
-	specs/Xaw/Porthole \
-	specs/Xaw/Repeater \
-	specs/Xaw/Scrollbar \
-	specs/Xaw/Simple \
-	specs/Xaw/SimpleMenu \
-	specs/Xaw/Sme \
-	specs/Xaw/SmeBSB \
-	specs/Xaw/SmeLine \
-	specs/Xaw/strings.mit \
-	specs/Xaw/strings.xaw \
-	specs/Xaw/StripChart \
-	specs/Xaw/Template \
-	specs/Xaw/Text \
-	specs/Xaw/TextActions \
-	specs/Xaw/TextCustom \
-	specs/Xaw/TextFuncs \
-	specs/Xaw/TextSink \
-	specs/Xaw/TextSource \
-	specs/Xaw/Toggle \
-	specs/Xaw/TPage_Credits \
-	specs/Xaw/Tree \
-	specs/Xaw/Viewport \
-	specs/Xaw/widg.idxmac.t \
-	specs/Xaw/Xtk.widgets \
-	specs/Xaw/Xtk.widg.front \
-	specs/XDMCP/xdmcp.ms \
-	specs/Xext/AppGroup.mif \
-	specs/Xext/bigreq.ms \
-	specs/Xext/buffer.ms \
-	specs/Xext/dbelib.tex \
-	specs/Xext/dbe.tex \
-	specs/Xext/DPMSLib.ms \
-	specs/Xext/DPMS.ms \
-	specs/Xext/evi.ms \
-	specs/Xext/lbxalg.mif \
-	specs/Xext/lbx.book \
-	specs/Xext/lbx.mif \
-	specs/Xext/mit-shm.ms \
-	specs/Xext/recordlib.ms \
-	specs/Xext/record.ms \
-	specs/Xext/security.tex \
-	specs/Xext/shapelib.ms \
-	specs/Xext/shape.ms \
-	specs/Xext/synclib.tex \
-	specs/Xext/sync.tex \
-	specs/Xext/tog-cup.ms \
-	specs/Xext/xc-misc.ms \
-	specs/Xext/xtest1.info \
-	specs/Xext/xtest1.mm \
-	specs/Xext/xtestlib.ms \
-	specs/Xext/xtest.ms \
-	specs/xfs/design.ms \
-	specs/xfs/FSlib.doc \
-	specs/Xi/encoding.ms \
-	specs/Xi/library.ms \
-	specs/XIM/xim.ms \
-	specs/Xi/porting.ms \
-	specs/Xi/protocol.ms \
-	specs/XKB/Proto/dflttrns.fm5 \
-	specs/XKB/Proto/encoding.fm5 \
-	specs/XKB/Proto/keysyms.fm5 \
-	specs/XKB/Proto/protocol.fm5 \
-	specs/XKB/Proto/prototoc.doc \
-	specs/XKB/Proto/title.fm5 \
-	specs/XKB/Proto/types.fm5 \
-	specs/XKB/Proto/XKBproto.book \
-	specs/XKB/XKBlib/allchaps.fm5 \
-	specs/XKB/XKBlib/allchaps.ix \
-	specs/XKB/XKBlib/allchaps.lof \
-	specs/XKB/XKBlib/allchaps.lot \
-	specs/XKB/XKBlib/allchaps.ps \
-	specs/XKB/XKBlib/allchaps.toc \
-	specs/XKB/XKBlib/fonts.fm5 \
-	specs/XKB/XKBlib/title.fm5 \
-	specs/XKB/XKBlib/XKBlib.book \
-	specs/XLFD/xlfd.tbl.ms \
-	specs/Xmu/Xmu.ms \
-	specs/XPRINT/xp_library.book \
-	specs/XPRINT/xp_library_cov.mif \
-	specs/XPRINT/xp_libraryIX.doc \
-	specs/XPRINT/xp_library.mif \
-	specs/XPRINT/xp_libraryTOC.doc \
-	specs/XPRINT/xp_proto.book \
-	specs/XPRINT/xp_proto_cov.mif \
-	specs/XPRINT/xp_protoIX.doc \
-	specs/XPRINT/xp_proto.mif \
-	specs/XPRINT/xp_protoTOC.doc \
-	specs/XProtocol/glossary \
-	specs/XProtocol/indexmacros.t \
-	specs/XProtocol/postproc \
-	specs/XProtocol/X11.encoding \
-	specs/XProtocol/X11.keysyms \
-	specs/XProtocol/X11.protocol \
-	specs/Xserver/analysis.tex \
-	specs/Xserver/appgroup.ms \
-	specs/Xserver/ddx.tbl.ms \
-	specs/Xserver/fontlib.ms \
-	specs/Xserver/secint.tex \
-	specs/Xserver/Xprt.book \
-	specs/Xserver/Xprt_cov.mif \
-	specs/Xserver/XprtIX.doc \
-	specs/Xserver/Xprt.mif \
-	specs/Xserver/XprtTOC.doc \
-	specs/Xt/appA \
-	specs/Xt/appB \
-	specs/Xt/appC \
-	specs/Xt/appD \
-	specs/Xt/appE \
-	specs/Xt/appF \
-	specs/Xt/CH01 \
-	specs/Xt/CH02 \
-	specs/Xt/CH03 \
-	specs/Xt/CH04 \
-	specs/Xt/CH05 \
-	specs/Xt/CH06 \
-	specs/Xt/CH07 \
-	specs/Xt/CH08 \
-	specs/Xt/CH09 \
-	specs/Xt/CH10 \
-	specs/Xt/CH11 \
-	specs/Xt/CH12 \
-	specs/Xt/CH13 \
-	specs/Xt/intr.idxmac.t \
-	specs/Xt/postproc \
-	specs/xtrans/Xtrans.mm \
-	specs/Xt/strings.mit \
-	specs/Xt/Xtk.intr.front \
-	specs/XvMC/XvMC_API.txt \
-	specs/Xv/xv-protocol-v2.txt \
-	util/block.awk \
-	util/fixindex.awk \
-	util/indexmacros.t \
-	util/macros.t
+	specs/specindex.html
 
 all: all-recursive
 
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+$(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -430,27 +272,27 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	$(SHELL) ./config.status --recheck
 
-$(top_srcdir)/configure:  $(am__configure_deps)
+$(top_srcdir)/configure: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	cd $(srcdir) && $(AUTOCONF)
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+$(ACLOCAL_M4): @MAINTAINER_MODE_TRUE@ $(am__aclocal_m4_deps)
 	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 uninstall-info-am:
-install-dist_x11docDATA: $(dist_x11doc_DATA)
+install-dist_docDATA: $(dist_doc_DATA)
 	@$(NORMAL_INSTALL)
-	test -z "$(x11docdir)" || $(mkdir_p) "$(DESTDIR)$(x11docdir)"
-	@list='$(dist_x11doc_DATA)'; for p in $$list; do \
+	test -z "$(docdir)" || $(mkdir_p) "$(DESTDIR)$(docdir)"
+	@list='$(dist_doc_DATA)'; for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  f=$(am__strip_dir) \
-	  echo " $(dist_x11docDATA_INSTALL) '$$d$$p' '$(DESTDIR)$(x11docdir)/$$f'"; \
-	  $(dist_x11docDATA_INSTALL) "$$d$$p" "$(DESTDIR)$(x11docdir)/$$f"; \
+	  echo " $(dist_docDATA_INSTALL) '$$d$$p' '$(DESTDIR)$(docdir)/$$f'"; \
+	  $(dist_docDATA_INSTALL) "$$d$$p" "$(DESTDIR)$(docdir)/$$f"; \
 	done
 
-uninstall-dist_x11docDATA:
+uninstall-dist_docDATA:
 	@$(NORMAL_UNINSTALL)
-	@list='$(dist_x11doc_DATA)'; for p in $$list; do \
+	@list='$(dist_doc_DATA)'; for p in $$list; do \
 	  f=$(am__strip_dir) \
-	  echo " rm -f '$(DESTDIR)$(x11docdir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(x11docdir)/$$f"; \
+	  echo " rm -f '$(DESTDIR)$(docdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(docdir)/$$f"; \
 	done
 
 # This directory's subdirectories are mostly independent; you can cd
@@ -588,7 +430,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/misc $(distdir)/specs $(distdir)/specs/BDF $(distdir)/specs/CTEXT $(distdir)/specs/FSProtocol $(distdir)/specs/GL $(distdir)/specs/ICCCM $(distdir)/specs/ICE $(distdir)/specs/PM $(distdir)/specs/RX $(distdir)/specs/Randr $(distdir)/specs/Render $(distdir)/specs/SIAddresses $(distdir)/specs/SM $(distdir)/specs/X11 $(distdir)/specs/XDMCP $(distdir)/specs/XIM $(distdir)/specs/XKB/Proto $(distdir)/specs/XKB/XKBlib $(distdir)/specs/XLFD $(distdir)/specs/XPRINT $(distdir)/specs/XProtocol $(distdir)/specs/Xaw $(distdir)/specs/Xext $(distdir)/specs/Xi $(distdir)/specs/Xmu $(distdir)/specs/Xserver $(distdir)/specs/Xt $(distdir)/specs/Xv $(distdir)/specs/XvMC $(distdir)/specs/i18n $(distdir)/specs/rstart $(distdir)/specs/saver $(distdir)/specs/xfs $(distdir)/specs/xtrans $(distdir)/util
+	$(mkdir_p) $(distdir)/misc $(distdir)/specs $(distdir)/specs/BDF
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -630,6 +472,9 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
+	$(MAKE) $(AM_MAKEFLAGS) \
+	  top_distdir="$(top_distdir)" distdir="$(distdir)" \
+	  dist-hook
 	-find $(distdir) -type d ! -perm -777 -exec chmod a+rwx {} \; -o \
 	  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
@@ -732,7 +577,7 @@ check: check-recursive
 all-am: Makefile $(DATA)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(x11docdir)"; do \
+	for dir in "$(DESTDIR)$(docdir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-recursive
@@ -759,6 +604,7 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 clean: clean-recursive
 
 clean-am: clean-generic mostlyclean-am
@@ -778,7 +624,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am: install-dist_x11docDATA
+install-data-am: install-dist_docDATA
 
 install-exec-am:
 
@@ -806,26 +652,36 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-dist_x11docDATA uninstall-info-am
+uninstall-am: uninstall-dist_docDATA uninstall-info-am
 
 uninstall-info: uninstall-info-recursive
 
 .PHONY: $(RECURSIVE_TARGETS) CTAGS GTAGS all all-am am--refresh check \
 	check-am clean clean-generic clean-recursive ctags \
-	ctags-recursive dist dist-all dist-bzip2 dist-gzip dist-shar \
-	dist-tarZ dist-zip distcheck distclean distclean-generic \
-	distclean-recursive distclean-tags distcleancheck distdir \
-	distuninstallcheck dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am \
-	install-dist_x11docDATA install-exec install-exec-am \
-	install-info install-info-am install-man install-strip \
-	installcheck installcheck-am installdirs installdirs-am \
-	maintainer-clean maintainer-clean-generic \
+	ctags-recursive dist dist-all dist-bzip2 dist-gzip dist-hook \
+	dist-shar dist-tarZ dist-zip distcheck distclean \
+	distclean-generic distclean-recursive distclean-tags \
+	distcleancheck distdir distuninstallcheck dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dist_docDATA install-exec \
+	install-exec-am install-info install-info-am install-man \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
 	maintainer-clean-recursive mostlyclean mostlyclean-generic \
 	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-dist_x11docDATA \
+	uninstall uninstall-am uninstall-dist_docDATA \
 	uninstall-info-am
 
+
+.PHONY: ChangeLog INSTALL
+
+INSTALL:
+	$(INSTALL_CMD)
+
+ChangeLog:
+	$(CHANGELOG_CMD)
+
+dist-hook: ChangeLog INSTALL
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

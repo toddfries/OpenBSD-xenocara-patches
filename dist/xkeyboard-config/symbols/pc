@@ -1,8 +1,3 @@
-// $XKeyboardConfig$
-
-//
-// $XFree86: xc/programs/xkbcomp/symbols/pc,v 1.9 2003/06/09 19:59:46 dawes Exp $
-
 default partial alphanumeric_keys modifier_keys 
 xkb_symbols "pc105" {
 
@@ -39,6 +34,9 @@ xkb_symbols "pc105" {
     key <RWIN> {	[ Super_R			]	};
 
     key <MENU> {	[ Menu			]	};
+
+    // "Sun LKeys" section
+    include "sun_vndr/us(left_funkeys)"
 
     // begin modifier mappings
     modifier_map Shift  { Shift_L, Shift_R };
@@ -145,4 +143,3 @@ xkb_symbols "editing" {
     key <DOWN> {	[  Down			]	};
     key <RGHT> {	[  Right		]	};
 };
-
