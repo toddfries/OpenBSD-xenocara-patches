@@ -1,7 +1,7 @@
-/*      $OpenBSD: xtsscale.c,v 1.16 2010/12/06 06:49:47 jasper Exp $ */
+/*      $OpenBSD: xtsscale.c,v 1.21 2011/07/16 17:54:07 matthieu Exp $ */
 /*
  * Copyright (c) 2007 Robert Nagy <robert@openbsd.org>
- * Copyright (c) 2009 Matthieu Herrb <matthieu@herrb.eu>
+ * Copyright (c) 2009,2011 Matthieu Herrb <matthieu@herrb.eu>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -68,7 +68,7 @@
 #define FONT_SIZE		14
 
 #define Background		"white"
-#define TouchCross	        "black"
+#define TouchCross		"black"
 #define PromptText		"black"
 #define Error			"red"
 
@@ -118,7 +118,7 @@ Bool old_swap;
 
 static char    *prompt_message[] = {
 	"TOUCH SCREEN CALIBRATION",
-	"Press on the cross hairs please...",
+	"Press on the crosshairs please...",
 	"Use the ESC key to cancel.",
 	NULL
 };
@@ -220,7 +220,7 @@ draw_point(int x, int y, int width, int size, XftColor *color)
 void
 draw_text(char **message, XftColor *color)
 {
-	int      	len;
+	int	 	len;
 	int             i, x, y;
 	XGlyphInfo	extents;
 
@@ -267,6 +267,34 @@ create_empty_cursor(void)
 	return mcyursor;
 }
 
+int
+check_device(XDeviceInfo *info)
+{
+	XDevice *device;
+	Atom type;
+	int format;
+	unsigned long nitems, nbytes;
+	unsigned char *retval;
+
+	if (verbose)
+		printf("Checking device %lu: %s...", info->id, info->name);
+	device = XOpenDevice(display, info->id);
+	XGetDeviceProperty(display,
+			   device, prop_calibration,
+			   0, 4, False,
+			   XA_INTEGER, &type, &format,
+			   &nitems, &nbytes, &retval);
+	XCloseDevice(display, device);
+	if (nitems != 4) {
+		if (verbose)
+			printf("can't be calibrated\n");
+		return False;
+	}
+	if (verbose)
+		printf("can be calibrated\n");
+	return True;
+}
+
 XDeviceInfo*
 find_device_info(char *name)
 {
@@ -307,8 +335,10 @@ find_device_info(char *name)
 		if (devices[i].use != IsXExtensionPointer)
 			continue;
 		if (name == NULL) {
-			found = &devices[i];
-			num_found++;
+			if (check_device(&devices[i])) {
+				found = &devices[i];
+				num_found++;
+			}
 			continue;
 		}
 		if ((!is_id && strcmp(devices[i].name, name) == 0) ||
@@ -487,7 +517,7 @@ get_xrandr_config(Display *dpy, Window root, char *name,
 	for (o = 0; o < res->noutput; o++) {
 		output_info = XRRGetOutputInfo (dpy, res, res->outputs[o]);
 		if (!output_info) {
-			fprintf(stderr, 
+			fprintf(stderr,
 			    "could not get output 0x%lx information\n",
 			    res->outputs[o]);
 			exit(2);
@@ -498,7 +528,7 @@ get_xrandr_config(Display *dpy, Window root, char *name,
 			if (!crtc_info) {
 				fprintf(stderr,
 				    "%s: could not get crtc 0x%lx "
-				    "information\n", __progname, 
+				    "information\n", __progname,
 				    output_info->crtc);
 				exit(2);
 			}
@@ -524,7 +554,8 @@ get_xrandr_config(Display *dpy, Window root, char *name,
 void __dead
 usage(void)
 {
-	fprintf(stderr, "usage: xtsscale [-D display][-d device][-o output]\n");
+	fprintf(stderr, "usage: xtsscale [-c][-D display]"
+		"[-d device][-o output]\n");
 	exit(2);
 }
 
@@ -542,15 +573,19 @@ main(int argc, char *argv[], char *env[])
 	XDeviceInfo	*info;
 	XDevice		*device;
 	long		 calib_data[4];
+	unsigned long	 mask;
 	unsigned char	 swap;
-	int ch;
+	int 		 keep_cursor = 0, ch;
 
 	/* Crosshair placement */
 	int		cpx[] = { 0, 0, 1, 1, 1 };
 	int		cpy[] = { 0, 1, 0, 0, 1 };
 
-	while ((ch = getopt(argc, argv, "D:d:o:v")) != -1) {
+	while ((ch = getopt(argc, argv, "cD:d:o:v")) != -1) {
 		switch (ch) {
+		case 'c':
+			keep_cursor++;
+			break;
 		case 'D':
 			display_name = optarg;
 			break;
@@ -589,25 +624,25 @@ main(int argc, char *argv[], char *env[])
 	width = DisplayWidth(display, screen);
 	height = DisplayHeight(display, screen);
 
-        if (XRRQueryExtension(display, &event, &error)) {
-                int major, minor;
+	if (XRRQueryExtension(display, &event, &error)) {
+		int major, minor;
 
-                if (XRRQueryVersion(display, &major, &minor) != True) {
-                        fprintf(stderr, "Error querying XRandR version");
-                } else {
-                        printf("XRandR extension version %d.%d present\n",
-                            major, minor);
-                        has_xrandr = True;
-                        if (major > 1 || (major == 1 && minor >=2))
-                                has_xrandr_1_2 = True;
-                        if (major > 1 || (major == 1 && minor >=3))
-                                has_xrandr_1_3 = True;
-                }
-        }
-        
+		if (XRRQueryVersion(display, &major, &minor) != True) {
+			fprintf(stderr, "Error querying XRandR version");
+		} else {
+			printf("XRandR extension version %d.%d present\n",
+			    major, minor);
+			has_xrandr = True;
+			if (major > 1 || (major == 1 && minor >=2))
+				has_xrandr_1_2 = True;
+			if (major > 1 || (major == 1 && minor >=3))
+				has_xrandr_1_3 = True;
+		}
+	}
+
 	if (output_name != NULL) {
 		if (has_xrandr_1_2) {
-			get_xrandr_config(display, root, output_name, 
+			get_xrandr_config(display, root, output_name,
 			    &xpos, &ypos, &width, &height);
 		} else {
 			fprintf(stderr, "%s: can not specify an output "
@@ -629,13 +664,6 @@ main(int argc, char *argv[], char *env[])
 		exit(1);
 	}
 	XFree(version);
-	info = find_device_info(device_name);
-	if (info == NULL) {
-		fprintf(stderr, "Unable to find the %s device\n",
-			device_name ? device_name : "default");
-		exit(1);
-	}
-
 	prop_calibration = XInternAtom(display, WS_PROP_CALIBRATION, True);
 	if (prop_calibration == None) {
 		fprintf(stderr, "Unable to find the \"%s\" device property.\n"
@@ -649,18 +677,27 @@ main(int argc, char *argv[], char *env[])
 		    WS_PROP_SWAP_AXES);
 		exit(1);
 	}
+	info = find_device_info(device_name);
+	if (info == NULL) {
+		fprintf(stderr, "Unable to find the %s device\n",
+			device_name ? device_name : "default");
+		exit(1);
+	}
+
 
 	/* setup window attributes */
 	xswa.override_redirect = True;
 	xswa.background_pixel = BlackPixel(display, screen);
 	xswa.event_mask = ExposureMask | KeyPressMask;
-	xswa.cursor = create_empty_cursor();
-
+	mask = CWOverrideRedirect | CWBackPixel | CWEventMask;
+	if (!keep_cursor) {
+		xswa.cursor = create_empty_cursor();
+		mask |= CWCursor;
+	}
 	win = XCreateWindow(display, RootWindow(display, screen),
 			    xpos, ypos, width, height, 0,
 			    CopyFromParent, InputOutput, CopyFromParent,
-			    CWOverrideRedirect | CWBackPixel | CWEventMask |
-			    CWCursor, &xswa);
+			    mask, &xswa);
 	render_init();
 	XMapWindow(display, win);
 	XGrabKeyboard(display, win, False, GrabModeAsync, GrabModeAsync,
@@ -669,6 +706,8 @@ main(int argc, char *argv[], char *env[])
 
 	XClearWindow(display, win);
 
+	if (verbose)
+		printf("Calibrating %s\n", info->name);
 	device = XOpenDevice(display, info->id);
 	if (!device) {
 		fprintf(stderr, "Unable to open the X input device \"%s\"\n",

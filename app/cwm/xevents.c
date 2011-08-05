@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: xevents.c,v 1.51 2011/03/22 10:49:46 okan Exp $
+ * $OpenBSD: xevents.c,v 1.54 2011/06/24 05:33:41 okan Exp $
  */
 
 /*
@@ -90,8 +90,8 @@ xev_handle_maprequest(XEvent *ee)
 		if (strncasecmp(wm->title, cc->name, strlen(wm->title)) == 0)
 			return;
 	}
-
-	client_ptrwarp(cc);
+	if ((cc->flags & CLIENT_IGNORE) == 0)
+		client_ptrwarp(cc);
 }
 
 static void
@@ -410,14 +410,14 @@ xev_handle_expose(XEvent *ee)
 		client_draw_border(cc);
 }
 
-volatile sig_atomic_t	_xev_quit = 0;
+volatile sig_atomic_t	xev_quit = 0;
 
 void
 xev_loop(void)
 {
 	XEvent		 e;
 
-	while (_xev_quit == 0) {
+	while (xev_quit == 0) {
 		XNextEvent(X_Dpy, &e);
 		if (e.type - Randr_ev == RRScreenChangeNotify)
 			xev_handle_randr(&e);

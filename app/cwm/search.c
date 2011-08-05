@@ -2,6 +2,7 @@
  * calmwm - the calm window manager
  *
  * Copyright (c) 2004 Marius Aamodt Eriksen <marius@monkey.org>
+ *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
@@ -14,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: search.c,v 1.22 2011/03/22 10:57:31 okan Exp $
+ * $OpenBSD: search.c,v 1.24 2011/07/25 15:10:24 okan Exp $
  */
 
 #include <sys/param.h>
@@ -45,7 +46,7 @@ search_match_client(struct menu_q *menuq, struct menu_q *resultq, char *search)
 
 	TAILQ_INIT(resultq);
 
-	memset(tierp, 0, sizeof(tierp));
+	(void)memset(tierp, 0, sizeof(tierp));
 
 	/*
 	 * In order of rank:
@@ -133,7 +134,8 @@ search_print_client(struct menu *mi, int list)
 	if (list)
 		cc->matchname = cc->name;
 
-	snprintf(mi->print, sizeof(mi->print), "%c%s", flag, cc->matchname);
+	(void)snprintf(mi->print, sizeof(mi->print), "%c%s", flag,
+	    cc->matchname);
 
 	if (!list && cc->matchname != cc->name &&
 	    strlen(mi->print) < sizeof(mi->print) - 1) {
@@ -153,8 +155,8 @@ search_print_client(struct menu *mi, int list)
 			diff = strlen(cc->name);
 		}
 
-		strlcpy(buf, mi->print, sizeof(buf));
-		snprintf(mi->print, sizeof(mi->print),
+		(void)strlcpy(buf, mi->print, sizeof(buf));
+		(void)snprintf(mi->print, sizeof(mi->print),
 		    "%s:%.*s%s", buf, diff, cc->name, marker);
 	}
 }

@@ -112,7 +112,7 @@
 ./usr/X11R6/lib/libX11-xcb.a
 ./usr/X11R6/lib/libX11-xcb.la
 ./usr/X11R6/lib/libX11-xcb.so.1.0
-./usr/X11R6/lib/libX11.so.14.0
+./usr/X11R6/lib/libX11.so.15.0
 ./usr/X11R6/lib/libXRes.so.4.0
 ./usr/X11R6/lib/libXau.so.9.0
 ./usr/X11R6/lib/libXaw.so.14.0
@@ -121,7 +121,7 @@
 ./usr/X11R6/lib/libXcursor.so.4.0
 ./usr/X11R6/lib/libXdamage.so.3.1
 ./usr/X11R6/lib/libXdmcp.so.10.0
-./usr/X11R6/lib/libXext.so.11.0
+./usr/X11R6/lib/libXext.so.12.0
 ./usr/X11R6/lib/libXfixes.so.5.1
 ./usr/X11R6/lib/libXfont.so.9.0
 ./usr/X11R6/lib/libXfontcache.so.4.0
@@ -148,12 +148,12 @@
 ./usr/X11R6/lib/libdrm_pic.a
 ./usr/X11R6/lib/libfontconfig.so.7.0
 ./usr/X11R6/lib/libfontenc.so.3.0
-./usr/X11R6/lib/libfreetype.so.17.2
+./usr/X11R6/lib/libfreetype.so.18.0
 ./usr/X11R6/lib/libfreetype_pic.a
 ./usr/X11R6/lib/libpciaccess.so.1.0
 ./usr/X11R6/lib/libpixman-1.a
 ./usr/X11R6/lib/libpixman-1.la
-./usr/X11R6/lib/libpixman-1.so.20.0
+./usr/X11R6/lib/libpixman-1.so.22.2
 ./usr/X11R6/lib/libpthread-stubs.a
 ./usr/X11R6/lib/libpthread-stubs.so.1.0
 ./usr/X11R6/lib/libpthread-stubs_pic.a
@@ -295,10 +295,10 @@
 ./usr/X11R6/lib/pkgconfig/xcb.pc
 ./usr/X11R6/lib/pkgconfig/xf86driproto.pc
 ./usr/X11R6/lib/xorg/protocol.txt
-./usr/X11R6/man/cat1/glxgears.0
-./usr/X11R6/man/cat1/glxinfo.0
 ./usr/X11R6/man/man1/bdftruncate.1
 ./usr/X11R6/man/man1/dga.1
+./usr/X11R6/man/man1/glxgears.1
+./usr/X11R6/man/man1/glxinfo.1
 ./usr/X11R6/man/man1/ucs2any.1
 ./usr/X11R6/man/man1/xdriinfo.1
 ./usr/X11R6/man/man1/xfs.1

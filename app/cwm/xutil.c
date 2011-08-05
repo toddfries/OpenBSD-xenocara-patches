@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: xutil.c,v 1.34 2011/03/22 10:57:31 okan Exp $
+ * $OpenBSD: xutil.c,v 1.37 2011/07/25 15:10:24 okan Exp $
  */
 
 #include <sys/param.h>
@@ -59,7 +59,7 @@ xu_btn_grab(Window win, int mask, u_int btn)
 	int	i;
 	for (i = 0; i < nitems(ign_mods); i++)
 		XGrabButton(X_Dpy, btn, (mask | ign_mods[i]), win,
-		    False, ButtonMask, GrabModeAsync,
+		    False, BUTTONMASK, GrabModeAsync,
 		    GrabModeSync, None, None);
 }
 
@@ -142,7 +142,7 @@ xu_sendmsg(Window win, Atom atm, long val)
 {
 	XEvent	 e;
 
-	memset(&e, 0, sizeof(e));
+	(void)memset(&e, 0, sizeof(e));
 	e.xclient.type = ClientMessage;
 	e.xclient.window = win;
 	e.xclient.message_type = atm;

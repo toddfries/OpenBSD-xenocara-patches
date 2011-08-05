@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.xorg.mk,v 1.36 2010/08/04 22:56:00 espie Exp $ -*- makefile  -*-
+# $OpenBSD: bsd.xorg.mk,v 1.39 2011/06/23 22:49:00 naddy Exp $ -*- makefile  -*-
 #
 # Copyright © 2006 Matthieu Herrb
 #
@@ -33,7 +33,7 @@ XOBJDIR?=	/usr/xobj
 BINDIR?=		${X11BASE}/bin
 LIBDIR=			${X11BASE}/lib
 INCSDIR=		${X11BASE}/include
-MANDIR=			${X11BASE}/man/cat
+MANDIR=			${X11BASE}/man/man
 
 PKG_CONFIG_LIBDIR=	${X11BASE}/lib/pkgconfig
 

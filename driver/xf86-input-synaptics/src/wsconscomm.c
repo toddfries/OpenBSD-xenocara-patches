@@ -35,6 +35,7 @@ extern int priv_open_device(const char *);
 #endif
 
 #define DEFAULT_WSMOUSE0_DEV		"/dev/wsmouse0"
+#define NEVENTS				64
 
 static const char *synaptics_devs[] = {
     DEFAULT_WSMOUSE0_DEV,
@@ -69,9 +70,29 @@ out:
     return res;
 }
 
+static void
+WSConsDeviceOnHook(InputInfoPtr pInfo, SynapticsParameters *para)
+{
+    int wsmouse_mode = WSMOUSE_NATIVE;
+
+    if (ioctl(pInfo->fd, WSMOUSEIO_SETMODE, &wsmouse_mode) == -1)
+        xf86Msg(X_ERROR, "%s: cannot set absolute mode\n", pInfo->name);
+}
+
+static void
+WSConsDeviceOffHook(InputInfoPtr pInfo)
+{
+    int wsmouse_mode = WSMOUSE_COMPAT;
+
+    if (ioctl(pInfo->fd, WSMOUSEIO_SETMODE, &wsmouse_mode) == -1)
+        xf86Msg(X_ERROR, "%s: cannot set relative mode\n", pInfo->name);
+}
+
 static Bool
 WSConsQueryHardware(InputInfoPtr pInfo)
 {
+    SynapticsPrivate *priv = (SynapticsPrivate *)pInfo->private;
+    struct CommData *comm = &priv->comm;
     int wsmouse_type;
 
     if (ioctl(pInfo->fd, WSMOUSEIO_GTYPE, &wsmouse_type) == -1) {
@@ -79,10 +100,16 @@ WSConsQueryHardware(InputInfoPtr pInfo)
         return FALSE;
     }
 
-    if (wsmouse_type == WSMOUSE_TYPE_SYNAPTICS)
-        return TRUE;
+    if (wsmouse_type != WSMOUSE_TYPE_SYNAPTICS)
+        return FALSE;
 
-    return FALSE;
+    if (comm->buffer)
+        XisbFree(comm->buffer);
+    comm->buffer = XisbNew(pInfo->fd, sizeof(struct wscons_event) * NEVENTS);
+    if (comm->buffer == NULL)
+        return FALSE;
+
+    return TRUE;
 }
 
 static Bool
@@ -238,8 +265,8 @@ WSConsReadDevDimensions(InputInfoPtr pInfo)
 }
 
 struct SynapticsProtocolOperations wscons_proto_operations = {
-    NULL,
-    NULL,
+    WSConsDeviceOnHook,
+    WSConsDeviceOffHook,
     WSConsQueryHardware,
     WSConsReadHwState,
     WSConsAutoDevProbe,

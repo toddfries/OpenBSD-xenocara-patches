@@ -1,4 +1,4 @@
-.\" $OpenBSD: xtsscale.1,v 1.11 2010/12/06 06:49:47 jasper Exp $
+.\" $OpenBSD: xtsscale.1,v 1.15 2011/07/16 17:32:24 matthieu Exp $
 .\"
 .\" Copyright (c) 2007 Robert Nagy <robert@openbsd.org>
 .\" Copyright (c) 2009 Matthieu Herrb <matthieu@herrb.eu>
@@ -24,15 +24,16 @@
 .\" (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 .\" OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
-.Dd $Mdocdate: December 6 2010 $
+.Dd $Mdocdate: July 16 2011 $
 .Dt XTSSCALE 1
 .Os
 .Sh NAME
 .Nm xtsscale
-.Nd X touch screen calibration tool 
+.Nd X touch screen calibration tool
 .Sh SYNOPSIS
 .Nm xtsscale
 .Bk -words
+.Op Fl c
 .Op Fl D Ar display
 .Op Fl d Ar device
 .Op Fl o Ar output
@@ -45,10 +46,13 @@ will make the pointer act at the indicated location on the screen.
 .Pp
 The following options can be used:
 .Bl -tag -width Ds
+.It Fl c
+keep the X cursor visible during calibration.
+Useful for indirect absolute devices like tablets.
 .It Fl D Ar display
 specify the X11 display to use.
-.It Fl d Ar device 
-defines the name or numerical identifier of the X Input extension device 
+.It Fl d Ar device
+defines the name or numerical identifier of the X Input extension device
 to calibrate.
 Use
 .Pp
@@ -56,7 +60,8 @@ Use
 .Pp
 to figure out the actual name for the X configuration.
 .Ar device
-can be omitted if there is only one X extension pointer in the system.
+can be omitted if there is only one X extension pointer with
+calibration properties in the system.
 .It Fl o Ar output
 specifies the XRandR output to with the touch screen is connected.
 If omitted
@@ -71,8 +76,8 @@ to figure out the names of the outputs.
 .It Fl v
 specifies that
 .Nm
-will be verbose, outputting the raw coordinate values produced,
-mostly for debugging purposes.
+will be verbose, outputting various information, including the
+raw coordinate values produced, mostly for debugging purposes.
 .El
 .Pp
 When good deviations are calculated from the selections made at these
@@ -84,17 +89,17 @@ will exit and provide on standard output a result like the following:
 .Pp
 This result should be placed into
 .Pa /etc/wsconsctl.conf
-for further use. 
+for further use.
 The new calibration is automatically used by the X server.
-The Calibration process can be interrupted at any time using the ESC 
+The calibration process can be interrupted at any time using the ESC
 key.
 In this case the current screen calibration data will not be modified.
 .Sh NOTES
-To use 
+To use
 .Nm
-the mode of the raw mode of the input device should be set in the
+the mode of the input device should be set to raw in the
 .Pa /etc/X11/xorg.conf
-X configuration file. See 
+X configuration file. See
 .Xr ws 4
 for details.
 .Pp
@@ -114,6 +119,6 @@ that is not the first device. (
 .Xr X 7
 .Sh HISTORY
 The
-.Nm 
+.Nm
 command appeared in
-.Ox 4.2 .   
+.Ox 4.2 .

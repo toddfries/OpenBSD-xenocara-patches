@@ -84,6 +84,7 @@ static const char *kbdDefaults[] = {
     "Protocol",		"standard",
     "XkbRules",		XKB_DFLT_RULES,
     "XkbModel",		"pc105",
+    "XkbLayout",	"us",
     NULL
 };
 

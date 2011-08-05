@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $Id: client.c,v 1.80 2011/03/22 10:56:08 okan Exp $
+ * $OpenBSD: client.c,v 1.86 2011/07/14 11:39:53 okan Exp $
  */
 
 #include <sys/param.h>
@@ -137,7 +137,7 @@ client_new(Window win, struct screen_ctx *sc, int mapped)
 	return (cc);
 }
 
-int
+void
 client_delete(struct client_ctx *cc)
 {
 	struct screen_ctx	*sc = cc->sc;
@@ -189,8 +189,6 @@ client_delete(struct client_ctx *cc)
 
 	client_freehints(cc);
 	xfree(cc);
-
-	return (0);
 }
 
 void
@@ -265,14 +263,28 @@ client_current(void)
 }
 
 void
+client_freeze(struct client_ctx *cc)
+{
+	if (cc->flags & CLIENT_FREEZE)
+		cc->flags &= ~CLIENT_FREEZE;
+	else
+		cc->flags |= CLIENT_FREEZE;
+}
+
+void
 client_maximize(struct client_ctx *cc)
 {
 	struct screen_ctx	*sc = cc->sc;
 	int			 xmax = sc->xmax, ymax = sc->ymax;
 	int			 x_org = 0, y_org = 0;
 
+	if (cc->flags & CLIENT_FREEZE)
+		return;
+
 	if (cc->flags & CLIENT_MAXIMIZED) {
 		cc->geom = cc->savegeom;
+		cc->bwidth = Conf.bwidth;
+		cc->flags &= ~CLIENT_MAXIMIZED;
 	} else {
 		if (!(cc->flags & (CLIENT_VMAXIMIZED | CLIENT_HMAXIMIZED)))
 			cc->savegeom = cc->geom;
@@ -298,7 +310,8 @@ calc:
 		cc->geom.y = y_org + sc->gap.top;
 		cc->geom.height = ymax - (sc->gap.top + sc->gap.bottom);
 		cc->geom.width = xmax - (sc->gap.left + sc->gap.right);
-		cc->flags |= CLIENT_DOMAXIMIZE;
+		cc->bwidth = 0;
+		cc->flags |= CLIENT_MAXIMIZED;
 	}
 
 	client_resize(cc);
@@ -310,8 +323,14 @@ client_vertmaximize(struct client_ctx *cc)
 	struct screen_ctx	*sc = cc->sc;
 	int			 y_org = 0, ymax = sc->ymax;
 
+	if (cc->flags & CLIENT_FREEZE)
+		return;
+
 	if (cc->flags & CLIENT_VMAXIMIZED) {
-		cc->geom = cc->savegeom;
+		cc->geom.y = cc->savegeom.y;
+		cc->geom.height = cc->savegeom.height;
+		cc->bwidth = Conf.bwidth;
+		cc->flags &= ~CLIENT_VMAXIMIZED;
 	} else {
 		if (!(cc->flags & (CLIENT_MAXIMIZED | CLIENT_HMAXIMIZED)))
 			cc->savegeom = cc->geom;
@@ -329,7 +348,7 @@ calc:
 		cc->geom.y = y_org + sc->gap.top;
 		cc->geom.height = ymax - (cc->bwidth * 2) - (sc->gap.top +
 		    sc->gap.bottom);
-		cc->flags |= CLIENT_DOVMAXIMIZE;
+		cc->flags |= CLIENT_VMAXIMIZED;
 	}
 
 	client_resize(cc);
@@ -341,8 +360,14 @@ client_horizmaximize(struct client_ctx *cc)
 	struct screen_ctx	*sc = cc->sc;
 	int			 x_org = 0, xmax = sc->xmax;
 
+	if (cc->flags & CLIENT_FREEZE)
+		return;
+
 	if (cc->flags & CLIENT_HMAXIMIZED) {
-		cc->geom = cc->savegeom;
+		cc->geom.x = cc->savegeom.x;
+		cc->geom.width = cc->savegeom.width;
+		cc->bwidth = Conf.bwidth;
+		cc->flags &= ~CLIENT_HMAXIMIZED;
 	} else {
 		if (!(cc->flags & (CLIENT_MAXIMIZED | CLIENT_VMAXIMIZED)))
 			cc->savegeom = cc->geom;
@@ -360,7 +385,7 @@ calc:
 		cc->geom.x = x_org + sc->gap.left;
 		cc->geom.width = xmax - (cc->bwidth * 2) - (sc->gap.left +
 		    sc->gap.right);
-		cc->flags |= CLIENT_DOHMAXIMIZE;
+		cc->flags |= CLIENT_HMAXIMIZED;
 	}
 
 	client_resize(cc);
@@ -369,23 +394,6 @@ calc:
 void
 client_resize(struct client_ctx *cc)
 {
-	cc->flags &= ~(CLIENT_MAXIMIZED | CLIENT_VMAXIMIZED |
-	    CLIENT_HMAXIMIZED);
-
-	if (cc->flags & CLIENT_DOMAXIMIZE) {
-		cc->bwidth = 0;
-		cc->flags &= ~CLIENT_DOMAXIMIZE;
-		cc->flags |= CLIENT_MAXIMIZED;
-	} else if (cc->flags & CLIENT_DOVMAXIMIZE) {
-		cc->flags &= ~CLIENT_DOVMAXIMIZE;
-		cc->flags |= CLIENT_VMAXIMIZED;
-	} else if (cc->flags & CLIENT_DOHMAXIMIZE) {
-		cc->flags &= ~CLIENT_DOHMAXIMIZE;
-		cc->flags |= CLIENT_HMAXIMIZED;
-	} else {
-		cc->bwidth = Conf.bwidth;
-	}
-
 	client_draw_border(cc);
 
 	XMoveResizeWindow(X_Dpy, cc->win, cc->geom.x,
@@ -396,11 +404,6 @@ client_resize(struct client_ctx *cc)
 void
 client_move(struct client_ctx *cc)
 {
-	if (cc->flags & CLIENT_VMAXIMIZED)
-		cc->savegeom.x = cc->geom.x;
-	if (cc->flags & CLIENT_HMAXIMIZED)
-		cc->savegeom.y = cc->geom.y;
-
 	XMoveWindow(X_Dpy, cc->win, cc->geom.x, cc->geom.y);
 	xu_configure(cc);
 }
@@ -486,7 +489,7 @@ client_draw_border(struct client_ctx *cc)
 			pixel = sc->color[CWM_COLOR_BORDER_UNGROUP].pixel;
 			break;
 		default:
-			pixel = sc->color[CWM_COLOR_BORDOR_ACTIVE].pixel;
+			pixel = sc->color[CWM_COLOR_BORDER_ACTIVE].pixel;
 			break;
 		}
 	else
@@ -532,9 +535,8 @@ client_setname(struct client_ctx *cc)
 	char		*newname;
 
 	if (!xu_getstrprop(cc->win, _NET_WM_NAME, &newname))
-		xu_getstrprop(cc->win, XA_WM_NAME, &newname);
-	if (newname == NULL)
-		newname = emptystring;
+		if (!xu_getstrprop(cc->win, XA_WM_NAME, &newname))
+			newname = emptystring;
 
 	TAILQ_FOREACH(wn, &cc->nameq, entry)
 		if (strcmp(wn->name, newname) == 0) {
@@ -562,11 +564,9 @@ match:
 		xfree(wn);
 		cc->nameqlen--;
 	}
-
-	return;
 }
 
-struct client_ctx *
+void
 client_cycle(struct screen_ctx *sc, int reverse)
 {
 	struct client_ctx	*oldcc, *newcc;
@@ -576,7 +576,7 @@ client_cycle(struct screen_ctx *sc, int reverse)
 
 	/* If no windows then you cant cycle */
 	if (TAILQ_EMPTY(&sc->mruq))
-		return (NULL);
+		return;
 
 	if (oldcc == NULL)
 		oldcc = (reverse ? TAILQ_LAST(&sc->mruq, cycle_entry_q) :
@@ -596,7 +596,7 @@ client_cycle(struct screen_ctx *sc, int reverse)
 		/* Is oldcc the only non-hidden window? */
 		if (newcc == oldcc) {
 			if (again)
-				return (NULL);	/* No windows visible. */
+				return;	/* No windows visible. */
 
 			break;
 		}
@@ -606,8 +606,6 @@ client_cycle(struct screen_ctx *sc, int reverse)
 	sc->altpersist = 1;
 	client_ptrsave(oldcc);
 	client_ptrwarp(newcc);
-
-	return (newcc);
 }
 
 static struct client_ctx *
@@ -843,4 +841,33 @@ client_inbound(struct client_ctx *cc, int x, int y)
 {
 	return (x < cc->geom.width && x >= 0 &&
 	    y < cc->geom.height && y >= 0);
+}
+
+int
+client_snapcalc(int n, int dn, int nmax, int bwidth, int snapdist)
+{
+	int	 n0, n1, s0, s1;
+
+	s0 = s1 = 0;
+	n0 = n;
+	n1 = n + dn + (bwidth * 2);
+
+	if (abs(n0) <= snapdist)
+		s0 = -n0;
+
+	if (nmax - snapdist <= n1 && n1 <= nmax + snapdist)
+		s1 = nmax - n1;
+
+	/* possible to snap in both directions */
+	if (s0 != 0 && s1 != 0)
+		if (abs(s0) < abs(s1))
+			return s0;
+		else
+			return s1;
+	else if (s0 != 0)
+		return s0;
+	else if (s1 != 0)
+		return s1;
+	else
+		return 0;
 }
