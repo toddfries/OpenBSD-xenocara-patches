@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.30 2011/08/22 16:18:05 okan Exp $ */
+/*	$OpenBSD: parse.y,v 1.33 2011/09/08 12:35:33 okan Exp $ */
 
 /*
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -73,6 +73,7 @@ typedef struct {
 %token	COLOR SNAPDIST
 %token	ACTIVEBORDER INACTIVEBORDER
 %token	GROUPBORDER UNGROUPBORDER
+%token	MENUBG MENUFG FONTCOLOR
 %token	ERROR
 %token	<v.string>		STRING
 %token	<v.number>		NUMBER
@@ -105,8 +106,8 @@ yesno		: YES				{ $$ = 1; }
 		;
 
 main		: FONTNAME STRING		{
-			free(conf->DefaultFontName);
-			conf->DefaultFontName = $2;
+			free(conf->font);
+			conf->font = $2;
 		}
 		| STICKY yesno {
 			if ($2 == 0)
@@ -184,6 +185,18 @@ colors		: ACTIVEBORDER STRING {
 			free(conf->color[CWM_COLOR_BORDER_UNGROUP].name);
 			conf->color[CWM_COLOR_BORDER_UNGROUP].name = $2;
 		}
+		| MENUBG STRING {
+			free(conf->color[CWM_COLOR_BG_MENU].name);
+			conf->color[CWM_COLOR_BG_MENU].name = $2;
+		}
+		| MENUFG STRING {
+			free(conf->color[CWM_COLOR_FG_MENU].name);
+			conf->color[CWM_COLOR_FG_MENU].name = $2;
+		}
+		| FONTCOLOR STRING {
+			free(conf->color[CWM_COLOR_FONT].name);
+			conf->color[CWM_COLOR_FONT].name = $2;
+		}
 		;
 %%
 
@@ -223,11 +236,14 @@ lookup(char *s)
 		{ "borderwidth",	BORDERWIDTH},
 		{ "color",		COLOR},
 		{ "command",		COMMAND},
+		{ "font",		FONTCOLOR},
 		{ "fontname",		FONTNAME},
 		{ "gap",		GAP},
 		{ "groupborder",	GROUPBORDER},
 		{ "ignore",		IGNORE},
 		{ "inactiveborder",	INACTIVEBORDER},
+		{ "menubg",		MENUBG},
+		{ "menufg",		MENUFG},
 		{ "mousebind",		MOUSEBIND},
 		{ "moveamount",		MOVEAMOUNT},
 		{ "no",			NO},
@@ -561,7 +577,7 @@ parse_config(const char *filename, struct conf *xconf)
 		for (i = 0; i < CWM_COLOR_MAX; i++)
 			xconf->color[i].name = conf->color[i].name;
 
-		xconf->DefaultFontName = conf->DefaultFontName;
+		xconf->font = conf->font;
 	}
 
 	free(conf);

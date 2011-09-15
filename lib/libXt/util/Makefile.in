@@ -24,9 +24,9 @@ pkgincludedir = $(includedir)/@PACKAGE@
 top_builddir = ..
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 INSTALL = @INSTALL@
-install_sh_DATA = $(install_sh) -c -m 644
-install_sh_PROGRAM = $(install_sh) -c
-install_sh_SCRIPT = $(install_sh) -c
+install_sh_DATA = ${SHELL} $(install_sh) -c -m 644
+install_sh_PROGRAM = ${SHELL} $(install_sh) -c
+install_sh_SCRIPT = ${SHELL} $(install_sh) -c
 INSTALL_HEADER = $(INSTALL_DATA)
 transform = $(program_transform_name)
 NORMAL_INSTALL = :
@@ -49,7 +49,7 @@ mkinstalldirs = $(SHELL) $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 PROGRAMS = $(noinst_PROGRAMS)
-am_makestrs_OBJECTS = makestrs-makestrs.$(OBJEXT)
+am_makestrs_OBJECTS = makestrs.$(OBJEXT)
 makestrs_OBJECTS = $(am_makestrs_OBJECTS)
 makestrs_LDADD = $(LDADD)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
@@ -149,6 +149,7 @@ RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
+STRICT_CFLAGS = @STRICT_CFLAGS@
 STRINGSABIOPTIONS = @STRINGSABIOPTIONS@
 STRIP = @STRIP@
 VERSION = @VERSION@
@@ -207,7 +208,7 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 EXTRA_DIST = Shell.ht StrDefs.ct StrDefs.ht string.list $(appman_PRE)
-makestrs_CFLAGS = $(XT_CFLAGS)
+AM_CFLAGS = $(XT_CFLAGS)
 makestrs_SOURCES = makestrs.c
 
 # Man page
@@ -266,7 +267,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/makestrs-makestrs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/makestrs.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -288,20 +289,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-makestrs-makestrs.o: makestrs.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(makestrs_CFLAGS) $(CFLAGS) -MT makestrs-makestrs.o -MD -MP -MF "$(DEPDIR)/makestrs-makestrs.Tpo" -c -o makestrs-makestrs.o `test -f 'makestrs.c' || echo '$(srcdir)/'`makestrs.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/makestrs-makestrs.Tpo" "$(DEPDIR)/makestrs-makestrs.Po"; else rm -f "$(DEPDIR)/makestrs-makestrs.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='makestrs.c' object='makestrs-makestrs.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(makestrs_CFLAGS) $(CFLAGS) -c -o makestrs-makestrs.o `test -f 'makestrs.c' || echo '$(srcdir)/'`makestrs.c
-
-makestrs-makestrs.obj: makestrs.c
-@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(makestrs_CFLAGS) $(CFLAGS) -MT makestrs-makestrs.obj -MD -MP -MF "$(DEPDIR)/makestrs-makestrs.Tpo" -c -o makestrs-makestrs.obj `if test -f 'makestrs.c'; then $(CYGPATH_W) 'makestrs.c'; else $(CYGPATH_W) '$(srcdir)/makestrs.c'; fi`; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/makestrs-makestrs.Tpo" "$(DEPDIR)/makestrs-makestrs.Po"; else rm -f "$(DEPDIR)/makestrs-makestrs.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='makestrs.c' object='makestrs-makestrs.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(makestrs_CFLAGS) $(CFLAGS) -c -o makestrs-makestrs.obj `if test -f 'makestrs.c'; then $(CYGPATH_W) 'makestrs.c'; else $(CYGPATH_W) '$(srcdir)/makestrs.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
