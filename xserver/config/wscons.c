@@ -67,11 +67,7 @@ struct nameint kbdvar[] = {
 };
 
 struct nameint kbdopt[] = {
-#ifndef USE_XKEYBOARD_CONFIG
 	{ KB_SWAPCTRLCAPS, "ctrl:swapcaps" },
-#else
-	{ KB_SWAPCTRLCAPS, "ctrl:swapcaps,terminate:ctrl_alt_bksp" },
-#endif
 	{ 0 }
 };
 
@@ -253,6 +249,7 @@ wscons_add_pointers(void)
 		close(fd);
 		switch (wsmouse_type) {
 		case WSMOUSE_TYPE_SYNAPTICS:
+		case WSMOUSE_TYPE_ALPS:
 			wscons_add_pointer(devname, "synaptics",
 			    ATTR_TOUCHPAD);
 			break;
