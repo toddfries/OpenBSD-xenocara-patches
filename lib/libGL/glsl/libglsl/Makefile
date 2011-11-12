@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.1 2011/10/23 13:57:36 matthieu Exp $
+# $OpenBSD: Makefile,v 1.4 2011/10/31 18:36:06 matthieu Exp $
 .include <bsd.xconf.mk>
 
 MESA=	${.CURDIR}/../../../../dist/Mesa/src/mesa
@@ -86,13 +86,13 @@ CXX_SOURCES = \
 	opt_tree_grafting.cpp \
 	s_expression.cpp
 
-LIB=	glsl
+LIB=	libglsl
 
 SRCS=	\
 	$(C_SOURCES) \
 	$(CXX_SOURCES)
 
-OBJS+= $(CXX_SOURCES:.cpp=.o)
+OBJS+= $(C_SOURCES:.c=.so) $(CXX_SOURCES:.cpp=.so)
 
 INCLUDES= \
 	-I${X11BASE}/include/GL \
@@ -104,24 +104,27 @@ INCLUDES= \
 
 CPPFLAGS+= $(INCLUDES) $(DEFINES)
 
-NOPROFILE=
+all: ${LIB}_pic.a
 
 obj:	_xenocara_obj
 
 install:
 	@echo "Not installing libglsl"
 
-.include <bsd.lib.mk>
+clean:
+	rm -f ${LIB}_pic.a ${OBJS}
 
-# Tweak suffixes: only .cpp is used for C++, 
+cleandir: clean
+
+# Tweak suffixes: only .cpp is used for C++,
 # ignore .l and .y to avoid rebuilding cpp-{lex,parse}.c
 # which need bison/recent flex.
 .SUFFIXES:
-.SUFFIXES: .out .o .go .po .so .S .s .c .cc .cpp .f  .ln .m4 .m
+.SUFFIXES: .a .so .c .cpp
 
-.cpp.o:
-	@echo "${COMPILE.cc} ${.IMPSRC} -o ${.TARGET}"
-	@${COMPILE.cc} ${.IMPSRC} -o ${.TARGET}.o
+.c.so:
+	@echo "${COMPILE.c} ${PICFLAG} -DPIC ${.IMPSRC} -o ${.TARGET}"
+	@${COMPILE.c} ${PICFLAG} -DPIC ${.IMPSRC} -o ${.TARGET}.o
 	@${LD} -X -r ${.TARGET}.o -o ${.TARGET}
 	@rm -f ${.TARGET}.o
 
@@ -131,8 +134,17 @@ install:
 	@${LD} -X -r ${.TARGET}.o -o ${.TARGET}
 	@rm -f ${.TARGET}.o
 
+${LIB}_pic.a:	${OBJS} $(DPADD)
+	@rm -f ${LIB}_pic.a
+	@${AR} cq ${LIB}_pic.a `${LORDER} ${OBJS} | tsort -q`
+	${RANLIB} ${LIB}_pic.a
+
 .include <bsd.xorg.mk>
 
 .PATH: ${GLSL}
 .PATH.cpp: ${GLSL}
 .PATH: ${GLSL}/glcpp
+
+.if ${MACHINE_ARCH} == powerpc || ${MACHINE_ARCH} == sparc
+PICFLAG=-fPIC
+.endif

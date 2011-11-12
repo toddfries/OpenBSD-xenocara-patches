@@ -13,7 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-/* $OpenBSD: ws.c,v 1.34 2011/10/16 17:54:07 shadchin Exp $ */
+/* $OpenBSD: ws.c,v 1.46 2011/11/09 16:17:44 shadchin Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -46,24 +46,21 @@
 static MODULESETUPPROTO(SetupProc);
 static void TearDownProc(pointer);
 
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
-static InputInfoPtr wsPreInit(InputDriverPtr, IDevPtr, int);
-#endif
-static int wsPreInit12(InputDriverPtr, InputInfoPtr, int);
+static int wsPreInit(InputDriverPtr, InputInfoPtr, int);
+static void wsUnInit(InputDriverPtr, InputInfoPtr, int);
 static int wsProc(DeviceIntPtr, int);
 static int wsDeviceInit(DeviceIntPtr);
 static int wsDeviceOn(DeviceIntPtr);
 static void wsDeviceOff(DeviceIntPtr);
 static void wsReadInput(InputInfoPtr);
 static void wsSendButtons(InputInfoPtr, int);
-static int wsChangeControl(InputInfoPtr, xDeviceCtl *);
 static int wsSwitchMode(ClientPtr, DeviceIntPtr, int);
 static Bool wsOpen(InputInfoPtr);
 static void wsClose(InputInfoPtr);
 static void wsControlProc(DeviceIntPtr , PtrCtrl *);
 
-static void wsInitProperty(DeviceIntPtr);
-static int wsSetProperty(DeviceIntPtr, Atom, XIPropertyValuePtr, BOOL);
+static void wsInitCalibProperty(DeviceIntPtr);
+static int wsSetCalibProperty(DeviceIntPtr, Atom, XIPropertyValuePtr, BOOL);
 
 static Atom prop_calibration = 0;
 static Atom prop_swap = 0;
@@ -97,12 +94,8 @@ InputDriverRec WS = {
 	1,
 	"ws",
 	NULL,
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
 	wsPreInit,
-#else
-	wsPreInit12,
-#endif
-	NULL,
+	wsUnInit,
 	NULL,
 	0
 };
@@ -127,12 +120,12 @@ TearDownProc(pointer p)
 
 
 static int
-wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
+wsPreInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 {
 	WSDevicePtr priv;
 	MessageType buttons_from = X_CONFIG;
 	char *s;
-	int rc;
+	int rc = BadValue;
 
 	priv = (WSDevicePtr)calloc(1, sizeof(WSDeviceRec));
 	if (priv == NULL) {
@@ -141,23 +134,14 @@ wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 	}
 	pInfo->private = priv;
 
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
-	xf86CollectInputOptions(pInfo, NULL, NULL);
-	xf86ProcessCommonOptions(pInfo, pInfo->options);
-#else
-	xf86CollectInputOptions(pInfo, NULL);
-#endif
 #ifdef DEBUG
 	ws_debug_level = xf86SetIntOption(pInfo->options, "DebugLevel",
 	    ws_debug_level);
-	xf86Msg(X_INFO, "%s: debuglevel %d\n", pInfo->name,
-	    ws_debug_level);
+	xf86IDrvMsg(pInfo, X_INFO, "debuglevel %d\n", ws_debug_level);
 #endif
-	priv->devName = xf86FindOptionValue(pInfo->options, "Device");
+	priv->devName = xf86SetStrOption(pInfo->options, "Device", NULL);
 	if (priv->devName == NULL) {
-		xf86Msg(X_ERROR, "%s: No Device specified.\n",
-			pInfo->name);
-		rc = BadValue;
+		xf86IDrvMsg(pInfo, X_ERROR, "No Device specified.\n");
 		goto fail;
 	}
 	priv->buttons = xf86SetIntOption(pInfo->options, "Buttons", 0);
@@ -165,77 +149,67 @@ wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 		priv->buttons = DFLTBUTTONS;
 		buttons_from = X_DEFAULT;
 	}
-	priv->negativeZ =  priv->positiveZ = WS_NOZMAP;
-	s = xf86SetStrOption(pInfo->options, "ZAxisMapping", "4 5 6 7");
+	priv->negativeZ = priv->positiveZ = WS_NOZMAP;
+	s = xf86SetStrOption(pInfo->options, "ZAxisMapping", "4 5");
 	if (s) {
 		int b1, b2;
 
 		if (sscanf(s, "%d %d", &b1, &b2) == 2 &&
 		    b1 > 0 && b1 <= NBUTTONS &&
 		    b2 > 0 && b2 <= NBUTTONS) {
-			priv->negativeZ = b1;
-			priv->positiveZ = b2;
-			xf86Msg(X_CONFIG,
-			    "%s: ZAxisMapping: buttons %d and %d\n",
-			    pInfo->name, b1, b2);
+			priv->negativeZ = 1 << (b1 - 1);
+			priv->positiveZ = 1 << (b2 - 1);
+			xf86IDrvMsg(pInfo, X_CONFIG,
+			    "ZAxisMapping: buttons %d and %d\n",
+			    b1, b2);
+			if (max(b1, b2) > priv->buttons) {
+				priv->buttons = max(b1, b2);
+				buttons_from = X_CONFIG;
+			}
 		} else {
-			xf86Msg(X_WARNING, "%s: invalid ZAxisMapping value: "
-			    "\"%s\"\n", pInfo->name, s);
+			xf86IDrvMsg(pInfo, X_WARNING,
+			    "invalid ZAxisMapping value: \"%s\"\n", s);
 		}
+		free(s);
 	}
-	if (priv->negativeZ > priv->buttons) {
-		priv->buttons = priv->negativeZ;
-		buttons_from = X_CONFIG;
-	}
-	if (priv->positiveZ > priv->buttons) {
-		priv->buttons = priv->positiveZ;
-		buttons_from = X_CONFIG;
-	}
-	priv->negativeW =  priv->positiveW = WS_NOZMAP;
-	s = xf86SetStrOption(pInfo->options, "WAxisMapping", NULL);
+	priv->negativeW = priv->positiveW = WS_NOZMAP;
+	s = xf86SetStrOption(pInfo->options, "WAxisMapping", "6 7");
 	if (s) {
 		int b1, b2;
 
 		if (sscanf(s, "%d %d", &b1, &b2) == 2 &&
 		    b1 > 0 && b1 <= NBUTTONS &&
 		    b2 > 0 && b2 <= NBUTTONS) {
-			priv->negativeW = b1;
-			priv->positiveW = b2;
-			xf86Msg(X_CONFIG,
-			    "%s: WAxisMapping: buttons %d and %d\n",
-			    pInfo->name, b1, b2);
+			priv->negativeW = 1 << (b1 - 1);
+			priv->positiveW = 1 << (b2 - 1);
+			xf86IDrvMsg(pInfo, X_CONFIG,
+			    "WAxisMapping: buttons %d and %d\n",
+			    b1, b2);
+			if (max(b1, b2) > priv->buttons) {
+				priv->buttons = max(b1, b2);
+				buttons_from = X_CONFIG;
+			}
 		} else {
-			xf86Msg(X_WARNING, "%s: invalid WAxisMapping value: "
-			    "\"%s\"\n", pInfo->name, s);
+			xf86IDrvMsg(pInfo, X_WARNING,
+			    "invalid WAxisMapping value: \"%s\"\n", s);
 		}
-	}
-	if (priv->negativeW > priv->buttons) {
-		priv->buttons = priv->negativeW;
-		buttons_from = X_CONFIG;
-	}
-	if (priv->positiveW > priv->buttons) {
-		priv->buttons = priv->positiveW;
-		buttons_from = X_CONFIG;
+		free(s);
 	}
 
 	priv->screen_no = xf86SetIntOption(pInfo->options, "ScreenNo", 0);
-	xf86Msg(X_CONFIG, "%s associated screen: %d\n",
-	    pInfo->name, priv->screen_no);
-	if (priv->screen_no >= screenInfo.numScreens ||
-	    priv->screen_no < 0) {
+	xf86IDrvMsg(pInfo, X_CONFIG, "associated screen: %d\n",
+	    priv->screen_no);
+	if (priv->screen_no < 0 || priv->screen_no >= screenInfo.numScreens)
 		priv->screen_no = 0;
-	}
-
 
 	priv->swap_axes = xf86SetBoolOption(pInfo->options, "SwapXY", 0);
 	if (priv->swap_axes) {
-		xf86Msg(X_CONFIG,
-		    "%s device will work with X and Y axes swapped\n",
-		    pInfo->name);
+		xf86IDrvMsg(pInfo, X_CONFIG,
+		    "device will work with X and Y axes swapped\n");
 	}
 	priv->inv_x = 0;
 	priv->inv_y = 0;
-	s = xf86FindOptionValue(pInfo->options, "Rotate");
+	s = xf86SetStrOption(pInfo->options, "Rotate", NULL);
 	if (s) {
 		if (xf86NameCmp(s, "CW") == 0) {
 			priv->inv_x = 1;
@@ -249,46 +223,34 @@ wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 			priv->inv_x = 1;
 			priv->inv_y = 1;
 		} else {
-			xf86Msg(X_ERROR, "\"%s\" is not a valid value "
-				"for Option \"Rotate\"\n", s);
-			xf86Msg(X_ERROR, "Valid options are \"CW\", \"CCW\","
-				" or \"UD\"\n");
+			xf86IDrvMsg(pInfo, X_ERROR, "\"%s\" is not a valid "
+			    "value for Option \"Rotate\"\n", s);
+			xf86IDrvMsg(pInfo, X_ERROR, "Valid options are "
+			    "\"CW\", \"CCW\", or \"UD\"\n");
 		}
+		free(s);
 	}
-	if (wsOpen(pInfo) != Success) {
-		rc = BadValue;
+	if (wsOpen(pInfo) != Success)
 		goto fail;
-	}
-	if (ioctl(pInfo->fd, WSMOUSEIO_GTYPE, &priv->type) != 0) {
-		wsClose(pInfo);
-		rc = BadValue;
+	if (ioctl(pInfo->fd, WSMOUSEIO_GTYPE, &priv->type) != 0)
 		goto fail;
-	}
 	if (priv->type == WSMOUSE_TYPE_TPANEL) {
 		pInfo->type_name = XI_TOUCHSCREEN;
 		priv->raw = xf86SetBoolOption(pInfo->options, "Raw", 1);
+		if (priv->raw) {
+			xf86IDrvMsg(pInfo, X_CONFIG,
+			    "device will work in raw mode\n");
+		}
 	} else {
 		pInfo->type_name = XI_MOUSE;
-		priv->raw = xf86SetBoolOption(pInfo->options, "Raw", 0);
-		if (priv->raw) {
-			xf86Msg(X_WARNING, "Device is not a touch panel,"
-			    "ignoring 'Option \"Raw\"'\n");
-			priv->raw = 0;
-		}
-	}
-	if (priv->raw) {
-		xf86Msg(X_CONFIG,
-		    "%s device will work in raw mode\n",
-		    pInfo->name);
+		priv->raw = 0;
 	}
 
 	if (priv->type == WSMOUSE_TYPE_TPANEL && priv->raw) {
 		if (ioctl(pInfo->fd, WSMOUSEIO_GCALIBCOORDS,
-			&priv->coords) != 0) {
-			xf86Msg(X_ERROR, "GCALIBCOORS failed %s\n",
-			    strerror(errno));
-			wsClose(pInfo);
-			rc = BadValue;
+		    &priv->coords) != 0) {
+			xf86IDrvMsg(pInfo, X_ERROR,
+			    "GCALIBCOORS failed %s\n", strerror(errno));
 			goto fail;
 		}
 
@@ -306,28 +268,19 @@ wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 	}
 	/* Allow options to override this */
 	priv->min_x = xf86SetIntOption(pInfo->options, "MinX", priv->min_x);
-	xf86Msg(X_INFO, "%s minimum x position: %d\n",
-	    pInfo->name, priv->min_x);
+	xf86IDrvMsg(pInfo, X_INFO, "minimum x position: %d\n", priv->min_x);
 	priv->max_x = xf86SetIntOption(pInfo->options, "MaxX", priv->max_x);
-	xf86Msg(X_INFO, "%s maximum x position: %d\n",
-	    pInfo->name, priv->max_x);
+	xf86IDrvMsg(pInfo, X_INFO, "maximum x position: %d\n", priv->max_x);
 	priv->min_y = xf86SetIntOption(pInfo->options, "MinY", priv->min_y);
-	xf86Msg(X_INFO, "%s minimum y position: %d\n",
-	    pInfo->name, priv->min_y);
+	xf86IDrvMsg(pInfo, X_INFO, "minimum y position: %d\n", priv->min_y);
 	priv->max_y = xf86SetIntOption(pInfo->options, "MaxY", priv->max_y);
-	xf86Msg(X_INFO, "%s maximum y position: %d\n",
-	    pInfo->name, priv->max_y);
+	xf86IDrvMsg(pInfo, X_INFO, "maximum y position: %d\n", priv->max_y);
 
 	pInfo->device_control = wsProc;
 	pInfo->read_input = wsReadInput;
 	pInfo->switch_mode = wsSwitchMode;
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
-	pInfo->conversion_proc = NULL;
-	pInfo->reverse_conversion_proc = NULL;
-	pInfo->old_x = -1;
-	pInfo->old_y = -1;
-#endif
-	xf86Msg(buttons_from, "%s: Buttons: %d\n", pInfo->name, priv->buttons);
+
+	xf86IDrvMsg(pInfo, buttons_from, "Buttons: %d\n", priv->buttons);
 
 	wsClose(pInfo);
 
@@ -335,6 +288,8 @@ wsPreInit12(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 	return Success;
 
 fail:
+	if (pInfo->fd >= 0)
+		wsClose(pInfo);
 	if (priv != NULL) {
 		free(priv);
 		pInfo->private = NULL;
@@ -342,32 +297,17 @@ fail:
 	return rc;
 }
 
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
-static InputInfoPtr
-wsPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
+static void
+wsUnInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 {
-	InputInfoPtr pInfo = NULL;
+	WSDevicePtr priv = pInfo->private;
 
-	pInfo = xf86AllocateInput(drv, 0);
-	if (pInfo == NULL) {
-		return NULL;
+	if (priv) {
+		free(priv->devName);
+		priv->devName = NULL;
 	}
-	pInfo->name = dev->identifier;
-	pInfo->flags = XI86_POINTER_CAPABLE | XI86_SEND_DRAG_EVENTS;
-	pInfo->conf_idev = dev;
-	pInfo->close_proc = NULL;
-	pInfo->private_flags = 0;
-	pInfo->always_core_feedback = NULL;
-
-	if (wsPreInit12(drv, pInfo, flags) != Success) {
-		xf86DeleteInput(pInfo, 0);
-		return NULL;
-	}
-	/* mark the device configured */
-	pInfo->flags |= XI86_CONFIGURED;
-	return pInfo;
+	xf86DeleteInput(pInfo, flags);
 }
-#endif
 
 static int
 wsProc(DeviceIntPtr pWS, int what)
@@ -391,7 +331,7 @@ wsProc(DeviceIntPtr pWS, int what)
 		break;
 
 	default:
-		xf86Msg(X_ERROR, "WS: unknown command %d\n", what);
+		xf86IDrvMsg(pInfo, X_ERROR, "unknown command %d\n", what);
 		return !Success;
 	} /* switch */
 	return Success;
@@ -460,32 +400,23 @@ wsDeviceInit(DeviceIntPtr pWS)
 
 	xf86InitValuatorAxisStruct(pWS, 0,
 	    axes_labels[0],
-	    xmin, xmax, 1, 0, 1
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 12
-	    , priv->type == WSMOUSE_TYPE_TPANEL  ? Absolute : Relative
-#endif
-	);
+	    xmin, xmax, 1, 0, 1,
+	    priv->type == WSMOUSE_TYPE_TPANEL ? Absolute : Relative);
 	xf86InitValuatorDefaults(pWS, 0);
 
 	xf86InitValuatorAxisStruct(pWS, 1,
 	    axes_labels[1],
-	    ymin, ymax, 1, 0, 1
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 12
-	    , priv->type == WSMOUSE_TYPE_TPANEL ? Absolute : Relative
-#endif
-	);
+	    ymin, ymax, 1, 0, 1,
+	    priv->type == WSMOUSE_TYPE_TPANEL ? Absolute : Relative);
 	xf86InitValuatorDefaults(pWS, 1);
 
-#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 12
-	xf86MotionHistoryAllocate(pInfo);
-	AssignTypeAndName(pWS, pInfo->atom, pInfo->name);
-#endif
 	pWS->public.on = FALSE;
 	if (wsOpen(pInfo) != Success) {
 		return !Success;
 	}
-	wsInitProperty(pWS);
-	XIRegisterPropertyHandler(pWS, wsSetProperty, NULL, NULL);
+
+	if (priv->type == WSMOUSE_TYPE_TPANEL)
+		wsInitCalibProperty(pWS);
 	wsmbEmuInitProperty(pWS);
 	return Success;
 }
@@ -499,7 +430,7 @@ wsDeviceOn(DeviceIntPtr pWS)
 
 	DBG(1, ErrorF("WS DEVICE ON\n"));
 	if ((pInfo->fd < 0) && (wsOpen(pInfo) != Success)) {
-		xf86Msg(X_ERROR, "wsOpen failed %s\n",
+		xf86IDrvMsg(pInfo, X_ERROR, "wsOpen failed %s\n",
 		    strerror(errno));
 			return !Success;
 	}
@@ -507,7 +438,7 @@ wsDeviceOn(DeviceIntPtr pWS)
 	if (priv->type == WSMOUSE_TYPE_TPANEL) {
 		/* get calibration values */
 		if (ioctl(pInfo->fd, WSMOUSEIO_GCALIBCOORDS, &coords) != 0) {
-			xf86Msg(X_ERROR, "GCALIBCOORS failed %s\n",
+			xf86IDrvMsg(pInfo, X_ERROR, "GCALIBCOORS failed %s\n",
 			    strerror(errno));
 			return !Success;
 		}
@@ -517,8 +448,8 @@ wsDeviceOn(DeviceIntPtr pWS)
 			coords.samplelen = priv->raw;
 			if (ioctl(pInfo->fd, WSMOUSEIO_SCALIBCOORDS,
 				&coords) != 0) {
-				xf86Msg(X_ERROR, "SCALIBCOORS failed %s\n",
-				    strerror(errno));
+				xf86IDrvMsg(pInfo, X_ERROR,
+				    "SCALIBCOORS failed %s\n", strerror(errno));
 				return !Success;
 			}
 		}
@@ -526,7 +457,7 @@ wsDeviceOn(DeviceIntPtr pWS)
 	priv->buffer = XisbNew(pInfo->fd,
 	    sizeof(struct wscons_event) * NUMEVENTS);
 	if (priv->buffer == NULL) {
-		xf86Msg(X_ERROR, "cannot alloc xisb buffer\n");
+		xf86IDrvMsg(pInfo, X_ERROR, "cannot alloc xisb buffer\n");
 		wsClose(pInfo);
 		return !Success;
 	}
@@ -549,7 +480,7 @@ wsDeviceOff(DeviceIntPtr pWS)
 		/* Restore calibration data */
 		memcpy(&coords, &priv->coords, sizeof coords);
 		if (ioctl(pInfo->fd, WSMOUSEIO_SCALIBCOORDS, &coords) != 0) {
-			xf86Msg(X_ERROR, "SCALIBCOORS failed %s\n",
+			xf86IDrvMsg(pInfo, X_ERROR, "SCALIBCOORS failed %s\n",
 			    strerror(errno));
 		}
 	}
@@ -641,8 +572,8 @@ wsReadInput(InputInfoPtr pInfo)
 			dw = event->value;
 			break;
 		default:
-			xf86Msg(X_WARNING, "%s: bad wsmouse event type=%d\n",
-			    pInfo->name, event->type);
+			xf86IDrvMsg(pInfo, X_WARNING,
+			    "bad wsmouse event type=%d\n", event->type);
 			++event;
 			continue;
 		} /* case */
@@ -659,12 +590,12 @@ wsReadInput(InputInfoPtr pInfo)
 			buttons &= ~(priv->negativeZ | priv->positiveZ);
 			if (dz < 0) {
 				DBG(4, ErrorF("Z -> button %d\n",
-					priv->negativeZ));
-				zbutton = 1 << (priv->negativeZ - 1);
+					ffs(priv->negativeZ)));
+				zbutton = priv->negativeZ;
 			} else {
 				DBG(4, ErrorF("Z -> button %d\n",
-					priv->positiveZ));
-				zbutton = 1 << (priv->positiveZ - 1);
+					ffs(priv->positiveZ)));
+				zbutton = priv->positiveZ;
 			}
 			buttons |= zbutton;
 			dz = 0;
@@ -674,12 +605,12 @@ wsReadInput(InputInfoPtr pInfo)
 			buttons &= ~(priv->negativeW | priv->positiveW);
 			if (dw < 0) {
 				DBG(4, ErrorF("W -> button %d\n",
-					priv->negativeW));
-				wbutton = 1 << (priv->negativeW - 1);
+					ffs(priv->negativeW)));
+				wbutton = priv->negativeW;
 			} else {
 				DBG(4, ErrorF("W -> button %d\n",
-					priv->positiveW));
-				wbutton = 1 << (priv->positiveW - 1);
+					ffs(priv->positiveW)));
+				wbutton = priv->positiveW;
 			}
 			buttons |= wbutton;
 			dw = 0;
@@ -719,21 +650,20 @@ static void
 wsSendButtons(InputInfoPtr pInfo, int buttons)
 {
 	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
-	int button, mask;
+	int change, button, mask;
 
-	for (button = 1; button < NBUTTONS; button++) {
+	change = buttons ^ priv->lastButtons;
+	while (change) {
+		button = ffs(change);
 		mask = 1 << (button - 1);
-		if ((mask & priv->lastButtons) != (mask & buttons)) {
-			if (!wsmbEmuFilterEvent(pInfo, button,
-				(buttons & mask) != 0)) {
-				xf86PostButtonEvent(pInfo->dev, TRUE,
-				    button, (buttons & mask) != 0,
-				    0, 0);
-				DBG(3, ErrorF("post button event %d %d\n",
-					button, (buttons & mask) != 0))
-				    }
+		change &= ~mask;
+		if (!wsmbEmuFilterEvent(pInfo, button, (buttons & mask) != 0)) {
+			xf86PostButtonEvent(pInfo->dev, TRUE,
+			    button, (buttons & mask) != 0, 0, 0);
+			DBG(3, ErrorF("post button event %d %d\n",
+			    button, (buttons & mask) != 0))
 		}
-	} /* for */
+	}
 	priv->lastButtons = buttons;
 } /* wsSendButtons */
 
@@ -755,13 +685,13 @@ wsOpen(InputInfoPtr pInfo)
 	DBG(1, ErrorF("WS open %s\n", priv->devName));
 	pInfo->fd = xf86OpenSerial(pInfo->options);
 	if (pInfo->fd == -1) {
-	    xf86Msg(X_ERROR, "%s: cannot open input device\n", pInfo->name);
+	    xf86IDrvMsg(pInfo, X_ERROR, "cannot open input device\n");
 	    return !Success;
 	}
 #ifdef __NetBSD__
 	if (ioctl(pInfo->fd, WSMOUSEIO_SETVERSION, &version) == -1) {
-		xf86Msg(X_ERROR, "%s: cannot set wsmouse event version\n",
-		    pInfo->name);
+		xf86IDrvMsg(pInfo, X_ERROR,
+		    "cannot set wsmouse event version\n");
 		return !Success;
 	}
 #endif
@@ -783,15 +713,13 @@ wsControlProc(DeviceIntPtr device, PtrCtrl *ctrl)
 }
 
 static void
-wsInitProperty(DeviceIntPtr device)
+wsInitCalibProperty(DeviceIntPtr device)
 {
 	InputInfoPtr pInfo = device->public.devicePrivate;
 	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
 	int rc;
 
-	DBG(1, ErrorF("wsInitProperty\n"));
-	if (priv->type != WSMOUSE_TYPE_TPANEL)
-		return;
+	DBG(1, ErrorF("wsInitCalibProperty\n"));
 
 	prop_calibration = MakeAtom(WS_PROP_CALIBRATION,
 	    strlen(WS_PROP_CALIBRATION), TRUE);
@@ -808,11 +736,14 @@ wsInitProperty(DeviceIntPtr device)
 	    PropModeReplace, 1, &priv->swap_axes, FALSE);
 	if (rc != Success)
 		return;
+
+	XIRegisterPropertyHandler(device, wsSetCalibProperty, NULL, NULL);
+
 	return;
 }
 
 static int
-wsSetProperty(DeviceIntPtr device, Atom atom, XIPropertyValuePtr val,
+wsSetCalibProperty(DeviceIntPtr device, Atom atom, XIPropertyValuePtr val,
     BOOL checkonly)
 {
 	InputInfoPtr pInfo = device->public.devicePrivate;
@@ -822,11 +753,7 @@ wsSetProperty(DeviceIntPtr device, Atom atom, XIPropertyValuePtr val,
 	AxisInfoPtr ax = device->valuator->axes,
 		    ay = device->valuator->axes + 1;
 
-	DBG(1, ErrorF("wsSetProperty %s\n", NameForAtom(atom)));
-
-	/* Ignore non panel devices */
-	if (priv->type != WSMOUSE_TYPE_TPANEL)
-		return Success;
+	DBG(1, ErrorF("wsSetCalibProperty %s\n", NameForAtom(atom)));
 
 	if (atom == prop_calibration) {
 		if (val->format != 32 || val->type != XA_INTEGER)
@@ -891,7 +818,7 @@ wsSetProperty(DeviceIntPtr device, Atom atom, XIPropertyValuePtr val,
 		coords.resx = priv->coords.resx;
 		coords.resy = priv->coords.resy;
 		if (ioctl(pInfo->fd, WSMOUSEIO_SCALIBCOORDS, &coords) != 0) {
-			xf86Msg(X_ERROR, "SCALIBCOORDS failed %s\n",
+			xf86IDrvMsg(pInfo, X_ERROR, "SCALIBCOORDS failed %s\n",
 			    strerror(errno));
 		}
 	}

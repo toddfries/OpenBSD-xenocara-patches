@@ -1,4 +1,4 @@
-# $OpenBSD: MODULES,v 1.180 2011/10/23 14:04:04 matthieu Exp $
+# $OpenBSD: MODULES,v 1.184 2011/11/06 10:23:14 matthieu Exp $
 #
 # X.Org maintained modules
 #
@@ -21,7 +21,7 @@ app/mkfontscale		1.0.9	7.6+
 app/oclock		1.0.2	7.6
 app/rgb			1.0.4	7.6
 app/scripts		1.0.1	7.0
-app/sessreg		1.0.7	7.6+	needs-update
+app/sessreg		1.0.7	7.6+
 app/setxkbmap		1.2.0	7.6
 app/showfont		1.0.3	7.6
 app/smproxy		1.0.5	7.6+
@@ -38,7 +38,7 @@ app/xcmsdb		1.0.3	7.6
 app/xcompmgr		1.1.5	7.5+
 app/xconsole		1.0.4	7.6
 app/xdm			1.1.11	7.6+	needs-update
-app/xdpyinfo		1.3.0	7.6+	needs-update
+app/xdpyinfo		1.3.0	7.6+
 app/xdriinfo		1.0.4	7.6
 app/xedit		1.2.0	7.6
 app/xev			1.1.0	7.6
@@ -52,7 +52,7 @@ app/xfwp		1.0.2	7.6
 app/xgamma		1.0.4	7.6
 app/xgc			1.0.3	7.6
 app/xhost		1.0.4	7.6
-app/xinit		1.3.1	7.6+	needs-update
+app/xinit		1.3.1	7.6+
 app/xinput		1.5.3	7.6
 app/xkbcomp		1.2.3	7.6+
 app/xkbevd		1.1.2	7.6
@@ -89,18 +89,18 @@ data/bitmaps		1.1.1	7.6
 doc/xorg-docs		1.6	7.6
 
 driver/xf86-input-acecad	1.5.0	7.6+
-driver/xf86-input-citron	2.2.2	7.4	needs-release
-driver/xf86-input-elographics	1.3.0	7.6+	needs-update
-driver/xf86-input-fpit		1.4.0	7.6+	needs-update
-driver/xf86-input-hyperpen	1.4.1	7.6+	needs-update
-driver/xf86-input-joystick	1.6.0	7.6+	needs-update
+driver/xf86-input-citron	2.2.2	7.4	to be removed
+driver/xf86-input-elographics	1.3.0	7.6+
+driver/xf86-input-fpit		1.4.0	7.6+
+driver/xf86-input-hyperpen	1.4.1	7.6+
+driver/xf86-input-joystick	1.6.0	7.6+
 driver/xf86-input-keyboard	1.6.0	7.6+
-driver/xf86-input-mouse		1.7.1	7.6+	needs-update
-driver/xf86-input-mutouch	1.3.0	7.6+	needs-update
-driver/xf86-input-penmount	1.5.0	7.6+	needs-update
+driver/xf86-input-mouse		1.7.1	7.6+
+driver/xf86-input-mutouch	1.3.0	7.6+
+driver/xf86-input-penmount	1.5.0	7.6+
 driver/xf86-input-synaptics	1.5.0	7.6+
 driver/xf86-input-vmmouse	12.7.0	7.6+
-driver/xf86-input-void		1.4.0	7.6+	needs-update
+driver/xf86-input-void		1.4.0	7.6+
 driver/xf86-video-apm		1.2.3	7.6
 driver/xf86-video-ark		0.7.3	7.5+
 driver/xf86-video-ati		6.14.2	7.6+	needs-update
@@ -252,4 +252,4 @@ util/imake			1.0.4	7.6
 util/macros			1.15.0	7.6+
 util/makedepend			1.0.3	7.6
 
-xserver				1.11.1	7.6+	needs-update
+xserver				1.11.2	7.6+

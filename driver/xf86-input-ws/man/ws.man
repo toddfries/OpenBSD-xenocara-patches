@@ -1,4 +1,4 @@
-.\"	$OpenBSD: ws.man,v 1.8 2011/07/16 17:50:41 matthieu Exp $
+.\"	$OpenBSD: ws.man,v 1.10 2011/11/08 12:57:44 shadchin Exp $
 .\"
 .\" Copyright (c) 2005,2009,2011 Matthieu Herrb
 .\"
@@ -107,22 +107,23 @@ clockwise, counter-clockwise, or upside-down respectively.
 .BI "Option \*qSwapXY\*q \*q" boolean \*q
 swaps the X and Y axis of the input device if set. Default: false.
 .TP 4
-.B Option \fI"ZAxisMapping"\fP \fI"N1 N2"\fP
+.BI "Option \*qZAxisMapping\*q \*q" "N1 N2" \*q
 Set the mapping for the Z axis (wheel) motion to buttons. Button
 number
 .I N1
 is mapped to the negative Z axis motion and button
 .I N2
 is mapped to the positive Z axis motion.
-Default: no mapping.
-.B Option \fI"WAxisMapping"\fP \fI"N1 N2"\fP
+Default:\ "4\ 5".
+.TP 4
+.BI "Option \*qWAxisMapping\*q \*q" "N1 N2" \*q
 Set the mapping for the W axis (horizontal wheel) motion to buttons. Button
 number
 .I N1
 is mapped to the negative W axis motion and button
 .I N2
 is mapped to the positive W axis motion.
-Default: no mapping.
+Default:\ "6\ 7".
 .SH "SUPPORTED PROPERTIES"
 The following properties are provided by the
 .B ws

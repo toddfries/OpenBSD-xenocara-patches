@@ -19,6 +19,11 @@
 #  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 #  PERFORMANCE OF THIS SOFTWARE.
 
+SUBDIRS = man
+if LAUNCHD
+SUBDIRS += launchd
+endif
+
 bin_PROGRAMS = xinit
 bin_SCRIPTS = startx
 
@@ -28,14 +33,6 @@ xinit_LDADD = $(XINIT_LIBS)
 
 xinit_SOURCES =	\
         xinit.c
-
-appmandir = $(APP_MAN_DIR)
-
-appman_PRE = \
-	startx.man \
-        xinit.man
-
-appman_DATA = $(appman_PRE:man=@APP_MAN_SUFFIX@)
 
 include $(top_srcdir)/cpprules.in
 
@@ -58,26 +55,14 @@ CPP_FILES_FLAGS = \
 	-DSHELL_CMD=$(SHELL_CMD) $(STARTX_COOKIE_FLAGS) \
 	-D__libexecdir__="$(libexecdir)" \
 	-D__bindir__="$(bindir)" \
-	-DLAUNCHD_ID_PREFIX="$(launchdidprefix)"
-
-if LAUNCHD
-$(launchdidprefix).startx.plist.cpp: org.x.startx.plist.cpp
-	cp $< $@
-
-launchagents_PRE = $(launchdidprefix).startx.plist.cpp
-launchagents_DATA = $(launchagents_PRE:plist.cpp=plist)
-
-SUBDIRS = privileged_startx
-endif
-
-DIST_SUBDIRS = privileged_startx
+	-DBUNDLE_ID_PREFIX="$(bundleidprefix)"
 
 xinitrc_DATA = xinitrc
 
 MAINTAINERCLEANFILES = ChangeLog INSTALL
-CLEANFILES = xinitrc startx $(appman_DATA) $(launchagents_DATA)
+CLEANFILES = xinitrc startx $(launchagents_DATA)
 
-EXTRA_DIST = xinitrc.cpp startx.cpp org.x.startx.plist.cpp $(appman_PRE)	\
+EXTRA_DIST = xinitrc.cpp startx.cpp \
 		autogen.sh
 
 .PHONY: ChangeLog INSTALL

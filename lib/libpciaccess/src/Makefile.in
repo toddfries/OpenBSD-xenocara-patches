@@ -37,8 +37,6 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-
-
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -48,9 +46,9 @@ pkgincludedir = $(includedir)/@PACKAGE@
 top_builddir = ..
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 INSTALL = @INSTALL@
-install_sh_DATA = $(install_sh) -c -m 644
-install_sh_PROGRAM = $(install_sh) -c
-install_sh_SCRIPT = $(install_sh) -c
+install_sh_DATA = ${SHELL} $(install_sh) -c -m 644
+install_sh_PROGRAM = ${SHELL} $(install_sh) -c
+install_sh_SCRIPT = ${SHELL} $(install_sh) -c
 INSTALL_HEADER = $(INSTALL_DATA)
 transform = $(program_transform_name)
 NORMAL_INSTALL = :
@@ -61,12 +59,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-noinst_PROGRAMS = scanpci$(EXEEXT)
 subdir = src
-DIST_COMMON = $(libpciaccessinclude_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_define_dir.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -79,8 +75,7 @@ am__vpath_adj = case $$p in \
     *) f=$$p;; \
   esac;
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(libdir)" \
-	"$(DESTDIR)$(libpciaccessincludedir)"
+am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
@@ -110,10 +105,6 @@ am_libpciaccess_la_OBJECTS = common_bridge.lo common_iterator.lo \
 	common_capability.lo common_device_name.lo common_map.lo \
 	$(am__objects_1) $(am__objects_2)
 libpciaccess_la_OBJECTS = $(am_libpciaccess_la_OBJECTS)
-PROGRAMS = $(noinst_PROGRAMS)
-am_scanpci_OBJECTS = scanpci.$(OBJEXT)
-scanpci_OBJECTS = $(am_scanpci_OBJECTS)
-scanpci_DEPENDENCIES = libpciaccess.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -125,10 +116,8 @@ LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libpciaccess_la_SOURCES) $(scanpci_SOURCES)
-DIST_SOURCES = $(am__libpciaccess_la_SOURCES_DIST) $(scanpci_SOURCES)
-libpciaccessincludeHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(libpciaccessinclude_HEADERS)
+SOURCES = $(libpciaccess_la_SOURCES)
+DIST_SOURCES = $(am__libpciaccess_la_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -223,6 +212,7 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+STRICT_CFLAGS = @STRICT_CFLAGS@
 STRIP = @STRIP@
 VERSION = @VERSION@
 XORG_MAN_PAGE = @XORG_MAN_PAGE@
@@ -273,6 +263,7 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
+AM_CPPFLAGS = -I$(top_srcdir)/include
 AM_CFLAGS = $(CWARNFLAGS) @PCIACCESS_CFLAGS@
 lib_LTLIBRARIES = libpciaccess.la
 @FREEBSD_TRUE@OS_SUPPORT = freebsd_pci.c
@@ -298,15 +289,8 @@ libpciaccess_la_SOURCES = common_bridge.c \
 	$(VGA_ARBITER) \
 	$(OS_SUPPORT)
 
-INCLUDES = -I$(top_srcdir)/include
 libpciaccess_la_LIBADD = $(PCIACCESS_LIBS)
 libpciaccess_la_LDFLAGS = -version-number 0:10:8 -no-undefined
-libpciaccessincludedir = $(includedir)
-libpciaccessinclude_HEADERS = \
-    $(top_srcdir)/include/pciaccess.h
-
-scanpci_SOURCES = scanpci.c
-scanpci_LDADD = libpciaccess.la
 all: all-am
 
 .SUFFIXES:
@@ -370,16 +354,6 @@ clean-libLTLIBRARIES:
 libpciaccess.la: $(libpciaccess_la_OBJECTS) $(libpciaccess_la_DEPENDENCIES) 
 	$(LINK) -rpath $(libdir) $(libpciaccess_la_LDFLAGS) $(libpciaccess_la_OBJECTS) $(libpciaccess_la_LIBADD) $(LIBS)
 
-clean-noinstPROGRAMS:
-	@list='$(noinst_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
-	done
-scanpci$(EXEEXT): $(scanpci_OBJECTS) $(scanpci_DEPENDENCIES) 
-	@rm -f scanpci$(EXEEXT)
-	$(LINK) $(scanpci_LDFLAGS) $(scanpci_OBJECTS) $(scanpci_LDADD) $(LIBS)
-
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -401,7 +375,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/linux_sysfs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/netbsd_pci.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/openbsd_pci.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/scanpci.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/solx_devfs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/x86_pci.Plo@am__quote@
 
@@ -435,23 +408,6 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-libpciaccessincludeHEADERS: $(libpciaccessinclude_HEADERS)
-	@$(NORMAL_INSTALL)
-	test -z "$(libpciaccessincludedir)" || $(mkdir_p) "$(DESTDIR)$(libpciaccessincludedir)"
-	@list='$(libpciaccessinclude_HEADERS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(libpciaccessincludeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(libpciaccessincludedir)/$$f'"; \
-	  $(libpciaccessincludeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(libpciaccessincludedir)/$$f"; \
-	done
-
-uninstall-libpciaccessincludeHEADERS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(libpciaccessinclude_HEADERS)'; for p in $$list; do \
-	  f=$(am__strip_dir) \
-	  echo " rm -f '$(DESTDIR)$(libpciaccessincludedir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(libpciaccessincludedir)/$$f"; \
-	done
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -502,7 +458,6 @@ distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/../include
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -531,9 +486,9 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
+all-am: Makefile $(LTLIBRARIES)
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(libpciaccessincludedir)"; do \
+	for dir in "$(DESTDIR)$(libdir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -563,7 +518,7 @@ maintainer-clean-generic:
 clean: clean-am
 
 clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
-	clean-noinstPROGRAMS mostlyclean-am
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -581,7 +536,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-libpciaccessincludeHEADERS
+install-data-am:
 
 install-exec-am: install-libLTLIBRARIES
 
@@ -609,22 +564,20 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
-	uninstall-libpciaccessincludeHEADERS
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
-	clean-libLTLIBRARIES clean-libtool clean-noinstPROGRAMS ctags \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-data \
-	install-data-am install-exec install-exec-am install-info \
-	install-info-am install-libLTLIBRARIES \
-	install-libpciaccessincludeHEADERS install-man install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-info-am \
-	uninstall-libLTLIBRARIES uninstall-libpciaccessincludeHEADERS
+	uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
