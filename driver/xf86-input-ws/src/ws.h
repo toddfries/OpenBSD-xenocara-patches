@@ -16,36 +16,46 @@
 
 #include <dev/wscons/wsconsio.h>
 
-
 /* #undef DEBUG */
 #define DEBUG
 #undef DBG
-extern int ws_debug_level;
 #ifdef DEBUG
+extern int ws_debug_level;
 # define DBG(lvl, f) { if ((lvl) <= ws_debug_level) f;}
 #else
 # define DBG(lvl, f)
 #endif
 
-#define NAXES 2			/* X and Y axes only */
-#define NBUTTONS 32		/* max theoretical buttons */
-#define DFLTBUTTONS 3		/* default number of buttons */
-#define NUMEVENTS 16		/* max # of ws events to read at once */
+#define NAXES		2	/* X and Y axes only */
+#define NBUTTONS	32	/* max theoretical buttons */
+#define DFLTBUTTONS	3	/* default number of buttons */
+#define NUMEVENTS	16	/* max # of ws events to read at once */
+
+#define WS_NOMAP	0
+
+/* axis specific data for wheel */
+typedef struct {
+    int negative;
+    int positive;
+    int traveled_distance;
+} WheelAxis, *WheelAxisPtr;
 
 typedef struct WSDevice {
 	char *devName;		/* device name */
 	int type;		/* ws device type */
 	unsigned int buttons;	/* # of buttons */
 	unsigned int lastButtons; /* last state of buttons */
+	int old_ax, old_ay;
 	int min_x, max_x, min_y, max_y; /* coord space */
 	int swap_axes;
 	int raw;
 	int inv_x, inv_y;
 	int screen_no;
 	pointer buffer;
-	int negativeZ, positiveZ; /* mappings for Z axis */
-	int negativeW, positiveW; /* mappings for W axis */
+	WheelAxis Z;
+	WheelAxis W;
 	struct wsmouse_calibcoords coords; /* mirror of the kernel values */
+
 	/* Middle mouse button emulation */
 	struct {
 		BOOL enabled;
@@ -55,8 +65,21 @@ typedef struct WSDevice {
 		Time expires;     /* time of expiry */
 		Time timeout;
 	} emulateMB;
+
+	/* Mouse wheel emulation */
+	struct {
+		BOOL enabled;
+		int button;
+		int button_state;
+		int inertia;
+		WheelAxis X;
+		WheelAxis Y;
+		Time expires;		/* time of expiry */
+		Time timeout;
+	} emulateWheel;
 } WSDeviceRec, *WSDevicePtr;
 
+/* Middle mouse button emulation */
 extern int wsmbEmuTimer(InputInfoPtr);
 extern BOOL wsmbEmuFilterEvent(InputInfoPtr, int, BOOL);
 extern void wsmbEmuWakeupHandler(pointer, int, pointer);
@@ -64,5 +87,13 @@ extern void wsmbEmuBlockHandler(pointer, struct timeval **, pointer);
 extern void wsmbEmuPreInit(InputInfoPtr);
 extern void wsmbEmuOn(InputInfoPtr);
 extern void wsmbEmuFinalize(InputInfoPtr);
-extern void wsmbEmuEnable(InputInfoPtr, BOOL);
 extern void wsmbEmuInitProperty(DeviceIntPtr);
+
+/* Mouse wheel emulation */
+extern void wsWheelEmuPreInit(InputInfoPtr);
+extern BOOL wsWheelEmuFilterButton(InputInfoPtr, unsigned int, int);
+extern BOOL wsWheelEmuFilterMotion(InputInfoPtr, int, int);
+extern void wsWheelEmuInitProperty(DeviceIntPtr);
+
+extern void wsWheelHandleButtonMap(InputInfoPtr, WheelAxisPtr, char *, char *);
+extern void wsButtonClicks(InputInfoPtr, int, int);

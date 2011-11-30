@@ -1,4 +1,4 @@
-/*	$OpenBSD: emumb.c,v 1.6 2011/11/07 18:33:04 shadchin Exp $ */
+/*	$OpenBSD: emumb.c,v 1.9 2011/11/19 13:09:16 shadchin Exp $ */
 /*
  * Copyright 1990,91 by Thomas Roell, Dinkelscherben, Germany.
  * Copyright 1993 by David Dawes <dawes@xfree86.org>
@@ -54,8 +54,8 @@ enum {
 	MBEMU_AUTO
 };
 
-static Atom prop_mbemu     = 0; /* Middle button emulation on/off property */
-static Atom prop_mbtimeout = 0; /* Middle button timeout property */
+static Atom prop_mbemu;		/* Middle button emulation on/off property */
+static Atom prop_mbtimeout;	/* Middle button timeout property */
 
 /*
  * Lets create a simple finite-state machine for 3 button emulation:
@@ -191,7 +191,6 @@ static signed char stateTab[11][5][3] = {
   },
 };
 
-
 int
 wsmbEmuTimer(InputInfoPtr pInfo)
 {
@@ -215,7 +214,6 @@ wsmbEmuTimer(InputInfoPtr pInfo)
 	return 0;
 }
 
-
 /**
  * Emulate a middle button on button press.
  *
@@ -236,8 +234,9 @@ wsmbEmuFilterEvent(InputInfoPtr pInfo, int button, BOOL press)
 	if (!priv->emulateMB.enabled)
 		return ret;
 
-	if (button == 2) {
-		wsmbEmuEnable(pInfo, FALSE);
+	/* Disable emulation when middle button event is detected */
+	if (button == 2 && priv->emulateMB.enabled == MBEMU_AUTO) {
+		priv->emulateMB.enabled = FALSE;
 		return ret;
 	}
 
@@ -272,7 +271,6 @@ wsmbEmuFilterEvent(InputInfoPtr pInfo, int button, BOOL press)
 	}
 	return ret;
 }
-
 
 void
 wsmbEmuWakeupHandler(pointer data,
@@ -311,9 +309,11 @@ void
 wsmbEmuPreInit(InputInfoPtr pInfo)
 {
 	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
-	priv->emulateMB.enabled = MBEMU_AUTO;
+	int timeout;
 
 	DBG(1, ErrorF("wsmbEmuPreInit\n"));
+
+	priv->emulateMB.enabled = MBEMU_AUTO;
 	if (xf86FindOption(pInfo->options, "Emulate3Buttons")) {
 		priv->emulateMB.enabled = xf86SetBoolOption(pInfo->options,
 		    "Emulate3Buttons",
@@ -323,8 +323,14 @@ wsmbEmuPreInit(InputInfoPtr pInfo)
 		    (priv->emulateMB.enabled) ? "on" : "off");
 	}
 
-	priv->emulateMB.timeout = xf86SetIntOption(pInfo->options,
-	    "Emulate3Timeout", 50);
+	timeout = xf86SetIntOption(pInfo->options, "Emulate3Timeout", 50);
+	if (timeout < 0) {
+		xf86IDrvMsg(pInfo, X_WARNING,
+		    "Invalid Emulate3Timeout value: %d\n", timeout);
+		xf86IDrvMsg(pInfo, X_WARNING, "Using built-in timeout value\n");
+		timeout = 50;
+	}
+	priv->emulateMB.timeout = timeout;
 }
 
 void
@@ -339,23 +345,11 @@ wsmbEmuFinalize(InputInfoPtr pInfo)
 {
 	RemoveBlockAndWakeupHandlers(wsmbEmuBlockHandler,
 	    wsmbEmuWakeupHandler, (pointer)pInfo);
-
 }
-
-/* Enable/disable middle mouse button emulation. */
-void
-wsmbEmuEnable(InputInfoPtr pInfo, BOOL enable)
-{
-	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
-
-	if (priv->emulateMB.enabled == MBEMU_AUTO)
-		priv->emulateMB.enabled = enable;
-}
-
 
 static int
 wsmbEmuSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
-                      BOOL checkonly)
+    BOOL checkonly)
 {
 	InputInfoPtr pInfo  = dev->public.devicePrivate;
 	WSDevicePtr priv = pInfo->private;
@@ -370,12 +364,19 @@ wsmbEmuSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
 		if (!checkonly)
 			priv->emulateMB.enabled = *((BOOL*)val->data);
 	} else if (atom == prop_mbtimeout) {
+		int timeout;
+
 		if (val->format != 32 || val->size != 1 ||
 		    val->type != XA_INTEGER)
 			return BadMatch;
 
+		timeout = *((CARD32*)val->data);
+
+		if (timeout < 0)
+			return BadValue;
+
 		if (!checkonly)
-			priv->emulateMB.timeout = *((CARD32*)val->data);
+			priv->emulateMB.timeout = timeout;
 	}
 
 	return Success;
