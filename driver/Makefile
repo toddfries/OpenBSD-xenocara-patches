@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.39 2011/11/05 14:32:44 matthieu Exp $
+# $OpenBSD: Makefile,v 1.41 2012/02/06 22:53:02 matthieu Exp $
 
 # The input driver ABI broke between xserver 1.9 and 1.10. 
 # Some drivers were updated to the new ABI without keeping compatibility

@@ -22,6 +22,10 @@
  * authorization from the author.
  *
  * $Log: theatre_detect.c,v $
+ * Revision 1.5  2012/02/06 22:53:13  matthieu
+ * Revert the update to xf86-video-ati 6.14.3. Requested by espie@
+ * who experiemnts regressions with this driver.
+ *
  * Revision 1.3  2009/08/25 18:51:45  matthieu
  * update do xf86-video-ati 6.12.2
  *
