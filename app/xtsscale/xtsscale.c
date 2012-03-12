@@ -1,4 +1,4 @@
-/*      $OpenBSD: xtsscale.c,v 1.21 2011/07/16 17:54:07 matthieu Exp $ */
+/*      $OpenBSD: xtsscale.c,v 1.23 2012/03/06 23:24:37 matthieu Exp $ */
 /*
  * Copyright (c) 2007 Robert Nagy <robert@openbsd.org>
  * Copyright (c) 2009,2011 Matthieu Herrb <matthieu@herrb.eu>
@@ -104,7 +104,6 @@ XftFont	       *font;
 XftColor	cross, errorColor, promptColor, bg;
 XftDraw	       *draw;
 unsigned int    xpos, ypos, width, height;	/* window size */
-char           *progname;
 Bool		interrupted = False;
 Bool		verbose = False;
 
@@ -612,7 +611,7 @@ main(int argc, char *argv[], char *env[])
 	/* connect to X server */
 	if ((display = XOpenDisplay(display_name)) == NULL) {
 		fprintf(stderr, "%s: cannot connect to X server %s\n",
-		    argv[0], XDisplayName(display_name));
+		    __progname, XDisplayName(display_name));
 		exit(1);
 	}
 	screen = DefaultScreen(display);
@@ -653,7 +652,7 @@ main(int argc, char *argv[], char *env[])
 	if (!XQueryExtension(display, INAME, &xi_opcode,
 		&event, &error)) {
 		fprintf(stderr, "%s: X Input extension not available.\n",
-		    argv[0]);
+		    __progname);
 		exit(1);
 	}
 

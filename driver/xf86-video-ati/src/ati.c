@@ -63,12 +63,13 @@
 #include "atipcirename.h"
 
 #include "ati.h"
+#include "atipciids.h"
 #include "ativersion.h"
 
 /* names duplicated from version headers */
 #define MACH64_DRIVER_NAME  "mach64"
 #define R128_DRIVER_NAME    "r128"
-#define RADEON_DRIVER_NAME  "radeon"
+#define RADEON_DRIVER_NAME  "radeonold"
 
 enum
 {
@@ -227,7 +228,7 @@ ati_gdev_subdriver(pointer options)
         }
     }
 
-    xfree(ATIGDevs);
+    free(ATIGDevs);
 
     /* load subdrivers as primary modules and only if they do not get loaded
      * from other device sections

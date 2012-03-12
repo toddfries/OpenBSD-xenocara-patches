@@ -1,11 +1,4 @@
-# $OpenBSD: Makefile,v 1.42 2012/02/07 19:46:11 matthieu Exp $
-
-# The input driver ABI broke between xserver 1.9 and 1.10. 
-# Some drivers were updated to the new ABI without keeping compatibility
-# So people testing Xserver 1.11 cant build the ones in xenocara until
-# they are updated, but I don't want to break people building from CVS
-# This is going away once xsever 1.11 and associated input drivers 
-# updates are committed
+# $OpenBSD: Makefile,v 1.47 2012/03/12 13:54:04 matthieu Exp $
 
 INPUT_DRV_DEFAULT= \
 	xf86-input-keyboard \
@@ -33,7 +26,7 @@ INPUT_DRV_landisk=
 
 INPUT_DRV_loongson= ${INPUT_DRV_DEFAULT}
 
-INPUT_DRV_mac68k= 
+INPUT_DRV_mac68k=
 
 INPUT_DRV_macppc= ${INPUT_DRV_COMMON}
 
@@ -54,24 +47,18 @@ INPUT_DRV= ${INPUT_DRV_${MACHINE}}
 INPUT_DRV= ${INPUT_DRV_DEFAULT}
 .endif
 
-VIDEO_DRV_COMMON= \
-	xf86-video-apm xf86-video-ark xf86-video-ati xf86-video-chips  \
-	xf86-video-cirrus xf86-video-dummy \
-	xf86-video-glint xf86-video-i128 xf86-video-mach64 xf86-video-mga \
-	xf86-video-neomagic \
-	xf86-video-nv xf86-video-r128 xf86-video-rendition xf86-video-s3 \
-	xf86-video-s3virge xf86-video-savage xf86-video-siliconmotion \
-	xf86-video-sis xf86-video-tdfx xf86-video-trident \
-	xf86-video-tseng xf86-video-vesa
-
 VIDEO_DRV_alpha=
 
 VIDEO_DRV_amd64= \
-	${VIDEO_DRV_COMMON} \
-	xf86-video-intel \
-	xf86-video-openchrome \
-	xf86-video-radeonhd \
-	xf86-video-vmware \
+	xf86-video-apm xf86-video-ark xf86-video-ati xf86-video-chips  \
+	xf86-video-cirrus xf86-video-dummy xf86-video-glint \
+	xf86-video-i128 xf86-video-intel xf86-video-mach64 \
+	xf86-video-mga xf86-video-neomagic \
+	xf86-video-nv xf86-video-openchrome xf86-video-r128 \
+	xf86-video-radeonold xf86-video-rendition xf86-video-s3 \
+	xf86-video-s3virge xf86-video-savage xf86-video-siliconmotion \
+	xf86-video-sis xf86-video-tdfx xf86-video-trident \
+	xf86-video-tseng xf86-video-vesa xf86-video-vmware \
 	xf86-video-wsudl
 
 VIDEO_DRV_armish= \
@@ -83,17 +70,11 @@ VIDEO_DRV_hppa= \
 	xf86-video-wsfb \
 	xf86-video-wsudl
 
-# keep this list sorted, please.
 VIDEO_DRV_i386= \
-	${VIDEO_DRV_COMMON} \
+	${VIDEO_DRV_amd64} \
 	xf86-video-geode \
 	xf86-video-i740 \
-	xf86-video-intel \
-	xf86-video-openchrome \
-	xf86-video-radeonhd \
-	xf86-video-vmware \
-	xf86-video-voodoo \
-	xf86-video-wsudl
+	xf86-video-voodoo
 
 VIDEO_DRV_landisk=
 
@@ -104,7 +85,7 @@ VIDEO_DRV_mac68k=
 
 VIDEO_DRV_macppc= \
 	xf86-video-ati xf86-video-mach64 xf86-video-nv xf86-video-r128 \
-	xf86-video-wsfb xf86-video-wsudl
+	xf86-video-radeonold xf86-video-wsfb xf86-video-wsudl
 
 VIDEO_DRV_mvme68k=
 VIDEO_DRV_mvme88k=
@@ -113,7 +94,7 @@ VIDEO_DRV_sgi= xf86-video-wsfb
 
 VIDEO_DRV_sparc64= \
 	xf86-video-ati xf86-video-mach64 xf86-video-r128 xf86-video-glint \
-	xf86-video-sunffb \
+	xf86-video-radeonold xf86-video-sunffb \
 	xf86-video-wildcatfb xf86-video-wsfb
 
 VIDEO_DRV_vax=
