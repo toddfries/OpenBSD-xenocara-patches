@@ -1,5 +1,6 @@
-# $OpenBSD: Makefile,v 1.44 2012/02/07 19:54:55 matthieu Exp $
+# $OpenBSD: Makefile,v 1.46 2012/04/01 23:00:24 matthieu Exp $
 .include <bsd.own.mk>
+.include <bsd.xconf.mk>
 
 LOCALAPPD=/usr/local/lib/X11/app-defaults
 LOCALAPPX=/usr/local/lib/X11
@@ -11,8 +12,10 @@ RM?=rm
 XSERVER= xserver
 .endif
 
-.if ${COMPILER_VERSION:L:Mgcc[34]*}
+.if defined(XENOCARA_BUILD_PIXMAN)
+.if ${COMPILER_VERSION:L:Mgcc[34]*} && ${XENOCARA_BUILD_PIXMAN:L} == "yes"
 XSERVER+= kdrive
+.endif
 .endif
 
 SUBDIR= proto font/util data/bitmaps lib app data \
