@@ -1,4 +1,4 @@
-# $OpenBSD: 3RDPARTY,v 1.130 2012/04/14 09:47:15 matthieu Exp $
+# $OpenBSD: 3RDPARTY,v 1.133 2012/06/10 16:31:54 shadchin Exp $
 #
 
 Package: 	Freetype
@@ -8,8 +8,8 @@ Maintainer:	Freetype.org
 Archive Site:	http://download.savannah.gnu.org/releases/freetype/
 
 Package:	xterm
-Version:	278
-Current Vers:	278
+Version:	279
+Current Vers:	279
 Maintainer:	Thomas E. Dickey
 Archive Site:	http://invisible-island.net/xterm/xterm.html
 
@@ -21,7 +21,7 @@ Archive Site:	http://www.mesa3d.org/
 
 Package:	libdrm
 Version:	2.4.24
-Current Vers:	2.4.33
+Current Vers:	2.4.35
 Maintainer:	Eric Anholt
 Archive Site:	http://dri.freedesktop.org/
 
@@ -44,8 +44,8 @@ Maintainer:	bagleyd@tux.org
 Archive Site:	http://www.tux.org/~bagleyd/latest/
 
 Package:	xkeyboard-config
-Version:	2.5
-Current Vers:	2.5.1
+Version:	2.6
+Current Vers:	2.6
 Maintainer:	xkb@listserv.bat.ru
 Archive Site:	http://www.freedesktop.org/wiki/Software/XKeyboardConfig
 

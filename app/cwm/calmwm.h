@@ -15,12 +15,13 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.142 2011/09/13 08:41:57 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.146 2012/05/16 01:17:14 okan Exp $
  */
 
 #ifndef _CALMWM_H_
 #define _CALMWM_H_
 
+#include <X11/XKBlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
 #include <X11/Xlib.h>
@@ -202,7 +203,7 @@ struct screen_ctx {
 	Window			 menuwin;
 	struct color		 color[CWM_COLOR_MAX];
 	GC			 gc;
-	int			 altpersist;
+	int			 cycling;
 	int			 xmax;
 	int			 ymax;
 	struct gap		 gap;
@@ -306,6 +307,7 @@ __dead void		 usage(void);
 void			 client_applysizehints(struct client_ctx *);
 struct client_ctx	*client_current(void);
 void			 client_cycle(struct screen_ctx *, int);
+void			 client_cycle_leave(struct screen_ctx *, struct client_ctx *);
 void			 client_delete(struct client_ctx *);
 void			 client_draw_border(struct client_ctx *);
 struct client_ctx	*client_find(Window);
@@ -461,7 +463,9 @@ void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_ungrab(void);
 void			 xu_sendmsg(Window, Atom, long);
 void			 xu_setstate(struct client_ctx *, int);
-void			 xu_setwmname(struct screen_ctx *);
+
+void			 xu_ewmh_net_supported(struct screen_ctx *);
+void			 xu_ewmh_net_supported_wm_check(struct screen_ctx *);
 
 void			 u_exec(char *);
 void			 u_spawn(char *);

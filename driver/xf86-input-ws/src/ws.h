@@ -35,18 +35,17 @@ extern int ws_debug_level;
 
 /* axis specific data for wheel */
 typedef struct {
-    int negative;
-    int positive;
-    int traveled_distance;
+	int negative;
+	int positive;
+	int traveled_distance;
 } WheelAxis, *WheelAxisPtr;
 
 typedef struct WSDevice {
-	char *devName;		/* device name */
-	int type;		/* ws device type */
-	unsigned int buttons;	/* # of buttons */
-	unsigned int lastButtons; /* last state of buttons */
+	char *devName;			/* device name */
+	int type;			/* ws device type */
+	unsigned int lastButtons;	/* last state of buttons */
 	int old_ax, old_ay;
-	int min_x, max_x, min_y, max_y; /* coord space */
+	int min_x, max_x, min_y, max_y;	/* coord space */
 	int swap_axes;
 	int raw;
 	int inv_x, inv_y;
@@ -56,13 +55,17 @@ typedef struct WSDevice {
 	WheelAxis W;
 	struct wsmouse_calibcoords coords; /* mirror of the kernel values */
 
+	/* # of buttons and config-file specified button mapping */
+	unsigned int buttons;
+	unsigned char btnmap[NBUTTONS + 1];
+
 	/* Middle mouse button emulation */
 	struct {
 		BOOL enabled;
-		BOOL pending;     /* timer waiting? */
-		int buttonstate; /* phys. button state */
-		int state;       /* state machine (see emumb.c) */
-		Time expires;     /* time of expiry */
+		BOOL pending;		/* timer waiting? */
+		int buttonstate;	/* phys. button state */
+		int state;		/* state machine (see emumb.c) */
+		Time expires;		/* time of expiry */
 		Time timeout;
 	} emulateMB;
 
@@ -95,5 +98,6 @@ extern BOOL wsWheelEmuFilterButton(InputInfoPtr, unsigned int, int);
 extern BOOL wsWheelEmuFilterMotion(InputInfoPtr, int, int);
 extern void wsWheelEmuInitProperty(DeviceIntPtr);
 
-extern void wsWheelHandleButtonMap(InputInfoPtr, WheelAxisPtr, char *, char *);
+extern void wsWheelHandleButtonMap(InputInfoPtr, WheelAxisPtr, const char *,
+    const char *);
 extern void wsButtonClicks(InputInfoPtr, int, int);

@@ -13,7 +13,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-/* $OpenBSD: ws.c,v 1.51 2011/12/29 13:48:05 matthieu Exp $ */
+/* $OpenBSD: ws.c,v 1.55 2012/06/12 17:59:01 shadchin Exp $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -120,7 +120,7 @@ wsPreInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 	WSDevicePtr priv;
 	MessageType buttons_from = X_CONFIG;
 	char *s;
-	int rc = BadValue;
+	int i, phy_btn = 1, rc = BadValue;
 
 	priv = (WSDevicePtr)calloc(1, sizeof(WSDeviceRec));
 	if (priv == NULL) {
@@ -144,6 +144,31 @@ wsPreInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 		priv->buttons = DFLTBUTTONS;
 		buttons_from = X_DEFAULT;
 	}
+
+	/* Check for user-defined button mapping */
+	s = xf86SetStrOption(pInfo->options, "ButtonMapping", NULL);
+	if (s) {
+		char *map = s, *end;
+		int btn;
+
+		do {
+			btn = strtol(map, &end, 10);
+
+			if (end == map || btn < 0 || btn > NBUTTONS) {
+				xf86IDrvMsg(pInfo, X_ERROR,
+				    "Invalid button mapping. Using defaults\n");
+				phy_btn = 1; /* ensure defaults start at 1 */
+				break;
+			}
+
+			priv->btnmap[phy_btn++] = btn;
+			map = end;
+		} while (end && *end != '\0' && phy_btn <= NBUTTONS);
+		free(s);
+	}
+
+	for (i = phy_btn; i <= NBUTTONS; i++)
+		priv->btnmap[i] = i;
 
 	wsWheelHandleButtonMap(pInfo, &(priv->Z), "ZAxisMapping", "4 5");
 	wsWheelHandleButtonMap(pInfo, &(priv->W), "WAxisMapping", "6 7");
@@ -295,8 +320,7 @@ wsDeviceInit(DeviceIntPtr pWS)
 {
 	InputInfoPtr pInfo = (InputInfoPtr)pWS->public.devicePrivate;
 	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
-	unsigned char map[NBUTTONS + 1];
-	int i, xmin, xmax, ymin, ymax;
+	int xmin, xmax, ymin, ymax;
 	Atom btn_labels[NBUTTONS] = {0};
 	Atom axes_labels[NAXES] = {0};
 
@@ -305,12 +329,8 @@ wsDeviceInit(DeviceIntPtr pWS)
 	btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
 	btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
 	btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
-	for (i = 0; i < NBUTTONS; i++)
-		map[i + 1] = i + 1;
-	if (!InitButtonClassDeviceStruct(pWS,
-		min(priv->buttons, NBUTTONS),
-		btn_labels,
-		map))
+	if (!InitButtonClassDeviceStruct(pWS, min(priv->buttons, NBUTTONS),
+	    btn_labels, priv->btnmap))
 		return !Success;
 
 	if (priv->type == WSMOUSE_TYPE_TPANEL) {
@@ -334,7 +354,7 @@ wsDeviceInit(DeviceIntPtr pWS)
 		xmax = ymax;
 		ymax = tmp;
 	}
-	if ((priv->type == WSMOUSE_TYPE_TPANEL)) {
+	if (priv->type == WSMOUSE_TYPE_TPANEL) {
 		axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
 		axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
 	} else {
@@ -670,17 +690,25 @@ wsInitCalibProperty(DeviceIntPtr device)
 	    strlen(WS_PROP_CALIBRATION), TRUE);
 	rc = XIChangeDeviceProperty(device, prop_calibration, XA_INTEGER, 32,
 	    PropModeReplace, 4, &priv->min_x, FALSE);
-	if (rc != Success)
+	if (rc != Success) {
+		xf86IDrvMsg(pInfo, X_ERROR,
+		    "cannot create device property %s: %d\n",
+		    WS_PROP_CALIBRATION, rc);
 		return;
-
+	}
 	XISetDevicePropertyDeletable(device, prop_calibration, FALSE);
 
 	prop_swap = MakeAtom(WS_PROP_SWAP_AXES,
 	    strlen(WS_PROP_SWAP_AXES), TRUE);
 	rc = XIChangeDeviceProperty(device, prop_swap, XA_INTEGER, 8,
 	    PropModeReplace, 1, &priv->swap_axes, FALSE);
-	if (rc != Success)
+	if (rc != Success) {
+		xf86IDrvMsg(pInfo, X_ERROR,
+		    "cannot create device property %s: %d\n",
+		    WS_PROP_SWAP_AXES, rc);
 		return;
+	}
+	XISetDevicePropertyDeletable(device, prop_swap, FALSE);
 
 	XIRegisterPropertyHandler(device, wsSetCalibProperty, NULL, NULL);
 
@@ -772,7 +800,7 @@ wsSetCalibProperty(DeviceIntPtr device, Atom atom, XIPropertyValuePtr val,
 
 void
 wsWheelHandleButtonMap(InputInfoPtr pInfo, WheelAxisPtr pAxis,
-    char* axis_name, char* default_value)
+    const char* axis_name, const char* default_value)
 {
 	WSDevicePtr priv = (WSDevicePtr)pInfo->private;
 	char *option_string;
