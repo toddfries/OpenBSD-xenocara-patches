@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: screen.c,v 1.31 2012/07/06 14:18:00 okan Exp $
+ * $OpenBSD: screen.c,v 1.36 2012/07/18 21:53:22 okan Exp $
  */
 
 #include <sys/param.h>
@@ -74,21 +74,11 @@ screen_updatestackingorder(struct screen_ctx *sc)
 void
 screen_init_xinerama(struct screen_ctx *sc)
 {
-	XineramaScreenInfo	*info;
-	int			 no;
+	XineramaScreenInfo	*info = NULL;
+	int			 no = 0;
 
-	if (HasXinerama == 0 || XineramaIsActive(X_Dpy) == 0) {
-		HasXinerama = 0;
-		sc->xinerama_no = 0;
-	}
-
-	info = XineramaQueryScreens(X_Dpy, &no);
-	if (info == NULL) {
-		/* Is xinerama actually off, instead of a malloc failure? */
-		if (sc->xinerama == NULL)
-			HasXinerama = 0;
-		return;
-	}
+	if (XineramaIsActive(X_Dpy))
+		info = XineramaQueryScreens(X_Dpy, &no);
 
 	if (sc->xinerama != NULL)
 		XFree(sc->xinerama);
@@ -105,6 +95,9 @@ screen_find_xinerama(struct screen_ctx *sc, int x, int y)
 	XineramaScreenInfo	*info;
 	int			 i;
 
+	if (sc->xinerama == NULL)
+		return (NULL);
+
 	for (i = 0; i < sc->xinerama_no; i++) {
 		info = &sc->xinerama[i];
 		if (x >= info->x_org && x < info->x_org + info->width &&
@@ -117,8 +110,15 @@ screen_find_xinerama(struct screen_ctx *sc, int x, int y)
 void
 screen_update_geometry(struct screen_ctx *sc)
 {
-	sc->xmax = DisplayWidth(X_Dpy, sc->which);
-	sc->ymax = DisplayHeight(X_Dpy, sc->which);
+	sc->view.x = 0;
+	sc->view.y = 0;
+	sc->view.w = DisplayWidth(X_Dpy, sc->which);
+	sc->view.h = DisplayHeight(X_Dpy, sc->which);
+
+	sc->work.x = sc->view.x + sc->gap.left;
+	sc->work.y = sc->view.y + sc->gap.top;
+	sc->work.w = sc->view.w - (sc->gap.left + sc->gap.right);
+	sc->work.h = sc->view.h - (sc->gap.top + sc->gap.bottom);
 
 	screen_init_xinerama(sc);
 

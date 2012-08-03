@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xutil.c,v 1.43 2012/07/08 02:55:01 okan Exp $
+ * $OpenBSD: xutil.c,v 1.45 2012/07/13 17:01:05 okan Exp $
  */
 
 #include <sys/param.h>
@@ -128,8 +128,8 @@ xu_configure(struct client_ctx *cc)
 	ce.window = cc->win;
 	ce.x = cc->geom.x;
 	ce.y = cc->geom.y;
-	ce.width = cc->geom.width;
-	ce.height = cc->geom.height;
+	ce.width = cc->geom.w;
+	ce.height = cc->geom.h;
 	ce.border_width = cc->bwidth;
 	ce.above = None;
 	ce.override_redirect = 0;
@@ -298,7 +298,7 @@ xu_ewmh_net_supported_wm_check(struct screen_ctx *sc)
 void
 xu_ewmh_net_desktop_geometry(struct screen_ctx *sc)
 {
-	long	 geom[2] = { sc->xmax, sc->ymax };
+	long	 geom[2] = { sc->view.w, sc->view.h };
 
 	XChangeProperty(X_Dpy, sc->rootwin, ewmh[_NET_DESKTOP_GEOMETRY].atom,
 	    XA_CARDINAL, 32, PropModeReplace, (unsigned char *)geom , 2);
@@ -311,10 +311,10 @@ xu_ewmh_net_workarea(struct screen_ctx *sc)
 	int	 i;
 
 	for (i = 0; i < CALMWM_NGROUPS; i++) {
-		workareas[i][0] = sc->gap.left;
-		workareas[i][1] = sc->gap.top;
-		workareas[i][2] = sc->xmax - (sc->gap.left + sc->gap.right);
-		workareas[i][3] = sc->ymax - (sc->gap.top + sc->gap.bottom);
+		workareas[i][0] = sc->work.x;
+		workareas[i][1] = sc->work.y;
+		workareas[i][2] = sc->work.w;
+		workareas[i][3] = sc->work.h;
 	}
 
 	XChangeProperty(X_Dpy, sc->rootwin, ewmh[_NET_WORKAREA].atom,

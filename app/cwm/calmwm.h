@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.149 2012/07/06 14:18:00 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.152 2012/07/13 17:01:04 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -96,6 +96,13 @@ struct color {
 	unsigned long	 pixel;
 };
 
+struct geom {
+	int		 x;
+	int		 y;
+	int		 w;
+	int		 h;
+};
+
 struct gap {
 	int		 top;
 	int		 bottom;
@@ -118,12 +125,7 @@ struct client_ctx {
 	XSizeHints		*size;
 	Colormap		 cmap;
 	u_int			 bwidth; /* border width */
-	struct {
-		int		 x;	/* x position */
-		int		 y;	/* y position */
-		int		 width;	/* width */
-		int		 height;/* height */
-	} geom, savegeom;
+	struct geom		 geom, savegeom;
 	struct {
 		int		 basew;	/* desired width */
 		int		 baseh;	/* desired height */
@@ -204,8 +206,8 @@ struct screen_ctx {
 	struct color		 color[CWM_COLOR_MAX];
 	GC			 gc;
 	int			 cycling;
-	int			 xmax;
-	int			 ymax;
+	struct geom		 view; /* viewable area */
+	struct geom		 work; /* workable area, gap-applied */
 	struct gap		 gap;
 	struct cycle_entry_q	 mruq;
 	XftColor		 xftcolor;
