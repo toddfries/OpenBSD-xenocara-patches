@@ -1,22 +1,24 @@
-/* A Bison parser, made by GNU Bison 2.4.3.  */
+/* A Bison parser, made by GNU Bison 2.3.  */
 
 /* Skeleton implementation for Bison's Yacc-like parsers in C
-   
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2009, 2010 Free Software Foundation, Inc.
-   
-   This program is free software: you can redistribute it and/or modify
+
+   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
+
+   This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-   
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor,
+   Boston, MA 02110-1301, USA.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -27,7 +29,7 @@
    special exception, which will cause the skeleton and the resulting
    Bison output files to be licensed under the GNU General Public
    License without this special exception.
-   
+
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
@@ -45,7 +47,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.4.3"
+#define YYBISON_VERSION "2.3"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -53,20 +55,89 @@
 /* Pure parsers.  */
 #define YYPURE 1
 
-/* Push parsers.  */
-#define YYPUSH 0
-
-/* Pull parsers.  */
-#define YYPULL 1
-
 /* Using locations.  */
 #define YYLSP_NEEDED 1
 
 
 
-/* Copy the first part of user declarations.  */
+/* Tokens.  */
+#ifndef YYTOKENTYPE
+# define YYTOKENTYPE
+   /* Put the tokens into the symbol table, so that GDB and other debuggers
+      know about them.  */
+   enum yytokentype {
+     COMMA_FINAL = 258,
+     DEFINED = 259,
+     ELIF_EXPANDED = 260,
+     HASH = 261,
+     HASH_DEFINE_FUNC = 262,
+     HASH_DEFINE_OBJ = 263,
+     HASH_ELIF = 264,
+     HASH_ELSE = 265,
+     HASH_ENDIF = 266,
+     HASH_IF = 267,
+     HASH_IFDEF = 268,
+     HASH_IFNDEF = 269,
+     HASH_UNDEF = 270,
+     HASH_VERSION = 271,
+     IDENTIFIER = 272,
+     IF_EXPANDED = 273,
+     INTEGER = 274,
+     INTEGER_STRING = 275,
+     NEWLINE = 276,
+     OTHER = 277,
+     PLACEHOLDER = 278,
+     SPACE = 279,
+     PASTE = 280,
+     OR = 281,
+     AND = 282,
+     NOT_EQUAL = 283,
+     EQUAL = 284,
+     GREATER_OR_EQUAL = 285,
+     LESS_OR_EQUAL = 286,
+     RIGHT_SHIFT = 287,
+     LEFT_SHIFT = 288,
+     UNARY = 289
+   };
+#endif
+/* Tokens.  */
+#define COMMA_FINAL 258
+#define DEFINED 259
+#define ELIF_EXPANDED 260
+#define HASH 261
+#define HASH_DEFINE_FUNC 262
+#define HASH_DEFINE_OBJ 263
+#define HASH_ELIF 264
+#define HASH_ELSE 265
+#define HASH_ENDIF 266
+#define HASH_IF 267
+#define HASH_IFDEF 268
+#define HASH_IFNDEF 269
+#define HASH_UNDEF 270
+#define HASH_VERSION 271
+#define IDENTIFIER 272
+#define IF_EXPANDED 273
+#define INTEGER 274
+#define INTEGER_STRING 275
+#define NEWLINE 276
+#define OTHER 277
+#define PLACEHOLDER 278
+#define SPACE 279
+#define PASTE 280
+#define OR 281
+#define AND 282
+#define NOT_EQUAL 283
+#define EQUAL 284
+#define GREATER_OR_EQUAL 285
+#define LESS_OR_EQUAL 286
+#define RIGHT_SHIFT 287
+#define LEFT_SHIFT 288
+#define UNARY 289
 
-/* Line 189 of yacc.c  */
+
+
+
+/* Copy the first part of user declarations.  */
 #line 1 "glcpp/glcpp-parse.y"
 
 /*
@@ -211,9 +282,6 @@ add_builtin_define(glcpp_parser_t *parser, const char *name, int value);
 
 
 
-/* Line 189 of yacc.c  */
-#line 216 "glcpp/glcpp-parse.c"
-
 /* Enabling traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -232,54 +300,11 @@ add_builtin_define(glcpp_parser_t *parser, const char *name, int value);
 # define YYTOKEN_TABLE 0
 #endif
 
-
-/* Tokens.  */
-#ifndef YYTOKENTYPE
-# define YYTOKENTYPE
-   /* Put the tokens into the symbol table, so that GDB and other debuggers
-      know about them.  */
-   enum yytokentype {
-     COMMA_FINAL = 258,
-     DEFINED = 259,
-     ELIF_EXPANDED = 260,
-     HASH = 261,
-     HASH_DEFINE_FUNC = 262,
-     HASH_DEFINE_OBJ = 263,
-     HASH_ELIF = 264,
-     HASH_ELSE = 265,
-     HASH_ENDIF = 266,
-     HASH_IF = 267,
-     HASH_IFDEF = 268,
-     HASH_IFNDEF = 269,
-     HASH_UNDEF = 270,
-     HASH_VERSION = 271,
-     IDENTIFIER = 272,
-     IF_EXPANDED = 273,
-     INTEGER = 274,
-     INTEGER_STRING = 275,
-     NEWLINE = 276,
-     OTHER = 277,
-     PLACEHOLDER = 278,
-     SPACE = 279,
-     PASTE = 280,
-     OR = 281,
-     AND = 282,
-     NOT_EQUAL = 283,
-     EQUAL = 284,
-     GREATER_OR_EQUAL = 285,
-     LESS_OR_EQUAL = 286,
-     RIGHT_SHIFT = 287,
-     LEFT_SHIFT = 288,
-     UNARY = 289
-   };
-#endif
-
-
-
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-
+typedef int YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
+# define YYSTYPE_IS_TRIVIAL 1
 #endif
 
 #if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
@@ -299,8 +324,8 @@ typedef struct YYLTYPE
 /* Copy the second part of user declarations.  */
 
 
-/* Line 264 of yacc.c  */
-#line 304 "glcpp/glcpp-parse.c"
+/* Line 216 of yacc.c.  */
+#line 329 "glcpp/glcpp-parse.c"
 
 #ifdef short
 # undef short
@@ -350,7 +375,7 @@ typedef short int yytype_int16;
 #define YYSIZE_MAXIMUM ((YYSIZE_T) -1)
 
 #ifndef YY_
-# if defined YYENABLE_NLS && YYENABLE_NLS
+# if YYENABLE_NLS
 #  if ENABLE_NLS
 #   include <libintl.h> /* INFRINGES ON USER NAME SPACE */
 #   define YY_(msgid) dgettext ("bison-runtime", msgid)
@@ -375,14 +400,14 @@ typedef short int yytype_int16;
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static int
-YYID (int yyi)
+YYID (int i)
 #else
 static int
-YYID (yyi)
-    int yyi;
+YYID (i)
+    int i;
 #endif
 {
-  return yyi;
+  return i;
 }
 #endif
 
@@ -464,9 +489,9 @@ void free (void *); /* INFRINGES ON USER NAME SPACE */
 /* A type that is properly aligned for any stack member.  */
 union yyalloc
 {
-  yytype_int16 yyss_alloc;
-  YYSTYPE yyvs_alloc;
-  YYLTYPE yyls_alloc;
+  yytype_int16 yyss;
+  YYSTYPE yyvs;
+    YYLTYPE yyls;
 };
 
 /* The size of the maximum gap between one aligned stack and the next.  */
@@ -501,12 +526,12 @@ union yyalloc
    elements in the stack, and YYPTR gives the new location of the
    stack.  Advance YYPTR to a properly aligned location for the next
    stack.  */
-# define YYSTACK_RELOCATE(Stack_alloc, Stack)				\
+# define YYSTACK_RELOCATE(Stack)					\
     do									\
       {									\
 	YYSIZE_T yynewbytes;						\
-	YYCOPY (&yyptr->Stack_alloc, Stack, yysize);			\
-	Stack = &yyptr->Stack_alloc;					\
+	YYCOPY (&yyptr->Stack, Stack, yysize);				\
+	Stack = &yyptr->Stack;						\
 	yynewbytes = yystacksize * sizeof (*Stack) + YYSTACK_GAP_MAXIMUM; \
 	yyptr += yynewbytes / sizeof (*yyptr);				\
       }									\
@@ -938,18 +963,9 @@ static const yytype_uint8 yystos[] =
 
 /* Like YYERROR except do call yyerror.  This remains here temporarily
    to ease the transition to the new meaning of YYERROR, for GCC.
-   Once GCC version 2 has supplanted version 1, this can go.  However,
-   YYFAIL appears to be in use.  Nevertheless, it is formally deprecated
-   in Bison 2.4.2's NEWS entry, where a plan to phase it out is
-   discussed.  */
+   Once GCC version 2 has supplanted version 1, this can go.  */
 
 #define YYFAIL		goto yyerrlab
-#if defined YYFAIL
-  /* This is here to suppress warnings from the GCC cpp's
-     -Wunused-macros.  Normally we don't worry about that warning, but
-     some users do, and we want to make it easy for users to remove
-     YYFAIL uses, which will produce warnings from Bison 2.5.  */
-#endif
 
 #define YYRECOVERING()  (!!yyerrstatus)
 
@@ -1006,7 +1022,7 @@ while (YYID (0))
    we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+# if YYLTYPE_IS_TRIVIAL
 #  define YY_LOCATION_PRINT(File, Loc)			\
      fprintf (File, "%d.%d-%d.%d",			\
 	      (Loc).first_line, (Loc).first_column,	\
@@ -1125,20 +1141,17 @@ yy_symbol_print (yyoutput, yytype, yyvaluep, yylocationp, parser)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_stack_print (yytype_int16 *yybottom, yytype_int16 *yytop)
+yy_stack_print (yytype_int16 *bottom, yytype_int16 *top)
 #else
 static void
-yy_stack_print (yybottom, yytop)
-    yytype_int16 *yybottom;
-    yytype_int16 *yytop;
+yy_stack_print (bottom, top)
+    yytype_int16 *bottom;
+    yytype_int16 *top;
 #endif
 {
   YYFPRINTF (stderr, "Stack now");
-  for (; yybottom <= yytop; yybottom++)
-    {
-      int yybot = *yybottom;
-      YYFPRINTF (stderr, " %d", yybot);
-    }
+  for (; bottom <= top; ++bottom)
+    YYFPRINTF (stderr, " %d", *bottom);
   YYFPRINTF (stderr, "\n");
 }
 
@@ -1174,11 +1187,11 @@ yy_reduce_print (yyvsp, yylsp, yyrule, parser)
   /* The symbols being reduced.  */
   for (yyi = 0; yyi < yynrhs; yyi++)
     {
-      YYFPRINTF (stderr, "   $%d = ", yyi + 1);
+      fprintf (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
 		       , &(yylsp[(yyi + 1) - (yynrhs)])		       , parser);
-      YYFPRINTF (stderr, "\n");
+      fprintf (stderr, "\n");
     }
 }
 
@@ -1462,8 +1475,10 @@ yydestruct (yymsg, yytype, yyvaluep, yylocationp, parser)
 	break;
     }
 }
+
 
 /* Prevent warnings from -Wmissing-prototypes.  */
+
 #ifdef YYPARSE_PARAM
 #if defined __STDC__ || defined __cplusplus
 int yyparse (void *YYPARSE_PARAM);
@@ -1482,9 +1497,10 @@ int yyparse ();
 
 
 
-/*-------------------------.
-| yyparse or yypush_parse.  |
-`-------------------------*/
+
+/*----------.
+| yyparse.  |
+`----------*/
 
 #ifdef YYPARSE_PARAM
 #if (defined __STDC__ || defined __C99__FUNC__ \
@@ -1508,59 +1524,24 @@ yyparse (parser)
 #endif
 #endif
 {
-/* The lookahead symbol.  */
+  /* The look-ahead symbol.  */
 int yychar;
 
-/* The semantic value of the lookahead symbol.  */
+/* The semantic value of the look-ahead symbol.  */
 YYSTYPE yylval;
 
-/* Location data for the lookahead symbol.  */
+/* Number of syntax errors so far.  */
+int yynerrs;
+/* Location data for the look-ahead symbol.  */
 YYLTYPE yylloc;
 
-    /* Number of syntax errors so far.  */
-    int yynerrs;
-
-    int yystate;
-    /* Number of tokens to shift before error messages enabled.  */
-    int yyerrstatus;
-
-    /* The stacks and their tools:
-       `yyss': related to states.
-       `yyvs': related to semantic values.
-       `yyls': related to locations.
-
-       Refer to the stacks thru separate pointers, to allow yyoverflow
-       to reallocate them elsewhere.  */
-
-    /* The state stack.  */
-    yytype_int16 yyssa[YYINITDEPTH];
-    yytype_int16 *yyss;
-    yytype_int16 *yyssp;
-
-    /* The semantic value stack.  */
-    YYSTYPE yyvsa[YYINITDEPTH];
-    YYSTYPE *yyvs;
-    YYSTYPE *yyvsp;
-
-    /* The location stack.  */
-    YYLTYPE yylsa[YYINITDEPTH];
-    YYLTYPE *yyls;
-    YYLTYPE *yylsp;
-
-    /* The locations where the error started and ended.  */
-    YYLTYPE yyerror_range[3];
-
-    YYSIZE_T yystacksize;
-
+  int yystate;
   int yyn;
   int yyresult;
-  /* Lookahead token as an internal (translated) token number.  */
-  int yytoken;
-  /* The variables used to return semantic value and location from the
-     action routines.  */
-  YYSTYPE yyval;
-  YYLTYPE yyloc;
-
+  /* Number of tokens to shift before error messages enabled.  */
+  int yyerrstatus;
+  /* Look-ahead token as an internal (translated) token number.  */
+  int yytoken = 0;
 #if YYERROR_VERBOSE
   /* Buffer for error messages, and its allocated size.  */
   char yymsgbuf[128];
@@ -1568,42 +1549,67 @@ YYLTYPE yylloc;
   YYSIZE_T yymsg_alloc = sizeof yymsgbuf;
 #endif
 
+  /* Three stacks and their tools:
+     `yyss': related to states,
+     `yyvs': related to semantic values,
+     `yyls': related to locations.
+
+     Refer to the stacks thru separate pointers, to allow yyoverflow
+     to reallocate them elsewhere.  */
+
+  /* The state stack.  */
+  yytype_int16 yyssa[YYINITDEPTH];
+  yytype_int16 *yyss = yyssa;
+  yytype_int16 *yyssp;
+
+  /* The semantic value stack.  */
+  YYSTYPE yyvsa[YYINITDEPTH];
+  YYSTYPE *yyvs = yyvsa;
+  YYSTYPE *yyvsp;
+
+  /* The location stack.  */
+  YYLTYPE yylsa[YYINITDEPTH];
+  YYLTYPE *yyls = yylsa;
+  YYLTYPE *yylsp;
+  /* The locations where the error started and ended.  */
+  YYLTYPE yyerror_range[2];
+
 #define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N), yylsp -= (N))
+
+  YYSIZE_T yystacksize = YYINITDEPTH;
+
+  /* The variables used to return semantic value and location from the
+     action routines.  */
+  YYSTYPE yyval;
+  YYLTYPE yyloc;
 
   /* The number of symbols on the RHS of the reduced rule.
      Keep to zero when no symbol should be popped.  */
   int yylen = 0;
-
-  yytoken = 0;
-  yyss = yyssa;
-  yyvs = yyvsa;
-  yyls = yylsa;
-  yystacksize = YYINITDEPTH;
 
   YYDPRINTF ((stderr, "Starting parse\n"));
 
   yystate = 0;
   yyerrstatus = 0;
   yynerrs = 0;
-  yychar = YYEMPTY; /* Cause a token to be read.  */
+  yychar = YYEMPTY;		/* Cause a token to be read.  */
 
   /* Initialize stack pointers.
      Waste one element of value and location stack
      so that they stay on the same level as the state stack.
      The wasted elements are never initialized.  */
+
   yyssp = yyss;
   yyvsp = yyvs;
   yylsp = yyls;
-
-#if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+#if YYLTYPE_IS_TRIVIAL
   /* Initialize the default location before parsing starts.  */
   yylloc.first_line   = yylloc.last_line   = 1;
-  yylloc.first_column = yylloc.last_column = 1;
+  yylloc.first_column = yylloc.last_column = 0;
 #endif
 
-/* User initialization code.  */
 
-/* Line 1251 of yacc.c  */
+  /* User initialization code.  */
 #line 148 "glcpp/glcpp-parse.y"
 {
 	yylloc.first_line = 1;
@@ -1612,11 +1618,9 @@ YYLTYPE yylloc;
 	yylloc.last_column = 1;
 	yylloc.source = 0;
 }
-
-/* Line 1251 of yacc.c  */
-#line 1618 "glcpp/glcpp-parse.c"
+/* Line 1078 of yacc.c.  */
+#line 1623 "glcpp/glcpp-parse.c"
   yylsp[0] = yylloc;
-
   goto yysetstate;
 
 /*------------------------------------------------------------.
@@ -1653,7 +1657,6 @@ YYLTYPE yylloc;
 		    &yyvs1, yysize * sizeof (*yyvsp),
 		    &yyls1, yysize * sizeof (*yylsp),
 		    &yystacksize);
-
 	yyls = yyls1;
 	yyss = yyss1;
 	yyvs = yyvs1;
@@ -1675,9 +1678,9 @@ YYLTYPE yylloc;
 	  (union yyalloc *) YYSTACK_ALLOC (YYSTACK_BYTES (yystacksize));
 	if (! yyptr)
 	  goto yyexhaustedlab;
-	YYSTACK_RELOCATE (yyss_alloc, yyss);
-	YYSTACK_RELOCATE (yyvs_alloc, yyvs);
-	YYSTACK_RELOCATE (yyls_alloc, yyls);
+	YYSTACK_RELOCATE (yyss);
+	YYSTACK_RELOCATE (yyvs);
+	YYSTACK_RELOCATE (yyls);
 #  undef YYSTACK_RELOCATE
 	if (yyss1 != yyssa)
 	  YYSTACK_FREE (yyss1);
@@ -1698,9 +1701,6 @@ YYLTYPE yylloc;
 
   YYDPRINTF ((stderr, "Entering state %d\n", yystate));
 
-  if (yystate == YYFINAL)
-    YYACCEPT;
-
   goto yybackup;
 
 /*-----------.
@@ -1709,16 +1709,16 @@ YYLTYPE yylloc;
 yybackup:
 
   /* Do appropriate processing given the current state.  Read a
-     lookahead token if we need one and don't already have one.  */
+     look-ahead token if we need one and don't already have one.  */
 
-  /* First try to decide what to do without reference to lookahead token.  */
+  /* First try to decide what to do without reference to look-ahead token.  */
   yyn = yypact[yystate];
   if (yyn == YYPACT_NINF)
     goto yydefault;
 
-  /* Not known => get a lookahead token if don't already have one.  */
+  /* Not known => get a look-ahead token if don't already have one.  */
 
-  /* YYCHAR is either YYEMPTY or YYEOF or a valid lookahead symbol.  */
+  /* YYCHAR is either YYEMPTY or YYEOF or a valid look-ahead symbol.  */
   if (yychar == YYEMPTY)
     {
       YYDPRINTF ((stderr, "Reading a token: "));
@@ -1750,16 +1750,20 @@ yybackup:
       goto yyreduce;
     }
 
+  if (yyn == YYFINAL)
+    YYACCEPT;
+
   /* Count tokens shifted since error; after three, turn off error
      status.  */
   if (yyerrstatus)
     yyerrstatus--;
 
-  /* Shift the lookahead token.  */
+  /* Shift the look-ahead token.  */
   YY_SYMBOL_PRINT ("Shifting", yytoken, &yylval, &yylloc);
 
-  /* Discard the shifted token.  */
-  yychar = YYEMPTY;
+  /* Discard the shifted token unless it is eof.  */
+  if (yychar != YYEOF)
+    yychar = YYEMPTY;
 
   yystate = yyn;
   *++yyvsp = yylval;
@@ -1800,8 +1804,6 @@ yyreduce:
   switch (yyn)
     {
         case 4:
-
-/* Line 1464 of yacc.c  */
 #line 187 "glcpp/glcpp-parse.y"
     {
 		ralloc_strcat (&parser->output, "\n");
@@ -1809,8 +1811,6 @@ yyreduce:
     break;
 
   case 5:
-
-/* Line 1464 of yacc.c  */
 #line 190 "glcpp/glcpp-parse.y"
     {
 		_glcpp_parser_print_expanded_token_list (parser, (yyvsp[(1) - (1)].token_list));
@@ -1820,8 +1820,6 @@ yyreduce:
     break;
 
   case 8:
-
-/* Line 1464 of yacc.c  */
 #line 200 "glcpp/glcpp-parse.y"
     {
 		_glcpp_parser_skip_stack_push_if (parser, & (yylsp[(1) - (3)]), (yyvsp[(2) - (3)].ival));
@@ -1829,8 +1827,6 @@ yyreduce:
     break;
 
   case 9:
-
-/* Line 1464 of yacc.c  */
 #line 203 "glcpp/glcpp-parse.y"
     {
 		_glcpp_parser_skip_stack_change_if (parser, & (yylsp[(1) - (3)]), "elif", (yyvsp[(2) - (3)].ival));
@@ -1838,8 +1834,6 @@ yyreduce:
     break;
 
   case 10:
-
-/* Line 1464 of yacc.c  */
 #line 209 "glcpp/glcpp-parse.y"
     {
 		_define_object_macro (parser, & (yylsp[(2) - (4)]), (yyvsp[(2) - (4)].str), (yyvsp[(3) - (4)].token_list));
@@ -1847,8 +1841,6 @@ yyreduce:
     break;
 
   case 11:
-
-/* Line 1464 of yacc.c  */
 #line 212 "glcpp/glcpp-parse.y"
     {
 		_define_function_macro (parser, & (yylsp[(2) - (6)]), (yyvsp[(2) - (6)].str), NULL, (yyvsp[(5) - (6)].token_list));
@@ -1856,8 +1848,6 @@ yyreduce:
     break;
 
   case 12:
-
-/* Line 1464 of yacc.c  */
 #line 215 "glcpp/glcpp-parse.y"
     {
 		_define_function_macro (parser, & (yylsp[(2) - (7)]), (yyvsp[(2) - (7)].str), (yyvsp[(4) - (7)].string_list), (yyvsp[(6) - (7)].token_list));
@@ -1865,8 +1855,6 @@ yyreduce:
     break;
 
   case 13:
-
-/* Line 1464 of yacc.c  */
 #line 218 "glcpp/glcpp-parse.y"
     {
 		macro_t *macro = hash_table_find (parser->defines, (yyvsp[(2) - (3)].str));
@@ -1879,8 +1867,6 @@ yyreduce:
     break;
 
   case 14:
-
-/* Line 1464 of yacc.c  */
 #line 226 "glcpp/glcpp-parse.y"
     {
 		/* Be careful to only evaluate the 'if' expression if
@@ -1904,8 +1890,6 @@ yyreduce:
     break;
 
   case 15:
-
-/* Line 1464 of yacc.c  */
 #line 245 "glcpp/glcpp-parse.y"
     {
 		/* #if without an expression is only an error if we
@@ -1920,8 +1904,6 @@ yyreduce:
     break;
 
   case 16:
-
-/* Line 1464 of yacc.c  */
 #line 255 "glcpp/glcpp-parse.y"
     {
 		macro_t *macro = hash_table_find (parser->defines, (yyvsp[(2) - (4)].str));
@@ -1931,8 +1913,6 @@ yyreduce:
     break;
 
   case 17:
-
-/* Line 1464 of yacc.c  */
 #line 260 "glcpp/glcpp-parse.y"
     {
 		macro_t *macro = hash_table_find (parser->defines, (yyvsp[(2) - (4)].str));
@@ -1942,8 +1922,6 @@ yyreduce:
     break;
 
   case 18:
-
-/* Line 1464 of yacc.c  */
 #line 265 "glcpp/glcpp-parse.y"
     {
 		/* Be careful to only evaluate the 'elif' expression
@@ -1967,8 +1945,6 @@ yyreduce:
     break;
 
   case 19:
-
-/* Line 1464 of yacc.c  */
 #line 284 "glcpp/glcpp-parse.y"
     {
 		/* #elif without an expression is an error unless we
@@ -1988,8 +1964,6 @@ yyreduce:
     break;
 
   case 20:
-
-/* Line 1464 of yacc.c  */
 #line 299 "glcpp/glcpp-parse.y"
     {
 		_glcpp_parser_skip_stack_change_if (parser, & (yylsp[(1) - (2)]), "else", 1);
@@ -1997,8 +1971,6 @@ yyreduce:
     break;
 
   case 21:
-
-/* Line 1464 of yacc.c  */
 #line 302 "glcpp/glcpp-parse.y"
     {
 		_glcpp_parser_skip_stack_pop (parser, & (yylsp[(1) - (2)]));
@@ -2006,8 +1978,6 @@ yyreduce:
     break;
 
   case 22:
-
-/* Line 1464 of yacc.c  */
 #line 305 "glcpp/glcpp-parse.y"
     {
 		macro_t *macro = hash_table_find (parser->defines, "__VERSION__");
@@ -2033,8 +2003,6 @@ yyreduce:
     break;
 
   case 24:
-
-/* Line 1464 of yacc.c  */
 #line 330 "glcpp/glcpp-parse.y"
     {
 		if (strlen ((yyvsp[(1) - (1)].str)) >= 3 && strncmp ((yyvsp[(1) - (1)].str), "0x", 2) == 0) {
@@ -2048,8 +2016,6 @@ yyreduce:
     break;
 
   case 25:
-
-/* Line 1464 of yacc.c  */
 #line 339 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (1)].ival);
@@ -2057,8 +2023,6 @@ yyreduce:
     break;
 
   case 27:
-
-/* Line 1464 of yacc.c  */
 #line 345 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) || (yyvsp[(3) - (3)].ival);
@@ -2066,8 +2030,6 @@ yyreduce:
     break;
 
   case 28:
-
-/* Line 1464 of yacc.c  */
 #line 348 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) && (yyvsp[(3) - (3)].ival);
@@ -2075,8 +2037,6 @@ yyreduce:
     break;
 
   case 29:
-
-/* Line 1464 of yacc.c  */
 #line 351 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) | (yyvsp[(3) - (3)].ival);
@@ -2084,8 +2044,6 @@ yyreduce:
     break;
 
   case 30:
-
-/* Line 1464 of yacc.c  */
 #line 354 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) ^ (yyvsp[(3) - (3)].ival);
@@ -2093,8 +2051,6 @@ yyreduce:
     break;
 
   case 31:
-
-/* Line 1464 of yacc.c  */
 #line 357 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) & (yyvsp[(3) - (3)].ival);
@@ -2102,8 +2058,6 @@ yyreduce:
     break;
 
   case 32:
-
-/* Line 1464 of yacc.c  */
 #line 360 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) != (yyvsp[(3) - (3)].ival);
@@ -2111,8 +2065,6 @@ yyreduce:
     break;
 
   case 33:
-
-/* Line 1464 of yacc.c  */
 #line 363 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) == (yyvsp[(3) - (3)].ival);
@@ -2120,8 +2072,6 @@ yyreduce:
     break;
 
   case 34:
-
-/* Line 1464 of yacc.c  */
 #line 366 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) >= (yyvsp[(3) - (3)].ival);
@@ -2129,8 +2079,6 @@ yyreduce:
     break;
 
   case 35:
-
-/* Line 1464 of yacc.c  */
 #line 369 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) <= (yyvsp[(3) - (3)].ival);
@@ -2138,8 +2086,6 @@ yyreduce:
     break;
 
   case 36:
-
-/* Line 1464 of yacc.c  */
 #line 372 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) > (yyvsp[(3) - (3)].ival);
@@ -2147,8 +2093,6 @@ yyreduce:
     break;
 
   case 37:
-
-/* Line 1464 of yacc.c  */
 #line 375 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) < (yyvsp[(3) - (3)].ival);
@@ -2156,8 +2100,6 @@ yyreduce:
     break;
 
   case 38:
-
-/* Line 1464 of yacc.c  */
 #line 378 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) >> (yyvsp[(3) - (3)].ival);
@@ -2165,8 +2107,6 @@ yyreduce:
     break;
 
   case 39:
-
-/* Line 1464 of yacc.c  */
 #line 381 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) << (yyvsp[(3) - (3)].ival);
@@ -2174,8 +2114,6 @@ yyreduce:
     break;
 
   case 40:
-
-/* Line 1464 of yacc.c  */
 #line 384 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) - (yyvsp[(3) - (3)].ival);
@@ -2183,8 +2121,6 @@ yyreduce:
     break;
 
   case 41:
-
-/* Line 1464 of yacc.c  */
 #line 387 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) + (yyvsp[(3) - (3)].ival);
@@ -2192,8 +2128,6 @@ yyreduce:
     break;
 
   case 42:
-
-/* Line 1464 of yacc.c  */
 #line 390 "glcpp/glcpp-parse.y"
     {
 		if ((yyvsp[(3) - (3)].ival) == 0) {
@@ -2206,8 +2140,6 @@ yyreduce:
     break;
 
   case 43:
-
-/* Line 1464 of yacc.c  */
 #line 398 "glcpp/glcpp-parse.y"
     {
 		if ((yyvsp[(3) - (3)].ival) == 0) {
@@ -2220,8 +2152,6 @@ yyreduce:
     break;
 
   case 44:
-
-/* Line 1464 of yacc.c  */
 #line 406 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(1) - (3)].ival) * (yyvsp[(3) - (3)].ival);
@@ -2229,8 +2159,6 @@ yyreduce:
     break;
 
   case 45:
-
-/* Line 1464 of yacc.c  */
 #line 409 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = ! (yyvsp[(2) - (2)].ival);
@@ -2238,8 +2166,6 @@ yyreduce:
     break;
 
   case 46:
-
-/* Line 1464 of yacc.c  */
 #line 412 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = ~ (yyvsp[(2) - (2)].ival);
@@ -2247,8 +2173,6 @@ yyreduce:
     break;
 
   case 47:
-
-/* Line 1464 of yacc.c  */
 #line 415 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = - (yyvsp[(2) - (2)].ival);
@@ -2256,8 +2180,6 @@ yyreduce:
     break;
 
   case 48:
-
-/* Line 1464 of yacc.c  */
 #line 418 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = + (yyvsp[(2) - (2)].ival);
@@ -2265,8 +2187,6 @@ yyreduce:
     break;
 
   case 49:
-
-/* Line 1464 of yacc.c  */
 #line 421 "glcpp/glcpp-parse.y"
     {
 		(yyval.ival) = (yyvsp[(2) - (3)].ival);
@@ -2274,8 +2194,6 @@ yyreduce:
     break;
 
   case 50:
-
-/* Line 1464 of yacc.c  */
 #line 427 "glcpp/glcpp-parse.y"
     {
 		(yyval.string_list) = _string_list_create (parser);
@@ -2285,8 +2203,6 @@ yyreduce:
     break;
 
   case 51:
-
-/* Line 1464 of yacc.c  */
 #line 432 "glcpp/glcpp-parse.y"
     {
 		(yyval.string_list) = (yyvsp[(1) - (3)].string_list);	
@@ -2296,15 +2212,11 @@ yyreduce:
     break;
 
   case 52:
-
-/* Line 1464 of yacc.c  */
 #line 440 "glcpp/glcpp-parse.y"
     { (yyval.token_list) = NULL; ;}
     break;
 
   case 54:
-
-/* Line 1464 of yacc.c  */
 #line 445 "glcpp/glcpp-parse.y"
     {
 		yyerror (& (yylsp[(1) - (2)]), parser, "Invalid tokens after #");
@@ -2312,15 +2224,11 @@ yyreduce:
     break;
 
   case 55:
-
-/* Line 1464 of yacc.c  */
 #line 451 "glcpp/glcpp-parse.y"
     { (yyval.token_list) = NULL; ;}
     break;
 
   case 58:
-
-/* Line 1464 of yacc.c  */
 #line 457 "glcpp/glcpp-parse.y"
     {
 		glcpp_warning(&(yylsp[(1) - (1)]), parser, "extra tokens at end of directive");
@@ -2328,8 +2236,6 @@ yyreduce:
     break;
 
   case 59:
-
-/* Line 1464 of yacc.c  */
 #line 464 "glcpp/glcpp-parse.y"
     {
 		int v = hash_table_find (parser->defines, (yyvsp[(2) - (2)].str)) ? 1 : 0;
@@ -2338,8 +2244,6 @@ yyreduce:
     break;
 
   case 60:
-
-/* Line 1464 of yacc.c  */
 #line 468 "glcpp/glcpp-parse.y"
     {
 		int v = hash_table_find (parser->defines, (yyvsp[(3) - (4)].str)) ? 1 : 0;
@@ -2348,8 +2252,6 @@ yyreduce:
     break;
 
   case 62:
-
-/* Line 1464 of yacc.c  */
 #line 477 "glcpp/glcpp-parse.y"
     {
 		(yyval.token_list) = _token_list_create (parser);
@@ -2358,8 +2260,6 @@ yyreduce:
     break;
 
   case 63:
-
-/* Line 1464 of yacc.c  */
 #line 481 "glcpp/glcpp-parse.y"
     {
 		(yyval.token_list) = (yyvsp[(1) - (2)].token_list);
@@ -2368,8 +2268,6 @@ yyreduce:
     break;
 
   case 64:
-
-/* Line 1464 of yacc.c  */
 #line 488 "glcpp/glcpp-parse.y"
     {
 		parser->space_tokens = 1;
@@ -2379,8 +2277,6 @@ yyreduce:
     break;
 
   case 65:
-
-/* Line 1464 of yacc.c  */
 #line 493 "glcpp/glcpp-parse.y"
     {
 		(yyval.token_list) = (yyvsp[(1) - (2)].token_list);
@@ -2389,8 +2285,6 @@ yyreduce:
     break;
 
   case 66:
-
-/* Line 1464 of yacc.c  */
 #line 500 "glcpp/glcpp-parse.y"
     {
 		(yyval.token) = _token_create_str (parser, IDENTIFIER, (yyvsp[(1) - (1)].str));
@@ -2399,8 +2293,6 @@ yyreduce:
     break;
 
   case 67:
-
-/* Line 1464 of yacc.c  */
 #line 504 "glcpp/glcpp-parse.y"
     {
 		(yyval.token) = _token_create_str (parser, INTEGER_STRING, (yyvsp[(1) - (1)].str));
@@ -2409,8 +2301,6 @@ yyreduce:
     break;
 
   case 68:
-
-/* Line 1464 of yacc.c  */
 #line 508 "glcpp/glcpp-parse.y"
     {
 		(yyval.token) = _token_create_ival (parser, (yyvsp[(1) - (1)].ival), (yyvsp[(1) - (1)].ival));
@@ -2419,8 +2309,6 @@ yyreduce:
     break;
 
   case 69:
-
-/* Line 1464 of yacc.c  */
 #line 512 "glcpp/glcpp-parse.y"
     {
 		(yyval.token) = _token_create_str (parser, OTHER, (yyvsp[(1) - (1)].str));
@@ -2429,8 +2317,6 @@ yyreduce:
     break;
 
   case 70:
-
-/* Line 1464 of yacc.c  */
 #line 516 "glcpp/glcpp-parse.y"
     {
 		(yyval.token) = _token_create_ival (parser, SPACE, SPACE);
@@ -2439,226 +2325,163 @@ yyreduce:
     break;
 
   case 71:
-
-/* Line 1464 of yacc.c  */
 #line 523 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '['; ;}
     break;
 
   case 72:
-
-/* Line 1464 of yacc.c  */
 #line 524 "glcpp/glcpp-parse.y"
     { (yyval.ival) = ']'; ;}
     break;
 
   case 73:
-
-/* Line 1464 of yacc.c  */
 #line 525 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '('; ;}
     break;
 
   case 74:
-
-/* Line 1464 of yacc.c  */
 #line 526 "glcpp/glcpp-parse.y"
     { (yyval.ival) = ')'; ;}
     break;
 
   case 75:
-
-/* Line 1464 of yacc.c  */
 #line 527 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '{'; ;}
     break;
 
   case 76:
-
-/* Line 1464 of yacc.c  */
 #line 528 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '}'; ;}
     break;
 
   case 77:
-
-/* Line 1464 of yacc.c  */
 #line 529 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '.'; ;}
     break;
 
   case 78:
-
-/* Line 1464 of yacc.c  */
 #line 530 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '&'; ;}
     break;
 
   case 79:
-
-/* Line 1464 of yacc.c  */
 #line 531 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '*'; ;}
     break;
 
   case 80:
-
-/* Line 1464 of yacc.c  */
 #line 532 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '+'; ;}
     break;
 
   case 81:
-
-/* Line 1464 of yacc.c  */
 #line 533 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '-'; ;}
     break;
 
   case 82:
-
-/* Line 1464 of yacc.c  */
 #line 534 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '~'; ;}
     break;
 
   case 83:
-
-/* Line 1464 of yacc.c  */
 #line 535 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '!'; ;}
     break;
 
   case 84:
-
-/* Line 1464 of yacc.c  */
 #line 536 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '/'; ;}
     break;
 
   case 85:
-
-/* Line 1464 of yacc.c  */
 #line 537 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '%'; ;}
     break;
 
   case 86:
-
-/* Line 1464 of yacc.c  */
 #line 538 "glcpp/glcpp-parse.y"
     { (yyval.ival) = LEFT_SHIFT; ;}
     break;
 
   case 87:
-
-/* Line 1464 of yacc.c  */
 #line 539 "glcpp/glcpp-parse.y"
     { (yyval.ival) = RIGHT_SHIFT; ;}
     break;
 
   case 88:
-
-/* Line 1464 of yacc.c  */
 #line 540 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '<'; ;}
     break;
 
   case 89:
-
-/* Line 1464 of yacc.c  */
 #line 541 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '>'; ;}
     break;
 
   case 90:
-
-/* Line 1464 of yacc.c  */
 #line 542 "glcpp/glcpp-parse.y"
     { (yyval.ival) = LESS_OR_EQUAL; ;}
     break;
 
   case 91:
-
-/* Line 1464 of yacc.c  */
 #line 543 "glcpp/glcpp-parse.y"
     { (yyval.ival) = GREATER_OR_EQUAL; ;}
     break;
 
   case 92:
-
-/* Line 1464 of yacc.c  */
 #line 544 "glcpp/glcpp-parse.y"
     { (yyval.ival) = EQUAL; ;}
     break;
 
   case 93:
-
-/* Line 1464 of yacc.c  */
 #line 545 "glcpp/glcpp-parse.y"
     { (yyval.ival) = NOT_EQUAL; ;}
     break;
 
   case 94:
-
-/* Line 1464 of yacc.c  */
 #line 546 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '^'; ;}
     break;
 
   case 95:
-
-/* Line 1464 of yacc.c  */
 #line 547 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '|'; ;}
     break;
 
   case 96:
-
-/* Line 1464 of yacc.c  */
 #line 548 "glcpp/glcpp-parse.y"
     { (yyval.ival) = AND; ;}
     break;
 
   case 97:
-
-/* Line 1464 of yacc.c  */
 #line 549 "glcpp/glcpp-parse.y"
     { (yyval.ival) = OR; ;}
     break;
 
   case 98:
-
-/* Line 1464 of yacc.c  */
 #line 550 "glcpp/glcpp-parse.y"
     { (yyval.ival) = ';'; ;}
     break;
 
   case 99:
-
-/* Line 1464 of yacc.c  */
 #line 551 "glcpp/glcpp-parse.y"
     { (yyval.ival) = ','; ;}
     break;
 
   case 100:
-
-/* Line 1464 of yacc.c  */
 #line 552 "glcpp/glcpp-parse.y"
     { (yyval.ival) = '='; ;}
     break;
 
   case 101:
-
-/* Line 1464 of yacc.c  */
 #line 553 "glcpp/glcpp-parse.y"
     { (yyval.ival) = PASTE; ;}
     break;
 
 
-
-/* Line 1464 of yacc.c  */
-#line 2662 "glcpp/glcpp-parse.c"
+/* Line 1267 of yacc.c.  */
+#line 2485 "glcpp/glcpp-parse.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2730,11 +2553,11 @@ yyerrlab:
 #endif
     }
 
-  yyerror_range[1] = yylloc;
+  yyerror_range[0] = yylloc;
 
   if (yyerrstatus == 3)
     {
-      /* If just tried and failed to reuse lookahead token after an
+      /* If just tried and failed to reuse look-ahead token after an
 	 error, discard it.  */
 
       if (yychar <= YYEOF)
@@ -2751,7 +2574,7 @@ yyerrlab:
 	}
     }
 
-  /* Else will try to reuse lookahead token after shifting the error
+  /* Else will try to reuse look-ahead token after shifting the error
      token.  */
   goto yyerrlab1;
 
@@ -2767,7 +2590,7 @@ yyerrorlab:
   if (/*CONSTCOND*/ 0)
      goto yyerrorlab;
 
-  yyerror_range[1] = yylsp[1-yylen];
+  yyerror_range[0] = yylsp[1-yylen];
   /* Do not reclaim the symbols of the rule which action triggered
      this YYERROR.  */
   YYPOPSTACK (yylen);
@@ -2801,7 +2624,7 @@ yyerrlab1:
       if (yyssp == yyss)
 	YYABORT;
 
-      yyerror_range[1] = *yylsp;
+      yyerror_range[0] = *yylsp;
       yydestruct ("Error: popping",
 		  yystos[yystate], yyvsp, yylsp, parser);
       YYPOPSTACK (1);
@@ -2809,12 +2632,15 @@ yyerrlab1:
       YY_STACK_PRINT (yyss, yyssp);
     }
 
+  if (yyn == YYFINAL)
+    YYACCEPT;
+
   *++yyvsp = yylval;
 
-  yyerror_range[2] = yylloc;
+  yyerror_range[1] = yylloc;
   /* Using YYLLOC is tempting, but would change the location of
-     the lookahead.  YYLOC is available though.  */
-  YYLLOC_DEFAULT (yyloc, yyerror_range, 2);
+     the look-ahead.  YYLOC is available though.  */
+  YYLLOC_DEFAULT (yyloc, (yyerror_range - 1), 2);
   *++yylsp = yyloc;
 
   /* Shift the error token.  */
@@ -2838,7 +2664,7 @@ yyabortlab:
   yyresult = 1;
   goto yyreturn;
 
-#if !defined(yyoverflow) || YYERROR_VERBOSE
+#ifndef yyoverflow
 /*-------------------------------------------------.
 | yyexhaustedlab -- memory exhaustion comes here.  |
 `-------------------------------------------------*/
@@ -2849,7 +2675,7 @@ yyexhaustedlab:
 #endif
 
 yyreturn:
-  if (yychar != YYEMPTY)
+  if (yychar != YYEOF && yychar != YYEMPTY)
      yydestruct ("Cleanup: discarding lookahead",
 		 yytoken, &yylval, &yylloc, parser);
   /* Do not reclaim the symbols of the rule which action triggered
@@ -2875,8 +2701,6 @@ yyreturn:
 }
 
 
-
-/* Line 1684 of yacc.c  */
 #line 556 "glcpp/glcpp-parse.y"
 
 
@@ -3453,6 +3277,12 @@ glcpp_parser_create (const struct gl_extensions *extensions, int api)
 
 	   if (extensions->ARB_explicit_attrib_location)
 	      add_builtin_define(parser, "GL_ARB_explicit_attrib_location", 1);
+
+	   if (extensions->ARB_shader_texture_lod)
+	      add_builtin_define(parser, "GL_ARB_shader_texture_lod", 1);
+
+	   if (extensions->AMD_conservative_depth)
+	      add_builtin_define(parser, "GL_AMD_conservative_depth", 1);
 	}
 
 	language_version = 110;
@@ -3592,6 +3422,48 @@ _glcpp_parser_expand_if (glcpp_parser_t *parser, int type, token_list_t *list)
 	glcpp_parser_lex_from (parser, expanded);
 }
 
+static void
+_glcpp_parser_apply_pastes (glcpp_parser_t *parser, token_list_t *list)
+{
+	token_node_t *node;
+
+	node = list->head;
+	while (node)
+	{
+		token_node_t *next_non_space;
+
+		/* Look ahead for a PASTE token, skipping space. */
+		next_non_space = node->next;
+		while (next_non_space && next_non_space->token->type == SPACE)
+			next_non_space = next_non_space->next;
+
+		if (next_non_space == NULL)
+			break;
+
+		if (next_non_space->token->type != PASTE) {
+			node = next_non_space;
+			continue;
+		}
+
+		/* Now find the next non-space token after the PASTE. */
+		next_non_space = next_non_space->next;
+		while (next_non_space && next_non_space->token->type == SPACE)
+			next_non_space = next_non_space->next;
+
+		if (next_non_space == NULL) {
+			yyerror (&node->token->location, parser, "'##' cannot appear at either end of a macro expansion\n");
+			return;
+		}
+
+		node->token = _token_paste (parser, node->token, next_non_space->token);
+		node->next = next_non_space->next;
+		if (next_non_space == list->tail)
+			list->tail = node;
+	}
+
+	list->non_space_tail = list->tail;
+}
+
 /* This is a helper function that's essentially part of the
  * implementation of _glcpp_parser_expand_node. It shouldn't be called
  * except for by that function.
@@ -3703,43 +3575,7 @@ _glcpp_parser_expand_function (glcpp_parser_t *parser,
 
 	_token_list_trim_trailing_space (substituted);
 
-	node = substituted->head;
-	while (node)
-	{
-		token_node_t *next_non_space;
-
-		/* Look ahead for a PASTE token, skipping space. */
-		next_non_space = node->next;
-		while (next_non_space && next_non_space->token->type == SPACE)
-			next_non_space = next_non_space->next;
-
-		if (next_non_space == NULL)
-			break;
-
-		if (next_non_space->token->type != PASTE) {
-			node = next_non_space;
-			continue;
-		}
-
-		/* Now find the next non-space token after the PASTE. */
-		next_non_space = next_non_space->next;
-		while (next_non_space && next_non_space->token->type == SPACE)
-			next_non_space = next_non_space->next;
-
-		if (next_non_space == NULL) {
-			yyerror (&node->token->location, parser, "'##' cannot appear at either end of a macro expansion\n");
-			return NULL;
-		}
-
-		node->token = _token_paste (parser, node->token, next_non_space->token);
-		node->next = next_non_space->next;
-		if (next_non_space == substituted->tail)
-			substituted->tail = node;
-
-		node = node->next;
-	}
-
-	substituted->non_space_tail = substituted->tail;
+	_glcpp_parser_apply_pastes (parser, substituted);
 
 	return substituted;
 }
@@ -3809,13 +3645,16 @@ _glcpp_parser_expand_node (glcpp_parser_t *parser,
 
 	if (! macro->is_function)
 	{
+		token_list_t *replacement;
 		*last = node;
 
 		/* Replace a macro defined as empty with a SPACE token. */
 		if (macro->replacements == NULL)
 			return _token_list_create_with_one_space (parser);
 
-		return _token_list_copy (parser, macro->replacements);
+		replacement = _token_list_copy (parser, macro->replacements);
+		_glcpp_parser_apply_pastes (parser, replacement);
+		return replacement;
 	}
 
 	return _glcpp_parser_expand_function (parser, node, last);
@@ -3971,8 +3810,8 @@ _check_for_reserved_macro_name (glcpp_parser_t *parser, YYLTYPE *loc,
 	/* According to the GLSL specification, macro names starting with "__"
 	 * or "GL_" are reserved for future use.  So, don't allow them.
 	 */
-	if (strncmp(identifier, "__", 2) == 0) {
-		glcpp_error (loc, parser, "Macro names starting with \"__\" are reserved.\n");
+	if (strstr(identifier, "__")) {
+		glcpp_error (loc, parser, "Macro names containing \"__\" are reserved.\n");
 	}
 	if (strncmp(identifier, "GL_", 3) == 0) {
 		glcpp_error (loc, parser, "Macro names starting with \"GL_\" are reserved.\n");

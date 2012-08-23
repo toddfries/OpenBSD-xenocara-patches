@@ -1,4 +1,4 @@
-/* $OpenBSD: privsep.c,v 1.20 2012/06/10 13:21:31 matthieu Exp $ */
+/* $OpenBSD: privsep.c,v 1.25 2012/08/14 15:57:57 matthieu Exp $ */
 /*
  * Copyright 2001 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -49,6 +49,7 @@
 #include <unistd.h>
 
 #include "os.h"
+#include "osdep.h"
 
 enum cmd_types {
 	PRIV_OPEN_DEVICE,
@@ -106,13 +107,12 @@ struct okdev {
 	{"/dev/ttyC6", O_RDWR | O_NONBLOCK | O_EXCL},
 	{"/dev/ttyC7", O_RDWR | O_NONBLOCK | O_EXCL},
 	{"/dev/ttyD0", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD1", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD2", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD3", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD4", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD5", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD6", O_RDWR | O_NONBLOCK | O_EXCL},
-	{"/dev/ttyD7", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyE0", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyF0", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyG0", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyH0", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyI0", O_RDWR | O_NONBLOCK | O_EXCL},
+	{"/dev/ttyJ0", O_RDWR | O_NONBLOCK | O_EXCL},
 	{"/dev/pci", O_RDWR | O_NONBLOCK | O_EXCL},
 	{"/dev/agp0", O_RDWR | O_NONBLOCK | O_EXCL},
 	{"/dev/drm0", O_RDWR },
@@ -122,7 +122,7 @@ struct okdev {
 
 /* return 1 if allowed to open said path */
 static struct okdev *
-open_ok(const char *path) 
+open_ok(const char *path)
 {
 	struct okdev *p;
 	struct stat sb;
@@ -144,7 +144,7 @@ open_ok(const char *path)
 }
 
 static void
-send_fd(int socket, int fd)
+send_fd(int s, int fd)
 {
 	struct msghdr msg;
 	union {
@@ -174,16 +174,16 @@ send_fd(int socket, int fd)
 	vec.iov_len = sizeof(int);
 	msg.msg_iov = &vec;
 	msg.msg_iovlen = 1;
-	
-	if ((n = sendmsg(socket, &msg, 0)) == -1)
-		warn("%s: sendmsg(%d)", __func__, socket);
+
+	if ((n = sendmsg(s, &msg, 0)) == -1)
+		warn("%s: sendmsg(%d)", __func__, s);
 	if (n != sizeof(int))
 		warnx("%s: sendmsg: expected sent 1 got %ld",
 		    __func__, (long)n);
 }
 
 static int
-receive_fd(int socket)
+receive_fd(int s)
 {
 	struct msghdr msg;
 	union {
@@ -205,7 +205,7 @@ receive_fd(int socket)
 	msg.msg_controllen = sizeof(cmsgbuf.buf);
 
 	do
-		n = recvmsg(socket, &msg, 0);	
+		n = recvmsg(s, &msg, 0);
 	while (n == -1 && errno == EINTR);
 
 	if (n != sizeof(int)) {
@@ -260,14 +260,14 @@ priv_init(uid_t uid, gid_t gid)
 			return -1;
 		if (seteuid(uid) == -1)
 			return -1;
-		if (setuid(uid) == -1) 
+		if (setuid(uid) == -1)
 			return -1;
 		close(socks[0]);
 		priv_fd = socks[1];
 		return 0;
 	}
 	/* son */
-	for (i = 1; i <= _NSIG; i++) 
+	for (i = 1; i <= _NSIG; i++)
 		signal(i, SIG_DFL);
 	setproctitle("[priv]");
 	close(socks[1]);
@@ -286,11 +286,12 @@ priv_init(uid_t uid, gid_t gid)
 				errno = EPERM;
 			}
 			send_fd(socks[0], fd);
-			if (fd >= 0) 
+			if (fd >= 0)
 				close(fd);
 			break;
 		case PRIV_SIG_PARENT:
-			kill(parent_pid, SIGUSR1);
+			if (parent_pid > 1)
+				kill(parent_pid, SIGUSR1);
 			break;
 		default:
 			errx(1, "%s: unknown command %d", __func__, cmd.cmd);
@@ -322,22 +323,26 @@ priv_open_device(const char *path)
 	}
 }
 
+void
+priv_init_parent_process(pid_t ppid)
+{
+	parent_pid = ppid;
+}
+
 /* send signal to parent process */
-int 
+void
 priv_signal_parent(void)
 {
 	priv_cmd_t cmd;
 
 	if (priv_fd != -1) {
-		if (parent_pid == -1) {
-			warnx("parent_pid == -1");
-			return -1;
-		}
+		if (parent_pid == -1)
+			warnx("parent_pid == -1\n");
 		cmd.cmd = PRIV_SIG_PARENT;
 		write(priv_fd, &cmd, sizeof(cmd));
-		return 0;
-	} else 
-		return kill(getppid(), SIGUSR1);
+	} else
+		if (parent_pid > 1)
+			kill(parent_pid, SIGUSR1);
 }
 
 #ifdef TEST

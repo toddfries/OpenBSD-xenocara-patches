@@ -1,22 +1,24 @@
-/* A Bison parser, made by GNU Bison 2.4.3.  */
+/* A Bison parser, made by GNU Bison 2.3.  */
 
 /* Skeleton interface for Bison's Yacc-like parsers in C
-   
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2009, 2010 Free Software Foundation, Inc.
-   
-   This program is free software: you can redistribute it and/or modify
+
+   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
+
+   This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-   
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor,
+   Boston, MA 02110-1301, USA.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -27,10 +29,9 @@
    special exception, which will cause the skeleton and the resulting
    Bison output files to be licensed under the GNU General Public
    License without this special exception.
-   
+
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
-
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -233,16 +234,208 @@
      ROW_MAJOR = 450
    };
 #endif
+/* Tokens.  */
+#define ATTRIBUTE 258
+#define CONST_TOK 259
+#define BOOL_TOK 260
+#define FLOAT_TOK 261
+#define INT_TOK 262
+#define UINT_TOK 263
+#define BREAK 264
+#define CONTINUE 265
+#define DO 266
+#define ELSE 267
+#define FOR 268
+#define IF 269
+#define DISCARD 270
+#define RETURN 271
+#define SWITCH 272
+#define CASE 273
+#define DEFAULT 274
+#define BVEC2 275
+#define BVEC3 276
+#define BVEC4 277
+#define IVEC2 278
+#define IVEC3 279
+#define IVEC4 280
+#define UVEC2 281
+#define UVEC3 282
+#define UVEC4 283
+#define VEC2 284
+#define VEC3 285
+#define VEC4 286
+#define CENTROID 287
+#define IN_TOK 288
+#define OUT_TOK 289
+#define INOUT_TOK 290
+#define UNIFORM 291
+#define VARYING 292
+#define NOPERSPECTIVE 293
+#define FLAT 294
+#define SMOOTH 295
+#define MAT2X2 296
+#define MAT2X3 297
+#define MAT2X4 298
+#define MAT3X2 299
+#define MAT3X3 300
+#define MAT3X4 301
+#define MAT4X2 302
+#define MAT4X3 303
+#define MAT4X4 304
+#define SAMPLER1D 305
+#define SAMPLER2D 306
+#define SAMPLER3D 307
+#define SAMPLERCUBE 308
+#define SAMPLER1DSHADOW 309
+#define SAMPLER2DSHADOW 310
+#define SAMPLERCUBESHADOW 311
+#define SAMPLER1DARRAY 312
+#define SAMPLER2DARRAY 313
+#define SAMPLER1DARRAYSHADOW 314
+#define SAMPLER2DARRAYSHADOW 315
+#define ISAMPLER1D 316
+#define ISAMPLER2D 317
+#define ISAMPLER3D 318
+#define ISAMPLERCUBE 319
+#define ISAMPLER1DARRAY 320
+#define ISAMPLER2DARRAY 321
+#define USAMPLER1D 322
+#define USAMPLER2D 323
+#define USAMPLER3D 324
+#define USAMPLERCUBE 325
+#define USAMPLER1DARRAY 326
+#define USAMPLER2DARRAY 327
+#define STRUCT 328
+#define VOID_TOK 329
+#define WHILE 330
+#define IDENTIFIER 331
+#define TYPE_IDENTIFIER 332
+#define NEW_IDENTIFIER 333
+#define FLOATCONSTANT 334
+#define INTCONSTANT 335
+#define UINTCONSTANT 336
+#define BOOLCONSTANT 337
+#define FIELD_SELECTION 338
+#define LEFT_OP 339
+#define RIGHT_OP 340
+#define INC_OP 341
+#define DEC_OP 342
+#define LE_OP 343
+#define GE_OP 344
+#define EQ_OP 345
+#define NE_OP 346
+#define AND_OP 347
+#define OR_OP 348
+#define XOR_OP 349
+#define MUL_ASSIGN 350
+#define DIV_ASSIGN 351
+#define ADD_ASSIGN 352
+#define MOD_ASSIGN 353
+#define LEFT_ASSIGN 354
+#define RIGHT_ASSIGN 355
+#define AND_ASSIGN 356
+#define XOR_ASSIGN 357
+#define OR_ASSIGN 358
+#define SUB_ASSIGN 359
+#define INVARIANT 360
+#define LOWP 361
+#define MEDIUMP 362
+#define HIGHP 363
+#define SUPERP 364
+#define PRECISION 365
+#define VERSION 366
+#define EXTENSION 367
+#define LINE 368
+#define COLON 369
+#define EOL 370
+#define INTERFACE 371
+#define OUTPUT 372
+#define PRAGMA_DEBUG_ON 373
+#define PRAGMA_DEBUG_OFF 374
+#define PRAGMA_OPTIMIZE_ON 375
+#define PRAGMA_OPTIMIZE_OFF 376
+#define PRAGMA_INVARIANT_ALL 377
+#define LAYOUT_TOK 378
+#define ASM 379
+#define CLASS 380
+#define UNION 381
+#define ENUM 382
+#define TYPEDEF 383
+#define TEMPLATE 384
+#define THIS 385
+#define PACKED_TOK 386
+#define GOTO 387
+#define INLINE_TOK 388
+#define NOINLINE 389
+#define VOLATILE 390
+#define PUBLIC_TOK 391
+#define STATIC 392
+#define EXTERN 393
+#define EXTERNAL 394
+#define LONG_TOK 395
+#define SHORT_TOK 396
+#define DOUBLE_TOK 397
+#define HALF 398
+#define FIXED_TOK 399
+#define UNSIGNED 400
+#define INPUT_TOK 401
+#define OUPTUT 402
+#define HVEC2 403
+#define HVEC3 404
+#define HVEC4 405
+#define DVEC2 406
+#define DVEC3 407
+#define DVEC4 408
+#define FVEC2 409
+#define FVEC3 410
+#define FVEC4 411
+#define SAMPLER2DRECT 412
+#define SAMPLER3DRECT 413
+#define SAMPLER2DRECTSHADOW 414
+#define SIZEOF 415
+#define CAST 416
+#define NAMESPACE 417
+#define USING 418
+#define ERROR_TOK 419
+#define COMMON 420
+#define PARTITION 421
+#define ACTIVE 422
+#define SAMPLERBUFFER 423
+#define FILTER 424
+#define IMAGE1D 425
+#define IMAGE2D 426
+#define IMAGE3D 427
+#define IMAGECUBE 428
+#define IMAGE1DARRAY 429
+#define IMAGE2DARRAY 430
+#define IIMAGE1D 431
+#define IIMAGE2D 432
+#define IIMAGE3D 433
+#define IIMAGECUBE 434
+#define IIMAGE1DARRAY 435
+#define IIMAGE2DARRAY 436
+#define UIMAGE1D 437
+#define UIMAGE2D 438
+#define UIMAGE3D 439
+#define UIMAGECUBE 440
+#define UIMAGE1DARRAY 441
+#define UIMAGE2DARRAY 442
+#define IMAGE1DSHADOW 443
+#define IMAGE2DSHADOW 444
+#define IMAGEBUFFER 445
+#define IIMAGEBUFFER 446
+#define UIMAGEBUFFER 447
+#define IMAGE1DARRAYSHADOW 448
+#define IMAGE2DARRAYSHADOW 449
+#define ROW_MAJOR 450
+
 
 
 
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 typedef union YYSTYPE
+#line 52 "glsl_parser.yy"
 {
-
-/* Line 1685 of yacc.c  */
-#line 52 "glsl_parser.ypp"
-
    int n;
    float real;
    char *identifier;
@@ -270,15 +463,13 @@ typedef union YYSTYPE
       ast_node *then_statement;
       ast_node *else_statement;
    } selection_rest_statement;
-
-
-
-/* Line 1685 of yacc.c  */
-#line 278 "glsl_parser.h"
-} YYSTYPE;
-# define YYSTYPE_IS_TRIVIAL 1
+}
+/* Line 1529 of yacc.c.  */
+#line 469 "glsl_parser.h"
+	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
+# define YYSTYPE_IS_TRIVIAL 1
 #endif
 
 
@@ -295,6 +486,5 @@ typedef struct YYLTYPE
 # define YYLTYPE_IS_DECLARED 1
 # define YYLTYPE_IS_TRIVIAL 1
 #endif
-
 
 

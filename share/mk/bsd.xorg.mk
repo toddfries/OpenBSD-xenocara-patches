@@ -1,4 +1,4 @@
-# $OpenBSD: bsd.xorg.mk,v 1.41 2012/03/11 10:08:59 matthieu Exp $ -*- makefile  -*-
+# $OpenBSD: bsd.xorg.mk,v 1.45 2012/08/21 20:18:48 espie Exp $ -*- makefile  -*-
 #
 # Copyright © 2006,2012 Matthieu Herrb
 #
@@ -19,8 +19,8 @@
 .include "${.CURDIR}/../Makefile.inc"
 .endif
 
-AUTOMAKE_VERSION=	1.9
-AUTOCONF_VERSION=	2.62
+AUTOMAKE_VERSION=	1.12
+AUTOCONF_VERSION=	2.69
 PYTHON_VERSION=		2.7
 
 # Where source lives
@@ -58,6 +58,8 @@ CONFIGURE_ENV=	PKG_CONFIG_LIBDIR="$(PKG_CONFIG_LIBDIR)" \
 		CONFIG_SITE=$(CONFIG_SITE) \
 		CFLAGS="$(CFLAGS:C/ *$//)" \
 		MAKE="${MAKE}"
+
+CONFIGURE_ARGS+= --disable-silent-rules
 
 AUTOTOOLS_ENV=  AUTOMAKE_VERSION="$(AUTOMAKE_VERSION)" \
 		AUTOCONF_VERSION="$(AUTOCONF_VERSION)" \
@@ -148,11 +150,14 @@ all:	config.status
 REORDER_DEPENDENCIES += ${X11BASE}/share/mk/automake.dep
 ECHO_REORDER ?= :
 
+foo:
+	cd ${_SRCDIR}; ${AUTOTOOLS_ENV} exec autoreconf -v --install --force
 .if !target(config.status)
 config.status:
 .if defined(XENOCARA_RERUN_AUTOCONF) && ${XENOCARA_RERUN_AUTOCONF:L} == "yes"
 	cd ${_SRCDIR}; ${AUTOTOOLS_ENV} exec autoreconf -v --install --force
 .else
+.if !defined(NO_REORDER)
 	@sed -e '/^#/d' ${REORDER_DEPENDENCIES} | \
 	  tsort -r|while read f; do \
 	    cd ${_SRCDIR}; \
@@ -167,6 +172,7 @@ config.status:
 			fi \
 			;; \
 		esac; done
+.endif
 .endif
 	${CONFIGURE_ENV} PATH=$(XENOCARA_PATH) \
 		exec sh ${_SRCDIR}/configure --prefix=${X11BASE} \
@@ -209,7 +215,7 @@ build:
 	cd ${.CURDIR} && exec ${SUDO} ${MAKE} ${_wrapper} install
 .endif
 
-.if !target(clean)
+.if !target(clean) && ${MAKEFILE:T} != "Makefile"
 clean:
 	-@if [ -f Makefile ]; then exec ${MAKE} clean; fi
 .endif
