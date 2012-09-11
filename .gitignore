@@ -1,7 +1,6 @@
 *.log
 *.orig
 *.rej
-*.sh
 .#*
 .cvsignore
 CVS
