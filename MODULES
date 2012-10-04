@@ -1,4 +1,4 @@
-# $OpenBSD: MODULES,v 1.228 2012/08/17 22:18:59 matthieu Exp $
+# $OpenBSD: MODULES,v 1.234 2012/09/30 10:18:46 matthieu Exp $
 #
 # X.Org maintained modules
 #
@@ -29,7 +29,7 @@ app/twm			1.0.7
 app/viewres		1.0.3
 app/x11perf		1.5.4	7.7
 app/xauth		1.0.7	7.7
-app/xbacklight		1.1.2	7.7
+app/xbacklight		1.2.0	7.7+	needs-update
 app/xbiff		1.0.3
 app/xcalc		1.0.4
 app/xclipboard		1.1.2
@@ -89,7 +89,7 @@ data/bitmaps		1.1.1	7.7
 doc/xorg-docs		1.7	7.7
 
 driver/xf86-input-acecad	1.5.0
-driver/xf86-input-elographics	1.4.0
+driver/xf86-input-elographics	1.4.1		needs-update
 driver/xf86-input-fpit		1.4.0
 driver/xf86-input-hyperpen	1.4.1
 driver/xf86-input-joystick	1.6.1	7.7
@@ -105,29 +105,29 @@ driver/xf86-video-ark		0.7.5	7.7+
 driver/xf86-video-ati		6.14.6	7.7+
 driver/xf86-video-chips		1.2.5
 driver/xf86-video-cirrus	1.5.1	7.7+
-driver/xf86-video-dummy		0.3.5	7.7
+driver/xf86-video-dummy		0.3.6	7.7+
 driver/xf86-video-geode		2.11.13	7.7
 driver/xf86-video-glint		1.2.8	7.7+
 driver/xf86-video-i128		1.3.6	7.7+
 driver/xf86-video-i740		1.3.4
-driver/xf86-video-intel		2.20.3	7.7+	needs-update
+driver/xf86-video-intel		2.20.8	7.7+	needs-update
 driver/xf86-video-mach64	6.9.3	7.7+
-driver/xf86-video-mga		1.6.1	7.7+	needs-update
+driver/xf86-video-mga		1.6.1	7.7+
 driver/xf86-video-neomagic	1.2.7	7.7+
 driver/xf86-video-nv		2.1.20	7.7+
-driver/xf86-video-openchrome	0.2.906	7.7
-driver/xf86-video-r128		6.8.4	7.7+	needs-update
+driver/xf86-video-openchrome	0.3.1	7.7+	needs-update
+driver/xf86-video-r128		6.8.4	7.7+
 driver/xf86-video-rendition	4.2.5
-driver/xf86-video-s3		0.6.5		needs-update
-driver/xf86-video-s3virge	1.10.6		needs-update
-driver/xf86-video-savage	2.3.6	7.7+	needs-update
-driver/xf86-video-siliconmotion	1.7.7	7.7+	needs-update
-driver/xf86-video-sis		0.10.7	7.7+	needs-update
+driver/xf86-video-s3		0.6.5
+driver/xf86-video-s3virge	1.10.6
+driver/xf86-video-savage	2.3.6	7.7+
+driver/xf86-video-siliconmotion	1.7.7	7.7+
+driver/xf86-video-sis		0.10.7	7.7+
 driver/xf86-video-sunffb	1.2.1	7.4+
-driver/xf86-video-tdfx		1.4.5	7.7+	needs-update
-driver/xf86-video-trident	1.3.6	7.7+	needs-update
+driver/xf86-video-tdfx		1.4.5	7.7+
+driver/xf86-video-trident	1.3.6	7.7+
 driver/xf86-video-tseng		1.2.5
-driver/xf86-video-vesa		2.3.2	7.7+	needs-update
+driver/xf86-video-vesa		2.3.2	7.7+
 driver/xf86-video-vmware	12.0.2	7.7
 driver/xf86-video-voodoo	1.2.5	7.7+
 driver/xf86-video-wsfb		0.4.0	7.7
@@ -208,7 +208,7 @@ lib/libxcb			1.8.1	7.7
 lib/libxkbfile			1.0.8	7.7
 lib/libxkbui			1.0.2
 lib/libxtrans			1.2.7	7.7
-lib/pixman			0.26.2		needs-update
+lib/pixman			0.26.2
 lib/xcb-util			0.3.9		needs-update
 lib/xcb-util-image		0.3.9		needs-import
 lib/xcb-util-keysyms		0.3.9		needs-import
@@ -219,7 +219,7 @@ proto/bigreqsproto		1.1.2	7.7
 proto/compositeproto		0.4.2	7.7
 proto/damageproto		1.2.1	7.7
 proto/dmxproto			2.3.1	7.7
-proto/dri2proto			2.8	7.7+	needs-update
+proto/dri2proto			2.8	7.7+
 proto/fixesproto		5.0	7.7
 proto/fontcacheproto		0.1.3
 proto/fontsproto		2.1.2	7.7
@@ -227,7 +227,7 @@ proto/glproto			1.4.16	7.7
 proto/inputproto		2.2	7.7
 proto/kbproto			1.0.6	7.7
 proto/pmproto			1.0.3		deprecated
-proto/randrproto		1.3.2	7.7
+proto/randrproto		1.4.0	7.7+
 proto/recordproto		1.14.2	7.7
 proto/renderproto		0.11.1	7.7
 proto/resourceproto		1.2.0	7.7
@@ -246,8 +246,6 @@ proto/xineramaproto		1.2.1	7.7
 
 util/cf				1.0.4
 util/gccmakedep			1.0.2
-util/imake			1.0.5
-util/macros			1.17	7.7
 util/makedepend			1.0.4	7.7
 
-xserver				1.12.3	7.7+
+xserver				1.13.0	7.7+	needs-update
