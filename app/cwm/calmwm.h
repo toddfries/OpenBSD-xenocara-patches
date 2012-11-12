@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.153 2012/09/09 19:47:47 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.159 2012/11/08 20:18:19 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -72,6 +72,10 @@
 #define CWM_CYCLE		0x0001
 #define CWM_RCYCLE		0x0002
 #define CWM_INGROUP		0x0004
+
+/* menu */
+#define CWM_MENU_DUMMY		0x0001
+#define CWM_MENU_FILE		0x0002
 
 #define KBTOGROUP(X) ((X) - 1)
 
@@ -260,7 +264,7 @@ TAILQ_HEAD(cmd_q, cmd);
 struct menu {
 	TAILQ_ENTRY(menu)	 entry;
 	TAILQ_ENTRY(menu)	 resultentry;
-#define MENU_MAXENTRY		 50
+#define MENU_MAXENTRY		 200
 	char			 text[MENU_MAXENTRY + 1];
 	char			 print[MENU_MAXENTRY + 1];
 	void			*ctx;
@@ -273,7 +277,6 @@ struct conf {
 	struct keybinding_q	 keybindingq;
 	struct autogroupwin_q	 autogroupq;
 	struct winmatch_q	 ignoreq;
-	char			 conf_path[MAXPATHLEN];
 	struct cmd_q		 cmdq;
 	struct mousebinding_q	 mousebindingq;
 #define	CONF_STICKY_GROUPS		0x0001
@@ -356,6 +359,10 @@ void			 search_match_client(struct menu_q *, struct menu_q *,
 			     char *);
 void			 search_match_exec(struct menu_q *, struct menu_q *,
 			     char *);
+void			 search_match_exec_path(struct menu_q *, struct menu_q *,
+			     char *);
+void			 search_match_path_any(struct menu_q *, struct menu_q *,
+			     char *);
 void			 search_match_text(struct menu_q *, struct menu_q *,
 			     char *);
 void			 search_print_client(struct menu *, int);
@@ -397,7 +404,7 @@ void			 kbfunc_lock(struct client_ctx *, union arg *);
 void			 kbfunc_menu_search(struct client_ctx *, union arg *);
 void			 kbfunc_moveresize(struct client_ctx *, union arg *);
 void			 kbfunc_quit_wm(struct client_ctx *, union arg *);
-void			 kbfunc_reload(struct client_ctx *, union arg *);
+void			 kbfunc_restart(struct client_ctx *, union arg *);
 void			 kbfunc_ssh(struct client_ctx *, union arg *);
 void			 kbfunc_term(struct client_ctx *, union arg *);
 
@@ -431,7 +438,6 @@ void			 conf_grab(struct conf *, struct keybinding *);
 void			 conf_grab_mouse(struct client_ctx *);
 void			 conf_init(struct conf *);
 void			 conf_mousebind(struct conf *, char *, char *);
-void			 conf_reload(struct conf *);
 void			 conf_setup(struct conf *, const char *);
 void			 conf_ungrab(struct conf *, struct keybinding *);
 
@@ -449,7 +455,6 @@ void			 xev_loop(void);
 void			 xu_btn_grab(Window, int, u_int);
 void			 xu_btn_ungrab(Window, int, u_int);
 void			 xu_configure(struct client_ctx *);
-void			 xu_freecolor(struct screen_ctx *, unsigned long);
 void			 xu_getatoms(void);
 unsigned long		 xu_getcolor(struct screen_ctx *, char *);
 int			 xu_getprop(Window, Atom, Atom, long, u_char **);
@@ -476,7 +481,7 @@ void			 xu_ewmh_net_wm_number_of_desktops(struct screen_ctx *);
 void			 xu_ewmh_net_showing_desktop(struct screen_ctx *);
 void			 xu_ewmh_net_virtual_roots(struct screen_ctx *);
 void			 xu_ewmh_net_current_desktop(struct screen_ctx *, long);
-void			 xu_ewmh_net_desktop_names(struct screen_ctx *, unsigned char *, int);
+void			 xu_ewmh_net_desktop_names(struct screen_ctx *, char *, int);
 
 void			 xu_ewmh_net_wm_desktop(struct client_ctx *);
 
@@ -485,7 +490,6 @@ void			 u_exec(char *);
 void			 u_spawn(char *);
 
 void			*xcalloc(size_t, size_t);
-void			 xfree(void *);
 void			*xmalloc(size_t);
 char			*xstrdup(const char *);
 

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.c,v 1.65 2012/08/07 14:05:49 okan Exp $
+ * $OpenBSD: calmwm.c,v 1.67 2012/11/09 03:52:02 okan Exp $
  */
 
 #include <sys/param.h>
@@ -27,13 +27,14 @@
 #include <getopt.h>
 #include <locale.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "calmwm.h"
 
+char				**cwm_argv;
 Display				*X_Dpy;
 
 Cursor				 Cursor_default;
@@ -67,6 +68,7 @@ main(int argc, char **argv)
 		warnx("no locale support");
 	mbtowc(NULL, NULL, MB_CUR_MAX);
 
+	cwm_argv = argv;
 	while ((ch = getopt(argc, argv, "c:d:")) != -1) {
 		switch (ch) {
 		case 'c':

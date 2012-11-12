@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xmalloc.c,v 1.7 2011/05/11 13:53:51 okan Exp $
+ * $OpenBSD: xmalloc.c,v 1.9 2012/11/09 03:52:02 okan Exp $
  */
 
 #include <sys/param.h>
@@ -23,9 +23,9 @@
 
 #include <err.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "calmwm.h"
@@ -50,12 +50,6 @@ xcalloc(size_t no, size_t siz)
 		err(1, "calloc");
 
 	return (p);
-}
-
-void
-xfree(void *p)
-{
-	free(p);
 }
 
 char *
