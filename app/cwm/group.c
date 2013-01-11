@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: group.c,v 1.66 2012/12/17 17:48:57 okan Exp $
+ * $OpenBSD: group.c,v 1.69 2013/01/10 15:28:11 okan Exp $
  */
 
 #include <sys/param.h>
@@ -132,7 +132,7 @@ group_show(struct screen_ctx *sc, struct group_ctx *gc)
 	free(winlist);
 
 	gc->hidden = 0;
-	group_setactive(sc, gc->shortcut - 1);
+	group_setactive(sc, gc->shortcut);
 }
 
 void
@@ -151,7 +151,7 @@ group_init(struct screen_ctx *sc)
 	for (i = 0; i < CALMWM_NGROUPS; i++) {
 		TAILQ_INIT(&sc->groups[i].clients);
 		sc->groups[i].hidden = 0;
-		sc->groups[i].shortcut = i + 1;
+		sc->groups[i].shortcut = i;
 		TAILQ_INSERT_TAIL(&sc->groupq, &sc->groups[i], entry);
 	}
 
@@ -160,7 +160,7 @@ group_init(struct screen_ctx *sc)
 	xu_ewmh_net_showing_desktop(sc);
 	xu_ewmh_net_virtual_roots(sc);
 
-	group_setactive(sc, 0);
+	group_setactive(sc, 1);
 }
 
 void
@@ -269,12 +269,8 @@ group_hidetoggle(struct screen_ctx *sc, int idx)
 
 	if (gc->hidden)
 		group_show(sc, gc);
-	else {
+	else
 		group_hide(sc, gc);
-		/* XXX wtf? */
-		if (TAILQ_EMPTY(&gc->clients))
-			group_setactive(sc, idx);
-	}
 }
 
 void
@@ -327,7 +323,7 @@ group_cycle(struct screen_ctx *sc, int flags)
 	if (showgroup->hidden)
 		group_show(sc, showgroup);
 	else
-		group_setactive(sc, showgroup->shortcut - 1);
+		group_setactive(sc, showgroup->shortcut);
 }
 
 /* called when a client is deleted */
@@ -420,7 +416,7 @@ group_autogroup(struct client_ctx *cc)
 		else if (*grpno > CALMWM_NGROUPS || *grpno < 0)
 			no = CALMWM_NGROUPS - 1;
 		else
-			no = *grpno + 1;
+			no = *grpno;
 		XFree(grpno);
 	} else {
 		TAILQ_FOREACH(aw, &Conf.autogroupq, entry) {
@@ -480,7 +476,7 @@ group_update_names(struct screen_ctx *sc)
 	 */
 	if (n < CALMWM_NGROUPS) {
 		setnames = 1;
-		i = 1;
+		i = 0;
 		while (n < CALMWM_NGROUPS)
 			strings[n++] = xstrdup(shortcut_to_name[i++]);
 	}

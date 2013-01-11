@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: menu.c,v 1.48 2012/12/17 14:32:39 okan Exp $
+ * $OpenBSD: menu.c,v 1.51 2013/01/07 21:53:23 okan Exp $
  */
 
 #include <sys/param.h>
@@ -350,8 +350,7 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
     struct menu_q *resultq)
 {
 	struct menu		*mi;
-	XineramaScreenInfo	*xine;
-	int			 xmin, xmax, ymin, ymax;
+	struct geom		 xine;
 	int			 n, xsave, ysave;
 
 	if (mc->list) {
@@ -395,32 +394,24 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 	}
 
 	xine = screen_find_xinerama(sc, mc->x, mc->y);
-	if (xine) {
-		xmin = xine->x_org;
-		xmax = xine->x_org + xine->width;
-		ymin = xine->y_org;
-		ymax = xine->y_org + xine->height;
-	} else {
-		xmin = ymin = 0;
-		xmax = sc->view.w;
-		ymax = sc->view.h;
-	}
+	xine.w += xine.x;
+	xine.h += xine.y;
 
 	xsave = mc->x;
 	ysave = mc->y;
 
 	/* Never hide the top, or left side, of the menu. */
-	if (mc->x + mc->width >= xmax)
-		mc->x = xmax - mc->width;
-	if (mc->x < xmin) {
-		mc->x = xmin;
-		mc->width = xmax - xmin;
+	if (mc->x + mc->width >= xine.w)
+		mc->x = xine.w - mc->width;
+	if (mc->x < xine.x) {
+		mc->x = xine.x;
+		mc->width = xine.w - xine.x;
 	}
-	if (mc->y + mc->height >= ymax)
-		mc->y = ymax - mc->height;
-	if (mc->y < ymin) {
-		mc->y = ymin;
-		mc->height = ymax - ymin;
+	if (mc->y + mc->height >= xine.h)
+		mc->y = xine.h - mc->height;
+	if (mc->y < xine.y) {
+		mc->y = xine.y;
+		mc->height = xine.h - xine.y;
 	}
 
 	if (mc->x != xsave || mc->y != ysave)
@@ -443,7 +434,7 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 		int y = n * font_height(sc) + font_ascent(sc) + 1;
 
 		/* Stop drawing when menu doesn't fit inside the screen. */
-		if (mc->y + y > ymax)
+		if (mc->y + y > xine.h)
 			break;
 
 		font_draw(sc, text, MIN(strlen(text), MENU_MAXENTRY),

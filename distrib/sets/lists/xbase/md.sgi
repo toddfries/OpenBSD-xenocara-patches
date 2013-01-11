@@ -104,10 +104,10 @@
 ./usr/X11R6/lib/libXxf86vm.so.5.0
 ./usr/X11R6/lib/libdmx.so.1.0
 ./usr/X11R6/lib/libdrm.a
-./usr/X11R6/lib/libdrm.so.3.0
+./usr/X11R6/lib/libdrm.so.3.1
 ./usr/X11R6/lib/libfontconfig.so.7.0
 ./usr/X11R6/lib/libfontenc.so.3.0
-./usr/X11R6/lib/libfreetype.so.18.3
+./usr/X11R6/lib/libfreetype.so.19.0
 ./usr/X11R6/lib/libpciaccess.so.1.1
 ./usr/X11R6/lib/libpixman-1.a
 ./usr/X11R6/lib/libpixman-1.la
@@ -215,7 +215,6 @@
 ./usr/X11R6/man/man3/XF86VidModeValidateModeLine.3
 ./usr/X11R6/man/man3/XFree86-DGA.3
 ./usr/X11R6/share/doc/dri2proto/dri2proto.txt
-./usr/X11R6/share/xcb/xkb.xml
 ./var/cache/fontconfig/0fe0af1d5898cfe43064332244d1dc15-be64.cache-3
 ./var/cache/fontconfig/1bd20f0f0c9d7d1d5fd55b69fcc2b3a3-be64.cache-3
 ./var/cache/fontconfig/2cee944125173ffd13126fb55c9a0dc1-be64.cache-3

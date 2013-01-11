@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: screen.c,v 1.40 2012/12/18 18:39:55 okan Exp $
+ * $OpenBSD: screen.c,v 1.45 2013/01/08 04:12:51 okan Exp $
  */
 
 #include <sys/param.h>
@@ -29,8 +29,6 @@
 #include <unistd.h>
 
 #include "calmwm.h"
-
-static void	 screen_init_xinerama(struct screen_ctx *);
 
 void
 screen_init(struct screen_ctx *sc, u_int which)
@@ -125,48 +123,40 @@ screen_updatestackingorder(struct screen_ctx *sc)
 }
 
 /*
- * If we're using RandR then we'll redo this whenever the screen
- * changes since a CTRC may have been added or removed
- */
-void
-screen_init_xinerama(struct screen_ctx *sc)
-{
-	XineramaScreenInfo	*info = NULL;
-	int			 no = 0;
-
-	if (XineramaIsActive(X_Dpy))
-		info = XineramaQueryScreens(X_Dpy, &no);
-
-	if (sc->xinerama != NULL)
-		XFree(sc->xinerama);
-	sc->xinerama = info;
-	sc->xinerama_no = no;
-}
-
-/*
  * Find which xinerama screen the coordinates (x,y) is on.
  */
-XineramaScreenInfo *
+struct geom
 screen_find_xinerama(struct screen_ctx *sc, int x, int y)
 {
 	XineramaScreenInfo	*info;
+	struct geom		 geom;
 	int			 i;
 
+	geom = sc->work;
+
 	if (sc->xinerama == NULL)
-		return (NULL);
+		return (geom);
 
 	for (i = 0; i < sc->xinerama_no; i++) {
 		info = &sc->xinerama[i];
 		if (x >= info->x_org && x < info->x_org + info->width &&
-		    y >= info->y_org && y < info->y_org + info->height)
-			return (info);
+		    y >= info->y_org && y < info->y_org + info->height) {
+			geom.x = info->x_org + sc->gap.left;
+			geom.y = info->y_org + sc->gap.top;
+			geom.w = info->width - (sc->gap.left + sc->gap.right);
+			geom.h = info->height - (sc->gap.top + sc->gap.bottom);
+			break;
+		}
 	}
-	return (NULL);
+	return (geom);
 }
 
 void
 screen_update_geometry(struct screen_ctx *sc)
 {
+	XineramaScreenInfo	*info = NULL;
+	int			 info_no = 0;
+
 	sc->view.x = 0;
 	sc->view.y = 0;
 	sc->view.w = DisplayWidth(X_Dpy, sc->which);
@@ -177,7 +167,13 @@ screen_update_geometry(struct screen_ctx *sc)
 	sc->work.w = sc->view.w - (sc->gap.left + sc->gap.right);
 	sc->work.h = sc->view.h - (sc->gap.top + sc->gap.bottom);
 
-	screen_init_xinerama(sc);
+	/* RandR event may have a CTRC added or removed. */
+	if (XineramaIsActive(X_Dpy))
+		info = XineramaQueryScreens(X_Dpy, &info_no);
+	if (sc->xinerama != NULL)
+		XFree(sc->xinerama);
+	sc->xinerama = info;
+	sc->xinerama_no = info_no;
 
 	xu_ewmh_net_desktop_geometry(sc);
 	xu_ewmh_net_workarea(sc);

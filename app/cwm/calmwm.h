@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.179 2012/12/19 15:21:34 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.186 2013/01/08 15:16:04 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -74,7 +74,11 @@
 #define CWM_MENU_DUMMY		0x0001
 #define CWM_MENU_FILE		0x0002
 
-#define KBTOGROUP(X) ((X) - 1)
+#define ARG_CHAR		0x0001
+#define ARG_INT			0x0002
+
+#define CWM_TILE_HORIZ 		0x0001
+#define CWM_TILE_VERT 		0x0002
 
 union arg {
 	char	*c;
@@ -89,17 +93,12 @@ enum menucolor {
 	CWM_COLOR_MENU_MAX
 };
 
-enum cwmcolor {
+enum bordercolor {
 	CWM_COLOR_BORDER_ACTIVE,
 	CWM_COLOR_BORDER_INACTIVE,
 	CWM_COLOR_BORDER_GROUP,
 	CWM_COLOR_BORDER_UNGROUP,
-	CWM_COLOR_MAX
-};
-
-struct color {
-	char		*name;
-	unsigned long	 pixel;
+	CWM_COLOR_BORDER_MAX
 };
 
 struct geom {
@@ -211,7 +210,7 @@ struct screen_ctx {
 	Colormap		 colormap;
 	Window			 rootwin;
 	Window			 menuwin;
-	struct color		 color[CWM_COLOR_MAX];
+	unsigned long		 color[CWM_COLOR_BORDER_MAX];
 	int			 cycling;
 	struct geom		 view; /* viewable area */
 	struct geom		 work; /* workable area, gap-applied */
@@ -222,7 +221,7 @@ struct screen_ctx {
 	XftFont			*xftfont;
 	int			 xinerama_no;
 	XineramaScreenInfo	*xinerama;
-#define CALMWM_NGROUPS		 9
+#define CALMWM_NGROUPS		 10
 	struct group_ctx	 groups[CALMWM_NGROUPS];
 	struct group_ctx_q	 groupq;
 	int			 group_hideall;
@@ -241,6 +240,7 @@ struct keybinding {
 	int			 keycode;
 #define KBFLAG_NEEDCLIENT	 0x0001
 	int			 flags;
+	int			 argtype;
 };
 TAILQ_HEAD(keybinding_q, keybinding);
 
@@ -290,7 +290,7 @@ struct conf {
 #define	CONF_SNAPDIST			0
 	int			 snapdist;
 	struct gap		 gap;
-	struct color		 color[CWM_COLOR_MAX];
+	char			*color[CWM_COLOR_BORDER_MAX];
 	char		 	*menucolor[CWM_COLOR_MENU_MAX];
 	char			 termpath[MAXPATHLEN];
 	char			 lockpath[MAXPATHLEN];
@@ -324,7 +324,8 @@ struct client_ctx	*client_find(Window);
 void			 client_freeze(struct client_ctx *);
 void			 client_getsizehints(struct client_ctx *);
 void			 client_hide(struct client_ctx *);
-void			 client_horizmaximize(struct client_ctx *);
+void			 client_hmaximize(struct client_ctx *);
+void 			 client_htile(struct client_ctx *);
 void			 client_leave(struct client_ctx *);
 void			 client_lower(struct client_ctx *);
 void			 client_map(struct client_ctx *);
@@ -341,7 +342,8 @@ void			 client_setname(struct client_ctx *);
 int			 client_snapcalc(int, int, int, int, int);
 void			 client_transient(struct client_ctx *);
 void			 client_unhide(struct client_ctx *);
-void			 client_vertmaximize(struct client_ctx *);
+void			 client_vmaximize(struct client_ctx *);
+void 			 client_vtile(struct client_ctx *);
 void			 client_warp(struct client_ctx *);
 
 void			 group_alltoggle(struct screen_ctx *);
@@ -371,7 +373,7 @@ void			 search_match_text(struct menu_q *, struct menu_q *,
 			     char *);
 void			 search_print_client(struct menu *, int);
 
-XineramaScreenInfo	*screen_find_xinerama(struct screen_ctx *, int, int);
+struct geom		 screen_find_xinerama(struct screen_ctx *, int, int);
 struct screen_ctx	*screen_fromroot(Window);
 void			 screen_init(struct screen_ctx *, u_int);
 void			 screen_update_geometry(struct screen_ctx *);
@@ -412,6 +414,7 @@ void			 kbfunc_quit_wm(struct client_ctx *, union arg *);
 void			 kbfunc_restart(struct client_ctx *, union arg *);
 void			 kbfunc_ssh(struct client_ctx *, union arg *);
 void			 kbfunc_term(struct client_ctx *, union arg *);
+void 			 kbfunc_tile(struct client_ctx *, union arg *);
 
 void			 mousefunc_menu_cmd(struct client_ctx *, void *);
 void			 mousefunc_menu_group(struct client_ctx *, void *);

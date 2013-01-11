@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: conf.c,v 1.116 2012/12/19 15:21:34 okan Exp $
+ * $OpenBSD: conf.c,v 1.121 2013/01/08 15:16:05 okan Exp $
  */
 
 #include <sys/param.h>
@@ -65,17 +65,17 @@ conf_font(struct conf *c, struct screen_ctx *sc)
 }
 
 static char *menu_color_binds[CWM_COLOR_MENU_MAX] = {
-	"black", /* CWM_COLOR_MENU_FG */
-	"white", /* CWM_COLOR_MENU_BG */
-	"black", /* CWM_COLOR_MENU_FONT */
-	"",  	 /* CWM_COLOR_MENU_FONT_SEL */
+	"black",	/* CWM_COLOR_MENU_FG */
+	"white",	/* CWM_COLOR_MENU_BG */
+	"black",	/* CWM_COLOR_MENU_FONT */
+	"",		/* CWM_COLOR_MENU_FONT_SEL */
 };
 
-static struct color color_binds[CWM_COLOR_MAX] = {
-	{ "#CCCCCC",	0 }, /* CWM_COLOR_BORDER_ACTIVE */
-	{ "#666666",	0 }, /* CWM_COLOR_BORDER_INACTIVE */
-	{ "blue",	0 }, /* CWM_COLOR_BORDER_GROUP */
-	{ "red",	0 }, /* CWM_COLOR_BORDER_UNGROUP */
+static char *color_binds[CWM_COLOR_BORDER_MAX] = {
+	"#CCCCCC",	/* CWM_COLOR_BORDER_ACTIVE */
+	"#666666",	/* CWM_COLOR_BORDER_INACTIVE */
+	"blue",		/* CWM_COLOR_BORDER_GROUP */
+	"red",		/* CWM_COLOR_BORDER_UNGROUP */
 };
 
 void
@@ -83,8 +83,8 @@ conf_color(struct conf *c, struct screen_ctx *sc)
 {
 	int	 i;
 
-	for (i = 0; i < CWM_COLOR_MAX; i++)
-		sc->color[i].pixel = xu_getcolor(sc, c->color[i].name);
+	for (i = 0; i < CWM_COLOR_BORDER_MAX; i++)
+		sc->color[i] = xu_getcolor(sc, c->color[i]);
 }
 
 static struct {
@@ -184,7 +184,7 @@ conf_init(struct conf *c)
 		conf_mousebind(c, m_binds[i].key, m_binds[i].func);
 
 	for (i = 0; i < nitems(color_binds); i++)
-		c->color[i].name = xstrdup(color_binds[i].name);
+		c->color[i] = xstrdup(color_binds[i]);
 
 	for (i = 0; i < nitems(menu_color_binds); i++)
 		c->menucolor[i] = xstrdup(menu_color_binds[i]);
@@ -236,8 +236,8 @@ conf_clear(struct conf *c)
 		free(mb);
 	}
 
-	for (i = 0; i < CWM_COLOR_MAX; i++)
-		free(c->color[i].name);
+	for (i = 0; i < CWM_COLOR_BORDER_MAX; i++)
+		free(c->color[i]);
 
 	free(c->font);
 }
@@ -375,6 +375,10 @@ static struct {
 	    {.i = (CWM_LEFT|CWM_PTRMOVE|CWM_BIGMOVE)} },
 	{ "bigptrmoveright", kbfunc_moveresize, 0,
 	    {.i = (CWM_RIGHT|CWM_PTRMOVE|CWM_BIGMOVE)} },
+	{ "htile", kbfunc_tile, KBFLAG_NEEDCLIENT,
+	    {.i = CWM_TILE_HORIZ } },
+	{ "vtile", kbfunc_tile, KBFLAG_NEEDCLIENT,
+	    {.i = CWM_TILE_VERT } },
 };
 
 /*
@@ -470,14 +474,16 @@ conf_bindname(struct conf *c, char *name, char *binding)
 		current_binding->callback = name_to_kbfunc[i].handler;
 		current_binding->flags = name_to_kbfunc[i].flags;
 		current_binding->argument = name_to_kbfunc[i].argument;
+		current_binding->argtype |= ARG_INT;
 		conf_grab(c, current_binding);
 		TAILQ_INSERT_TAIL(&c->keybindingq, current_binding, entry);
 		return;
 	}
 
 	current_binding->callback = kbfunc_cmdexec;
-	current_binding->argument.c = xstrdup(binding);
 	current_binding->flags = 0;
+	current_binding->argument.c = xstrdup(binding);
+	current_binding->argtype |= ARG_CHAR;
 	conf_grab(c, current_binding);
 	TAILQ_INSERT_TAIL(&c->keybindingq, current_binding, entry);
 }
@@ -496,6 +502,8 @@ conf_unbind(struct conf *c, struct keybinding *unbind)
 		    key->keysym == unbind->keysym) {
 			conf_ungrab(c, key);
 			TAILQ_REMOVE(&c->keybindingq, key, entry);
+			if (key->argtype & ARG_CHAR)
+				free(key->argument.c);
 			free(key);
 		}
 	}
