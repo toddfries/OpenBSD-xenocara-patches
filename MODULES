@@ -1,18 +1,18 @@
-# $OpenBSD: MODULES,v 1.242 2012/12/31 17:50:13 matthieu Exp $
+# $OpenBSD: MODULES,v 1.244 2013/01/17 07:34:37 matthieu Exp $
 #
 # X.Org maintained modules
 #
 
 app/appres		1.0.3
 app/bdftopcf		1.0.3	7.7
-app/beforelight		1.0.4
+app/beforelight		1.0.5		needs-update
 app/bitmap		1.0.6
-app/editres		1.0.5
+app/editres		1.0.6
 app/fonttosfnt		1.0.4
 app/fslsfonts		1.0.4
 app/fstobdf		1.0.5
 app/iceauth		1.0.5	7.7
-app/ico			1.0.3
+app/ico			1.0.4		needs-update
 app/listres		1.0.3
 app/luit		1.1.1	7.7	needs-update
 app/mkcomposecache	1.2.1		needs-import
@@ -23,24 +23,24 @@ app/rgb			1.0.4
 app/scripts		1.0.1
 app/sessreg		1.0.7	7.7
 app/setxkbmap		1.3.0	7.7
-app/showfont		1.0.3
+app/showfont		1.0.4
 app/smproxy		1.0.5	7.7
 app/twm			1.0.7
-app/viewres		1.0.3
+app/viewres		1.0.4
 app/x11perf		1.5.4	7.7
 app/xauth		1.0.7	7.7
 app/xbacklight		1.2.0	7.7+	needs-update
 app/xbiff		1.0.3
-app/xcalc		1.0.4
+app/xcalc		1.0.5		needs-update
 app/xclipboard		1.1.2
 app/xclock		1.0.6
 app/xcmsdb		1.0.4	7.7
 app/xcompmgr		1.1.6
-app/xconsole		1.0.4
+app/xconsole		1.0.5
 app/xdm			1.1.11
 app/xdpyinfo		1.3.0	7.7
 app/xdriinfo		1.0.4	7.7
-app/xedit		1.2.0
+app/xedit		1.2.1
 app/xev			1.2.0	7.7
 app/xeyes		1.1.1
 app/xf86dga		1.0.3
@@ -50,7 +50,7 @@ app/xfs			1.1.2
 app/xfsinfo		1.0.3
 app/xfwp		1.0.2
 app/xgamma		1.0.5	7.7
-app/xgc			1.0.3
+app/xgc			1.0.4
 app/xhost		1.0.5	7.7
 app/xinit		1.3.2		needs-update
 app/xinput		1.6.0	7.7
@@ -64,9 +64,9 @@ app/xlogo		1.0.4
 app/xlsatoms		1.1.1	7.7
 app/xlsclients		1.1.2	7.7
 app/xlsfonts		1.0.4
-app/xmag		1.0.4
+app/xmag		1.0.5
 app/xman		1.1.2
-app/xmessage		1.0.3
+app/xmessage		1.0.4
 app/xmodmap		1.0.7	7.7
 app/xmore		1.0.2
 app/xpr			1.0.4	7.7
@@ -92,13 +92,13 @@ driver/xf86-input-acecad	1.5.0
 driver/xf86-input-elographics	1.4.1		needs-update
 driver/xf86-input-fpit		1.4.0
 driver/xf86-input-hyperpen	1.4.1
-driver/xf86-input-joystick	1.6.1	7.7
+driver/xf86-input-joystick	1.6.2	7.7+	needs-update
 driver/xf86-input-keyboard	1.6.2	7.7+
 driver/xf86-input-mouse		1.8.1	7.7+
 driver/xf86-input-mutouch	1.3.0
 driver/xf86-input-penmount	1.5.0
 driver/xf86-input-synaptics	1.6.2	7.7
-driver/xf86-input-vmmouse	12.9.0	7.7+
+driver/xf86-input-vmmouse	13.0.0	7.7+	needs-update
 driver/xf86-input-void		1.4.0	7.7
 driver/xf86-video-apm		1.2.5
 driver/xf86-video-ark		0.7.5	7.7+
@@ -110,9 +110,10 @@ driver/xf86-video-geode		2.11.14	7.7+
 driver/xf86-video-glint		1.2.8	7.7+
 driver/xf86-video-i128		1.3.6	7.7+
 driver/xf86-video-i740		1.3.4
-driver/xf86-video-intel		2.20.17	7.7+	needs-update-and-kms
+driver/xf86-video-intel		2.20.18	7.7+	needs-update-and-kms
 driver/xf86-video-mach64	6.9.4	7.7+	needs-update
 driver/xf86-video-mga		1.6.2	7.7+
+driver/xf86-video-modesetting	0.6.0
 driver/xf86-video-neomagic	1.2.7	7.7+
 driver/xf86-video-nv		2.1.20	7.7+
 driver/xf86-video-openchrome	0.3.1	7.7+	needs-update-and-dri
@@ -128,7 +129,7 @@ driver/xf86-video-tdfx		1.4.5	7.7+
 driver/xf86-video-trident	1.3.6	7.7+
 driver/xf86-video-tseng		1.2.5
 driver/xf86-video-vesa		2.3.2	7.7+
-driver/xf86-video-vmware	12.1RC1	7.7+
+driver/xf86-video-vmware	13.0	7.7+	needs-update
 driver/xf86-video-voodoo	1.2.5	7.7+
 driver/xf86-video-wsfb		0.4.0	7.7
 
@@ -177,9 +178,9 @@ lib/libX11			1.5.0	7.7
 lib/libXScrnSaver		1.2.2	7.7
 lib/libXau			1.0.7	7.7
 lib/libXaw			1.0.11	7.7
-lib/libXcomposite		0.4.3	7.7
+lib/libXcomposite		0.4.4	7.7+
 lib/libXcursor			1.1.13	7.7
-lib/libXdamage			1.1.3	7.7
+lib/libXdamage			1.1.4	7.7+
 lib/libXdmcp			1.1.1	7.7
 lib/libXext			1.3.1	7.7
 lib/libXfixes			5.0	7.7
