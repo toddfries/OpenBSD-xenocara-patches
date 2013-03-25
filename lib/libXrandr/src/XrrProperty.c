@@ -159,7 +159,7 @@ XRRConfigureOutputProperty (Display *dpy, RROutput output, Atom property,
     UnlockDisplay(dpy);
     SyncHandle();
 }
-			
+
 void
 XRRChangeOutputProperty (Display *dpy, RROutput output,
 			 Atom property, Atom type,
@@ -244,7 +244,7 @@ XRRDeleteOutputProperty (Display *dpy, RROutput output, Atom property)
 int
 XRRGetOutputProperty (Display *dpy, RROutput output,
 		      Atom property, long offset, long length,
-		      Bool delete, Bool pending, Atom req_type, 
+		      Bool delete, Bool pending, Atom req_type,
 		      Atom *actual_type, int *actual_format,
 		      unsigned long *nitems, unsigned long *bytes_after,
 		      unsigned char **prop)
