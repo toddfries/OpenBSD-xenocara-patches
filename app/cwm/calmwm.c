@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.c,v 1.72 2012/12/18 00:14:41 okan Exp $
+ * $OpenBSD: calmwm.c,v 1.74 2013/04/12 14:49:16 okan Exp $
  */
 
 #include <sys/param.h>
@@ -129,8 +129,6 @@ dpy_init(const char *dpyname)
 {
 	int	i;
 
-	XSetErrorHandler(x_errorhandler);
-
 	if ((X_Dpy = XOpenDisplay(dpyname)) == NULL)
 		errx(1, "unable to open display \"%s\"",
 		    XDisplayName(dpyname));
@@ -146,7 +144,6 @@ dpy_init(const char *dpyname)
 static void
 x_setup(void)
 {
-	struct screen_ctx	*sc;
 	struct keybinding	*kb;
 	int			 i;
 
@@ -156,11 +153,8 @@ x_setup(void)
 	Cursor_question = XCreateFontCursor(X_Dpy, XC_question_arrow);
 	Cursor_resize = XCreateFontCursor(X_Dpy, XC_bottom_right_corner);
 
-	for (i = 0; i < ScreenCount(X_Dpy); i++) {
-		sc = xcalloc(1, sizeof(*sc));
-		screen_init(sc, i);
-		TAILQ_INSERT_TAIL(&Screenq, sc, entry);
-	}
+	for (i = 0; i < ScreenCount(X_Dpy); i++)
+		screen_init(i);
 
 	/*
 	 * XXX key grabs weren't done before, since Screenq was empty,
