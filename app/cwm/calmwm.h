@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.187 2013/04/12 14:46:30 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.191 2013/04/17 13:57:06 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -352,7 +352,6 @@ void			 group_client_delete(struct client_ctx *);
 void			 group_cycle(struct screen_ctx *, int);
 void			 group_hidetoggle(struct screen_ctx *, int);
 void			 group_init(struct screen_ctx *);
-void			 group_make_autogroup(struct conf *, char *, int);
 void			 group_menu(XButtonEvent *);
 void			 group_movetogroup(struct client_ctx *, int);
 void			 group_only(struct screen_ctx *, int);
@@ -436,6 +435,7 @@ void			 menuq_clear(struct menu_q *);
 
 int			 parse_config(const char *, struct conf *);
 
+void			 conf_autogroup(struct conf *, int, char *);
 void			 conf_bindname(struct conf *, char *, char *);
 void			 conf_clear(struct conf *);
 void			 conf_client(struct client_ctx *);
@@ -446,6 +446,7 @@ void			 conf_gap(struct conf *, struct screen_ctx *);
 void			 conf_grab(struct conf *, struct keybinding *);
 void			 conf_grab_mouse(struct client_ctx *);
 void			 conf_init(struct conf *);
+void			 conf_ignore(struct conf *, char *);
 void			 conf_mousebind(struct conf *, char *, char *);
 void			 conf_ungrab(struct conf *, struct keybinding *);
 
@@ -466,7 +467,7 @@ void			 xu_configure(struct client_ctx *);
 void			 xu_getatoms(void);
 unsigned long		 xu_getcolor(struct screen_ctx *, char *);
 int			 xu_getprop(Window, Atom, Atom, long, u_char **);
-int			 xu_getstate(struct client_ctx *, int *);
+int			 xu_get_wm_state(Window, int *);
 int			 xu_getstrprop(Window, Atom, char **);
 void			 xu_key_grab(Window, int, int);
 void			 xu_key_ungrab(Window, int, int);
@@ -476,7 +477,7 @@ int			 xu_ptr_regrab(int, Cursor);
 void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_ungrab(void);
 void			 xu_sendmsg(Window, Atom, long);
-void			 xu_setstate(struct client_ctx *, int);
+void			 xu_set_wm_state(Window win, int);
 void 			 xu_xorcolor(XRenderColor, XRenderColor,
 			     XRenderColor *);
 
