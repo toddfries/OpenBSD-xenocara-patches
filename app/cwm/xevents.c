@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xevents.c,v 1.72 2013/04/29 00:56:48 okan Exp $
+ * $OpenBSD: xevents.c,v 1.75 2013/05/10 16:32:48 okan Exp $
  */
 
 /*
@@ -277,7 +277,7 @@ xev_handle_keypress(XEvent *ee)
 	struct client_ctx	*cc = NULL, fakecc;
 	struct keybinding	*kb;
 	KeySym			 keysym, skeysym;
-	int			 modshift;
+	u_int			 modshift;
 
 	keysym = XkbKeycodeToKeysym(X_Dpy, e->keycode, 0, 0);
 	skeysym = XkbKeycodeToKeysym(X_Dpy, e->keycode, 0, 1);
@@ -322,7 +322,8 @@ xev_handle_keyrelease(XEvent *ee)
 	XKeyEvent		*e = &ee->xkey;
 	struct screen_ctx	*sc;
 	struct client_ctx	*cc;
-	int			 i, keysym;
+	KeySym			 keysym;
+	u_int			 i;
 
 	sc = screen_fromroot(e->root);
 	cc = client_current();

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xutil.c,v 1.56 2013/04/17 13:57:06 okan Exp $
+ * $OpenBSD: xutil.c,v 1.59 2013/05/10 16:32:48 okan Exp $
  */
 
 #include <sys/param.h>
@@ -33,7 +33,7 @@
 static unsigned int ign_mods[] = { 0, LockMask, Mod2Mask, Mod2Mask | LockMask };
 
 int
-xu_ptr_grab(Window win, int mask, Cursor curs)
+xu_ptr_grab(Window win, u_int mask, Cursor curs)
 {
 	return (XGrabPointer(X_Dpy, win, False, mask,
 	    GrabModeAsync, GrabModeAsync,
@@ -41,7 +41,7 @@ xu_ptr_grab(Window win, int mask, Cursor curs)
 }
 
 int
-xu_ptr_regrab(int mask, Cursor curs)
+xu_ptr_regrab(u_int mask, Cursor curs)
 {
 	return (XChangeActivePointerGrab(X_Dpy, mask,
 	    curs, CurrentTime) == GrabSuccess ? 0 : -1);
@@ -56,7 +56,8 @@ xu_ptr_ungrab(void)
 void
 xu_btn_grab(Window win, int mask, u_int btn)
 {
-	int	i;
+	u_int	i;
+
 	for (i = 0; i < nitems(ign_mods); i++)
 		XGrabButton(X_Dpy, btn, (mask | ign_mods[i]), win,
 		    False, BUTTONMASK, GrabModeAsync,
@@ -66,7 +67,8 @@ xu_btn_grab(Window win, int mask, u_int btn)
 void
 xu_btn_ungrab(Window win, int mask, u_int btn)
 {
-	int	i;
+	u_int	i;
+
 	for (i = 0; i < nitems(ign_mods); i++)
 		XUngrabButton(X_Dpy, btn, (mask | ign_mods[i]), win);
 }
@@ -88,10 +90,10 @@ xu_ptr_setpos(Window win, int x, int y)
 }
 
 void
-xu_key_grab(Window win, int mask, int keysym)
+xu_key_grab(Window win, u_int mask, KeySym keysym)
 {
 	KeyCode	 code;
-	int	 i;
+	u_int	 i;
 
 	code = XKeysymToKeycode(X_Dpy, keysym);
 	if ((XkbKeycodeToKeysym(X_Dpy, code, 0, 0) != keysym) &&
@@ -104,10 +106,10 @@ xu_key_grab(Window win, int mask, int keysym)
 }
 
 void
-xu_key_ungrab(Window win, int mask, int keysym)
+xu_key_ungrab(Window win, u_int mask, KeySym keysym)
 {
 	KeyCode	 code;
-	int	 i;
+	u_int	 i;
 
 	code = XKeysymToKeycode(X_Dpy, keysym);
 	if ((XkbKeycodeToKeysym(X_Dpy, code, 0, 0) != keysym) &&
@@ -258,7 +260,7 @@ struct atom_ctx ewmh[EWMH_NITEMS] = {
 void
 xu_getatoms(void)
 {
-	int	 i;
+	u_int	 i;
 
 	for (i = 0; i < nitems(cwmh); i++)
 		cwmh[i].atom = XInternAtom(X_Dpy, cwmh[i].name, False);
@@ -271,7 +273,7 @@ void
 xu_ewmh_net_supported(struct screen_ctx *sc)
 {
 	Atom	 atom[EWMH_NITEMS];
-	int	 i;
+	u_int	 i;
 
 	for (i = 0; i < nitems(ewmh); i++)
 		atom[i] = ewmh[i].atom;

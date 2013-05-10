@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.192 2013/04/29 00:56:47 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.196 2013/05/10 16:32:47 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -235,8 +235,8 @@ struct keybinding {
 	TAILQ_ENTRY(keybinding)	 entry;
 	void			(*callback)(struct client_ctx *, union arg *);
 	union arg		 argument;
-	int			 modmask;
-	int			 keysym;
+	u_int			 modmask;
+	KeySym			 keysym;
 	int			 keycode;
 #define KBFLAG_NEEDCLIENT	 0x0001
 	int			 flags;
@@ -247,8 +247,8 @@ TAILQ_HEAD(keybinding_q, keybinding);
 struct mousebinding {
 	TAILQ_ENTRY(mousebinding)	entry;
 	void			 	(*callback)(struct client_ctx *, void *);
-	int				modmask;
-	int			 	button;
+	u_int				modmask;
+	u_int			 	button;
 #define MOUSEBIND_CTX_ROOT		0x0001
 #define MOUSEBIND_CTX_WIN		0x0002
 	int				context;
@@ -348,7 +348,6 @@ void			 client_warp(struct client_ctx *);
 
 void			 group_alltoggle(struct screen_ctx *);
 void			 group_autogroup(struct client_ctx *);
-void			 group_client_delete(struct client_ctx *);
 void			 group_cycle(struct screen_ctx *, int);
 void			 group_hidetoggle(struct screen_ctx *, int);
 void			 group_init(struct screen_ctx *);
@@ -450,14 +449,11 @@ void			 conf_ignore(struct conf *, char *);
 void			 conf_mousebind(struct conf *, char *, char *);
 void			 conf_ungrab(struct conf *, struct keybinding *);
 
-int			 font_ascent(struct screen_ctx *);
-int			 font_descent(struct screen_ctx *);
 void			 font_draw(struct screen_ctx *, const char *, int,
 			     Drawable, int, int, int);
-u_int			 font_height(struct screen_ctx *);
 void			 font_init(struct screen_ctx *, const char *,
 			     const char **);
-int			 font_width(struct screen_ctx *, const char *, int);
+int			 font_width(XftFont *, const char *, int);
 
 void			 xev_loop(void);
 
@@ -469,11 +465,11 @@ unsigned long		 xu_getcolor(struct screen_ctx *, char *);
 int			 xu_getprop(Window, Atom, Atom, long, u_char **);
 int			 xu_get_wm_state(Window, int *);
 int			 xu_getstrprop(Window, Atom, char **);
-void			 xu_key_grab(Window, int, int);
-void			 xu_key_ungrab(Window, int, int);
+void			 xu_key_grab(Window, u_int, KeySym);
+void			 xu_key_ungrab(Window, u_int, KeySym);
 void			 xu_ptr_getpos(Window, int *, int *);
-int			 xu_ptr_grab(Window, int, Cursor);
-int			 xu_ptr_regrab(int, Cursor);
+int			 xu_ptr_grab(Window, u_int, Cursor);
+int			 xu_ptr_regrab(u_int, Cursor);
 void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_ungrab(void);
 void			 xu_sendmsg(Window, Atom, long);

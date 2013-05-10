@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: group.c,v 1.74 2013/04/17 13:30:38 okan Exp $
+ * $OpenBSD: group.c,v 1.76 2013/05/06 16:03:11 okan Exp $
  */
 
 #include <sys/param.h>
@@ -98,8 +98,7 @@ group_show(struct screen_ctx *sc, struct group_ctx *gc)
 {
 	struct client_ctx	*cc;
 	Window			*winlist;
-	u_int			 i;
-	int			 lastempty = -1;
+	int			 i, lastempty = -1;
 
 	gc->highstack = 0;
 	TAILQ_FOREACH(cc, &gc->clients, group_entry) {
@@ -307,17 +306,6 @@ group_cycle(struct screen_ctx *sc, int flags)
 		group_show(sc, showgroup);
 	else
 		group_setactive(sc, showgroup->shortcut);
-}
-
-/* called when a client is deleted */
-void
-group_client_delete(struct client_ctx *cc)
-{
-	if (cc->group == NULL)
-		return;
-
-	TAILQ_REMOVE(&cc->group->clients, cc, group_entry);
-	cc->group = NULL; /* he he */
 }
 
 void

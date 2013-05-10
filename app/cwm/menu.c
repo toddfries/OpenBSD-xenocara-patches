@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: menu.c,v 1.54 2013/04/08 13:02:31 okan Exp $
+ * $OpenBSD: menu.c,v 1.60 2013/05/10 16:10:40 okan Exp $
  */
 
 #include <sys/param.h>
@@ -42,7 +42,7 @@ enum ctltype {
 };
 
 struct menu_ctx {
-	struct screen_ctx 	*sc;
+	struct screen_ctx	*sc;
 	char			 searchstr[MENU_MAXENTRY + 1];
 	char			 dispstr[MENU_MAXENTRY*2 + 1];
 	char			 promptstr[MENU_MAXENTRY + 1];
@@ -112,18 +112,13 @@ menu_filter(struct screen_ctx *sc, struct menu_q *menuq, char *prompt,
 
 	mc.sc = sc;
 	mc.flags = flags;
-	if (prompt == NULL) {
-		evmask = MENUMASK;
-		mc.promptstr[0] = '\0';
-		mc.list = 1;
-	} else {
-		evmask = MENUMASK | KEYMASK; /* only accept keys if prompt */
-		(void)snprintf(mc.promptstr, sizeof(mc.promptstr), "%s%s",
-		    prompt, PROMPT_SCHAR);
-		(void)snprintf(mc.dispstr, sizeof(mc.dispstr), "%s%s%s",
-		    mc.promptstr, mc.searchstr, PROMPT_ECHAR);
-		mc.width = font_width(sc, mc.dispstr, strlen(mc.dispstr));
+	if (prompt != NULL) {
+		evmask = MENUMASK | KEYMASK; /* accept keys as well */
+		(void)strlcpy(mc.promptstr, prompt, sizeof(mc.promptstr));
 		mc.hasprompt = 1;
+	} else {
+		evmask = MENUMASK;
+		mc.list = 1;
 	}
 
 	if (initial != NULL)
@@ -135,8 +130,6 @@ menu_filter(struct screen_ctx *sc, struct menu_q *menuq, char *prompt,
 	mc.print = print;
 	mc.entry = mc.prev = -1;
 
-	XMoveResizeWindow(X_Dpy, sc->menuwin, mc.x, mc.y, mc.width,
-	    font_height(sc));
 	XSelectInput(X_Dpy, sc->menuwin, evmask);
 	XMapRaised(X_Dpy, sc->menuwin);
 
@@ -192,6 +185,7 @@ out:
 		xu_ptr_setpos(sc->rootwin, xsave, ysave);
 	xu_ptr_ungrab();
 
+	XMoveResizeWindow(X_Dpy, sc->menuwin, 0, 0, 1, 1);
 	XUnmapWindow(X_Dpy, sc->menuwin);
 	XUngrabKeyboard(X_Dpy, CurrentTime);
 
@@ -203,7 +197,7 @@ menu_complete_path(struct menu_ctx *mc)
 {
 	struct menu		*mi, *mr;
 	struct menu_q		 menuq;
-	char *path = NULL;
+	char			*path = NULL;
 
 	path = xcalloc(1, sizeof(mr->text));
 	mr = xcalloc(1, sizeof(*mr));
@@ -371,10 +365,11 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 	mc->width = 0;
 	mc->height = 0;
 	if (mc->hasprompt) {
-		(void)snprintf(mc->dispstr, sizeof(mc->dispstr), "%s%s%s",
-		    mc->promptstr, mc->searchstr, PROMPT_ECHAR);
-		mc->width = font_width(sc, mc->dispstr, strlen(mc->dispstr));
-		mc->height = font_height(sc);
+		(void)snprintf(mc->dispstr, sizeof(mc->dispstr), "%s%s%s%s",
+		    mc->promptstr, PROMPT_SCHAR, mc->searchstr, PROMPT_ECHAR);
+		mc->width = font_width(sc->xftfont, mc->dispstr,
+		    strlen(mc->dispstr));
+		mc->height = sc->xftfont->height + 1;
 		mc->num = 1;
 	}
 
@@ -389,9 +384,9 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 			text = mi->text;
 		}
 
-		mc->width = MAX(mc->width, font_width(sc, text,
+		mc->width = MAX(mc->width, font_width(sc->xftfont, text,
 		    MIN(strlen(text), MENU_MAXENTRY)));
-		mc->height += font_height(sc);
+		mc->height += sc->xftfont->height + 1;
 		mc->num++;
 	}
 
@@ -425,7 +420,7 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 
 	if (mc->hasprompt) {
 		font_draw(sc, mc->dispstr, strlen(mc->dispstr), sc->menuwin, 0,
-		    0, font_ascent(sc));
+		    0, sc->xftfont->ascent);
 		n = 1;
 	} else
 		n = 0;
@@ -433,7 +428,7 @@ menu_draw(struct screen_ctx *sc, struct menu_ctx *mc, struct menu_q *menuq,
 	TAILQ_FOREACH(mi, resultq, resultentry) {
 		char *text = mi->print[0] != '\0' ?
 		    mi->print : mi->text;
-		int y = n * font_height(sc) + font_ascent(sc) + 1;
+		int y = n * (sc->xftfont->height + 1) + sc->xftfont->ascent + 1;
 
 		/* Stop drawing when menu doesn't fit inside the screen. */
 		if (mc->y + y > xine.h)
@@ -469,10 +464,10 @@ menu_draw_entry(struct screen_ctx *sc, struct menu_ctx *mc,
 	color = active ? CWM_COLOR_MENU_FG : CWM_COLOR_MENU_BG;
 	text = mi->print[0] != '\0' ?  mi->print : mi->text;
 	XftDrawRect(sc->xftdraw, &sc->xftcolor[color], 0,
-	    font_height(sc) * entry, mc->width,
-	    font_height(sc) + font_descent(sc));
+	    (sc->xftfont->height + 1) * entry, mc->width,
+	    (sc->xftfont->height + 1) + sc->xftfont->descent);
 	font_draw(sc, text, strlen(text), sc->menuwin, active,
-	    0, font_height(sc) * entry + font_ascent(sc) + 1);
+	    0, (sc->xftfont->height + 1) * entry + sc->xftfont->ascent + 1);
 }
 
 static void
@@ -525,11 +520,12 @@ menu_calc_entry(struct screen_ctx *sc, struct menu_ctx *mc, int x, int y)
 {
 	int	 entry;
 
-	entry = y / font_height(sc);
+	entry = y / (sc->xftfont->height + 1);
 
 	/* in bounds? */
 	if (x < 0 || x > mc->width || y < 0 ||
-	    y > font_height(sc) * mc->num || entry < 0 || entry >= mc->num)
+	    y > (sc->xftfont->height + 1) * mc->num ||
+	    entry < 0 || entry >= mc->num)
 		entry = -1;
 
 	if (mc->hasprompt && entry == 0)
