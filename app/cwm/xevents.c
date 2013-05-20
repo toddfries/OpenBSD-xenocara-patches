@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xevents.c,v 1.75 2013/05/10 16:32:48 okan Exp $
+ * $OpenBSD: xevents.c,v 1.79 2013/05/19 17:05:52 okan Exp $
  */
 
 /*
@@ -86,7 +86,7 @@ xev_handle_maprequest(XEvent *ee)
 
 	if ((cc = client_find(e->window)) == NULL) {
 		XGetWindowAttributes(X_Dpy, e->window, &xattr);
-		cc = client_new(e->window, screen_fromroot(xattr.root), 1);
+		cc = client_init(e->window, screen_fromroot(xattr.root), 1);
 	}
 
 	if ((cc->flags & CLIENT_IGNORE) == 0)
@@ -203,13 +203,12 @@ xev_handle_propertynotify(XEvent *ee)
 			break;
 		}
 	} else {
-		TAILQ_FOREACH(sc, &Screenq, entry)
-			if (sc->rootwin == e->window)
-				goto test;
-		return;
-test:
-		if (e->atom == ewmh[_NET_DESKTOP_NAMES].atom)
-			group_update_names(sc);
+		TAILQ_FOREACH(sc, &Screenq, entry) {
+			if (sc->rootwin == e->window) {
+				if (e->atom == ewmh[_NET_DESKTOP_NAMES].atom)
+					group_update_names(sc);
+			}
+		}
 	}
 }
 
@@ -341,17 +340,17 @@ static void
 xev_handle_clientmessage(XEvent *ee)
 {
 	XClientMessageEvent	*e = &ee->xclient;
-	Atom			 xa_wm_change_state;
 	struct client_ctx	*cc;
-
-	xa_wm_change_state = XInternAtom(X_Dpy, "WM_CHANGE_STATE", False);
 
 	if ((cc = client_find(e->window)) == NULL)
 		return;
 
-	if (e->message_type == xa_wm_change_state && e->format == 32 &&
-	    e->data.l[0] == IconicState)
+	if (e->message_type == cwmh[WM_CHANGE_STATE].atom &&
+	    e->format == 32 && e->data.l[0] == IconicState)
 		client_hide(cc);
+
+	if (e->message_type == ewmh[_NET_CLOSE_WINDOW].atom)
+		client_send_delete(cc);
 }
 
 static void

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: conf.c,v 1.125 2013/05/10 16:32:48 okan Exp $
+ * $OpenBSD: conf.c,v 1.128 2013/05/19 23:16:29 okan Exp $
  */
 
 #include <sys/param.h>
@@ -84,39 +84,56 @@ conf_ignore(struct conf *c, char *val)
 	TAILQ_INSERT_TAIL(&c->ignoreq, wm, entry);
 }
 
-void
-conf_gap(struct conf *c, struct screen_ctx *sc)
-{
-	sc->gap = c->gap;
-}
-
-void
-conf_font(struct conf *c, struct screen_ctx *sc)
-{
-	font_init(sc, c->font, (const char **)c->menucolor);
-}
-
-static char *menu_color_binds[CWM_COLOR_MENU_MAX] = {
+static char *color_binds[CWM_COLOR_MAX] = {
+	"#CCCCCC",	/* CWM_COLOR_BORDER_ACTIVE */
+	"#666666",	/* CWM_COLOR_BORDER_INACTIVE */
+	"blue",		/* CWM_COLOR_BORDER_GROUP */
+	"red",		/* CWM_COLOR_BORDER_UNGROUP */
 	"black",	/* CWM_COLOR_MENU_FG */
 	"white",	/* CWM_COLOR_MENU_BG */
 	"black",	/* CWM_COLOR_MENU_FONT */
 	"",		/* CWM_COLOR_MENU_FONT_SEL */
 };
 
-static char *color_binds[CWM_COLOR_BORDER_MAX] = {
-	"#CCCCCC",	/* CWM_COLOR_BORDER_ACTIVE */
-	"#666666",	/* CWM_COLOR_BORDER_INACTIVE */
-	"blue",		/* CWM_COLOR_BORDER_GROUP */
-	"red",		/* CWM_COLOR_BORDER_UNGROUP */
-};
-
 void
-conf_color(struct conf *c, struct screen_ctx *sc)
+conf_screen(struct screen_ctx *sc)
 {
-	int	 i;
+	int		 i;
+	XftColor	 xc;
 
-	for (i = 0; i < CWM_COLOR_BORDER_MAX; i++)
-		sc->color[i] = xu_getcolor(sc, c->color[i]);
+	sc->gap = Conf.gap;
+
+	sc->xftdraw = XftDrawCreate(X_Dpy, sc->rootwin,
+	    sc->visual, sc->colormap);
+	if (sc->xftdraw == NULL)
+		errx(1, "XftDrawCreate");
+
+	sc->xftfont = XftFontOpenName(X_Dpy, sc->which, Conf.font);
+	if (sc->xftfont == NULL)
+		errx(1, "XftFontOpenName");
+
+	for (i = 0; i < CWM_COLOR_MAX; i++) {
+		if (*Conf.color[i] == '\0')
+			break;
+		if (XftColorAllocName(X_Dpy, sc->visual, sc->colormap,
+		    Conf.color[i], &xc)) {
+			sc->xftcolor[i] = xc;
+			XftColorFree(X_Dpy, sc->visual, sc->colormap, &xc);
+		} else {
+			warnx("XftColorAllocName: '%s'", Conf.color[i]);
+			XftColorAllocName(X_Dpy, sc->visual, sc->colormap,
+			    color_binds[i], &sc->xftcolor[i]);
+		}
+	}
+	if (i == CWM_COLOR_MAX)
+		return;
+
+	xu_xorcolor(sc->xftcolor[CWM_COLOR_MENU_BG],
+		    sc->xftcolor[CWM_COLOR_MENU_FG], &xc);
+	xu_xorcolor(sc->xftcolor[CWM_COLOR_MENU_FONT], xc, &xc);
+	if (!XftColorAllocValue(X_Dpy, sc->visual, sc->colormap,
+	    &xc.color, &sc->xftcolor[CWM_COLOR_MENU_FONT_SEL]))
+		warnx("XftColorAllocValue: '%s'", Conf.color[i]);
 }
 
 static struct {
@@ -218,9 +235,6 @@ conf_init(struct conf *c)
 	for (i = 0; i < nitems(color_binds); i++)
 		c->color[i] = xstrdup(color_binds[i]);
 
-	for (i = 0; i < nitems(menu_color_binds); i++)
-		c->menucolor[i] = xstrdup(menu_color_binds[i]);
-
 	/* Default term/lock */
 	(void)strlcpy(c->termpath, "xterm", sizeof(c->termpath));
 	(void)strlcpy(c->lockpath, "xlock", sizeof(c->lockpath));
@@ -268,7 +282,7 @@ conf_clear(struct conf *c)
 		free(mb);
 	}
 
-	for (i = 0; i < CWM_COLOR_BORDER_MAX; i++)
+	for (i = 0; i < CWM_COLOR_MAX; i++)
 		free(c->color[i]);
 
 	free(c->font);

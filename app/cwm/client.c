@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: client.c,v 1.128 2013/05/06 16:03:11 okan Exp $
+ * $OpenBSD: client.c,v 1.131 2013/05/19 23:09:59 okan Exp $
  */
 
 #include <sys/param.h>
@@ -36,7 +36,7 @@ static struct client_ctx	*client_mruprev(struct client_ctx *);
 static void			 client_mtf(struct client_ctx *);
 static void			 client_none(struct screen_ctx *);
 static void			 client_placecalc(struct client_ctx *);
-static void			 client_update(struct client_ctx *);
+static void			 client_wm_protocols(struct client_ctx *);
 static void			 client_getmwmhints(struct client_ctx *);
 static int			 client_inbound(struct client_ctx *, int, int);
 
@@ -55,7 +55,7 @@ client_find(Window win)
 }
 
 struct client_ctx *
-client_new(Window win, struct screen_ctx *sc, int mapped)
+client_init(Window win, struct screen_ctx *sc, int mapped)
 {
 	struct client_ctx	*cc;
 	XClassHint		 xch;
@@ -132,7 +132,7 @@ client_new(Window win, struct screen_ctx *sc, int mapped)
 
 	xu_ewmh_net_client_list(sc);
 
-	client_update(cc);
+	client_wm_protocols(cc);
 
 	if (mapped)
 		group_autogroup(cc);
@@ -480,46 +480,43 @@ client_draw_border(struct client_ctx *cc)
 	if (cc->active)
 		switch (cc->flags & CLIENT_HIGHLIGHT) {
 		case CLIENT_GROUP:
-			pixel = sc->color[CWM_COLOR_BORDER_GROUP];
+			pixel = sc->xftcolor[CWM_COLOR_BORDER_GROUP].pixel;
 			break;
 		case CLIENT_UNGROUP:
-			pixel = sc->color[CWM_COLOR_BORDER_UNGROUP];
+			pixel = sc->xftcolor[CWM_COLOR_BORDER_UNGROUP].pixel;
 			break;
 		default:
-			pixel = sc->color[CWM_COLOR_BORDER_ACTIVE];
+			pixel = sc->xftcolor[CWM_COLOR_BORDER_ACTIVE].pixel;
 			break;
 		}
 	else
-		pixel = sc->color[CWM_COLOR_BORDER_INACTIVE];
+		pixel = sc->xftcolor[CWM_COLOR_BORDER_INACTIVE].pixel;
 
 	XSetWindowBorderWidth(X_Dpy, cc->win, cc->bwidth);
 	XSetWindowBorder(X_Dpy, cc->win, pixel);
 }
 
 static void
-client_update(struct client_ctx *cc)
+client_wm_protocols(struct client_ctx *cc)
 {
 	Atom	*p;
-	int	 i;
-	long	 n;
+	int	 i, j;
 
-	if ((n = xu_getprop(cc->win, cwmh[WM_PROTOCOLS].atom,
-		 XA_ATOM, 20L, (u_char **)&p)) <= 0)
-		return;
-
-	for (i = 0; i < n; i++)
-		if (p[i] == cwmh[WM_DELETE_WINDOW].atom)
-			cc->xproto |= CLIENT_PROTO_DELETE;
-		else if (p[i] == cwmh[WM_TAKE_FOCUS].atom)
-			cc->xproto |= CLIENT_PROTO_TAKEFOCUS;
-
-	XFree(p);
+	if (XGetWMProtocols(X_Dpy, cc->win, &p, &j)) {
+		for (i = 0; i < j; i++) {
+			if (p[i] == cwmh[WM_DELETE_WINDOW].atom)
+				cc->xproto |= _WM_DELETE_WINDOW;
+			else if (p[i] == cwmh[WM_TAKE_FOCUS].atom)
+				cc->xproto |= _WM_TAKE_FOCUS;
+		}
+		XFree(p);
+	}
 }
 
 void
 client_send_delete(struct client_ctx *cc)
 {
-	if (cc->xproto & CLIENT_PROTO_DELETE)
+	if (cc->xproto & _WM_DELETE_WINDOW)
 		xu_sendmsg(cc->win,
 		    cwmh[WM_PROTOCOLS].atom, cwmh[WM_DELETE_WINDOW].atom);
 	else

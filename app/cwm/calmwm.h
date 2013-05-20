@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.196 2013/05/10 16:32:47 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.205 2013/05/19 23:38:21 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -85,20 +85,16 @@ union arg {
 	int	 i;
 };
 
-enum menucolor {
-	CWM_COLOR_MENU_FG,
-	CWM_COLOR_MENU_BG,
-	CWM_COLOR_MENU_FONT,
-	CWM_COLOR_MENU_FONT_SEL,
-	CWM_COLOR_MENU_MAX
-};
-
-enum bordercolor {
+enum color {
 	CWM_COLOR_BORDER_ACTIVE,
 	CWM_COLOR_BORDER_INACTIVE,
 	CWM_COLOR_BORDER_GROUP,
 	CWM_COLOR_BORDER_UNGROUP,
-	CWM_COLOR_BORDER_MAX
+	CWM_COLOR_MENU_FG,
+	CWM_COLOR_MENU_BG,
+	CWM_COLOR_MENU_FONT,
+	CWM_COLOR_MENU_FONT_SEL,
+	CWM_COLOR_MAX
 };
 
 struct geom {
@@ -120,6 +116,11 @@ struct winname {
 	char			*name;
 };
 TAILQ_HEAD(winname_q, winname);
+
+enum wm_protocols {
+	_WM_DELETE_WINDOW	= 0x0001,
+	_WM_TAKE_FOCUS		= 0x0002,
+};
 
 struct client_ctx {
 	TAILQ_ENTRY(client_ctx) entry;
@@ -147,9 +148,7 @@ struct client_ctx {
 		int		 x;	/* x position */
 		int		 y;	/* y position */
 	} ptr;
-#define CLIENT_PROTO_DELETE		 0x0001
-#define CLIENT_PROTO_TAKEFOCUS		 0x0002
-	int			 xproto;
+	enum wm_protocols	 xproto;
 #define CLIENT_HIDDEN			0x0001
 #define CLIENT_IGNORE			0x0002
 #define CLIENT_VMAXIMIZED		0x0004
@@ -210,13 +209,12 @@ struct screen_ctx {
 	Colormap		 colormap;
 	Window			 rootwin;
 	Window			 menuwin;
-	unsigned long		 color[CWM_COLOR_BORDER_MAX];
 	int			 cycling;
 	struct geom		 view; /* viewable area */
 	struct geom		 work; /* workable area, gap-applied */
 	struct gap		 gap;
 	struct cycle_entry_q	 mruq;
-	XftColor		 xftcolor[CWM_COLOR_MENU_MAX];
+	XftColor		 xftcolor[CWM_COLOR_MAX];
 	XftDraw			*xftdraw;
 	XftFont			*xftfont;
 	int			 xinerama_no;
@@ -290,8 +288,7 @@ struct conf {
 #define	CONF_SNAPDIST			0
 	int			 snapdist;
 	struct gap		 gap;
-	char			*color[CWM_COLOR_BORDER_MAX];
-	char		 	*menucolor[CWM_COLOR_MENU_MAX];
+	char			*color[CWM_COLOR_MAX];
 	char			 termpath[MAXPATHLEN];
 	char			 lockpath[MAXPATHLEN];
 	char			 known_hosts[MAXPATHLEN];
@@ -331,7 +328,7 @@ void			 client_lower(struct client_ctx *);
 void			 client_map(struct client_ctx *);
 void			 client_maximize(struct client_ctx *);
 void			 client_move(struct client_ctx *);
-struct client_ctx	*client_new(Window, struct screen_ctx *, int);
+struct client_ctx	*client_init(Window, struct screen_ctx *, int);
 void			 client_ptrsave(struct client_ctx *);
 void			 client_ptrwarp(struct client_ctx *);
 void			 client_raise(struct client_ctx *);
@@ -439,21 +436,13 @@ void			 conf_bindname(struct conf *, char *, char *);
 void			 conf_clear(struct conf *);
 void			 conf_client(struct client_ctx *);
 void			 conf_cmd_add(struct conf *, char *, char *);
-void			 conf_color(struct conf *, struct screen_ctx *);
-void			 conf_font(struct conf *, struct screen_ctx *);
-void			 conf_gap(struct conf *, struct screen_ctx *);
 void			 conf_grab(struct conf *, struct keybinding *);
 void			 conf_grab_mouse(struct client_ctx *);
 void			 conf_init(struct conf *);
 void			 conf_ignore(struct conf *, char *);
 void			 conf_mousebind(struct conf *, char *, char *);
+void			 conf_screen(struct screen_ctx *);
 void			 conf_ungrab(struct conf *, struct keybinding *);
-
-void			 font_draw(struct screen_ctx *, const char *, int,
-			     Drawable, int, int, int);
-void			 font_init(struct screen_ctx *, const char *,
-			     const char **);
-int			 font_width(XftFont *, const char *, int);
 
 void			 xev_loop(void);
 
@@ -461,7 +450,6 @@ void			 xu_btn_grab(Window, int, u_int);
 void			 xu_btn_ungrab(Window, int, u_int);
 void			 xu_configure(struct client_ctx *);
 void			 xu_getatoms(void);
-unsigned long		 xu_getcolor(struct screen_ctx *, char *);
 int			 xu_getprop(Window, Atom, Atom, long, u_char **);
 int			 xu_get_wm_state(Window, int *);
 int			 xu_getstrprop(Window, Atom, char **);
@@ -474,8 +462,10 @@ void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_ungrab(void);
 void			 xu_sendmsg(Window, Atom, long);
 void			 xu_set_wm_state(Window win, int);
-void 			 xu_xorcolor(XRenderColor, XRenderColor,
-			     XRenderColor *);
+void			 xu_xft_draw(struct screen_ctx *, const char *,
+			     Drawable, int, int, int);
+int			 xu_xft_width(XftFont *, const char *, int);
+void 			 xu_xorcolor(XftColor, XftColor, XftColor *);
 
 void			 xu_ewmh_net_supported(struct screen_ctx *);
 void			 xu_ewmh_net_supported_wm_check(struct screen_ctx *);
@@ -526,6 +516,7 @@ enum {
 	WM_PROTOCOLS,
 	_MOTIF_WM_HINTS,
 	UTF8_STRING,
+	WM_CHANGE_STATE,
 	CWMH_NITEMS
 };
 enum {
@@ -543,6 +534,7 @@ enum {
 	_NET_WORKAREA,
 	_NET_WM_NAME,
 	_NET_WM_DESKTOP,
+	_NET_CLOSE_WINDOW,
 	EWMH_NITEMS
 };
 struct atom_ctx {

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xutil.c,v 1.59 2013/05/10 16:32:48 okan Exp $
+ * $OpenBSD: xutil.c,v 1.63 2013/05/19 23:38:21 okan Exp $
  */
 
 #include <sys/param.h>
@@ -239,6 +239,7 @@ struct atom_ctx cwmh[CWMH_NITEMS] = {
 	{"WM_PROTOCOLS",		None},
 	{"_MOTIF_WM_HINTS",		None},
 	{"UTF8_STRING",			None},
+	{"WM_CHANGE_STATE",		None},
 };
 struct atom_ctx ewmh[EWMH_NITEMS] = {
 	{"_NET_SUPPORTED",		None},
@@ -255,6 +256,7 @@ struct atom_ctx ewmh[EWMH_NITEMS] = {
 	{"_NET_WORKAREA",		None},
 	{"_NET_WM_NAME",		None},
 	{"_NET_WM_DESKTOP",		None},
+	{"_NET_CLOSE_WINDOW",		None},
 };
 
 void
@@ -418,24 +420,32 @@ xu_ewmh_net_wm_desktop(struct client_ctx *cc)
 	    XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&no, 1);
 }
 
-unsigned long
-xu_getcolor(struct screen_ctx *sc, char *name)
+void
+xu_xorcolor(XftColor a, XftColor b, XftColor *r)
 {
-	XColor	 color, tmp;
+	r->pixel = a.pixel ^ b.pixel;
+	r->color.red = a.color.red ^ b.color.red;
+	r->color.green = a.color.green ^ b.color.green;
+	r->color.blue = a.color.blue ^ b.color.blue;
+	r->color.alpha = 0xffff;
+}
 
-	if (!XAllocNamedColor(X_Dpy, sc->colormap, name, &color, &tmp)) {
-		warnx("XAllocNamedColor error: '%s'", name);
-		return (0);
-	}
+int
+xu_xft_width(XftFont *xftfont, const char *text, int len)
+{
+	XGlyphInfo	 extents;
 
-	return (color.pixel);
+	XftTextExtentsUtf8(X_Dpy, xftfont, (const FcChar8*)text,
+	    len, &extents);
+
+	return (extents.xOff);
 }
 
 void
-xu_xorcolor(XRenderColor a, XRenderColor b, XRenderColor *r)
+xu_xft_draw(struct screen_ctx *sc, const char *text,
+    Drawable d, int color, int x, int y)
 {
-	r->red = a.red ^ b.red;
-	r->green = a.green ^ b.green;
-	r->blue = a.blue ^ b.blue;
-	r->alpha = 0xffff;
+	XftDrawChange(sc->xftdraw, d);
+	XftDrawStringUtf8(sc->xftdraw, &sc->xftcolor[color], sc->xftfont,
+	    x, y, (const FcChar8*)text, strlen(text));
 }
