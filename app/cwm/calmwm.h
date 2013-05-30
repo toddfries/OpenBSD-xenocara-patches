@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.h,v 1.205 2013/05/19 23:38:21 okan Exp $
+ * $OpenBSD: calmwm.h,v 1.211 2013/05/27 23:20:45 okan Exp $
  */
 
 #ifndef _CALMWM_H_
@@ -426,7 +426,6 @@ struct menu  		*menu_filter(struct screen_ctx *, struct menu_q *,
 			     char *, char *, int,
 			     void (*)(struct menu_q *, struct menu_q *, char *),
 			     void (*)(struct menu *, int));
-void			 menu_init(struct screen_ctx *);
 void			 menuq_clear(struct menu_q *);
 
 int			 parse_config(const char *, struct conf *);
@@ -436,13 +435,12 @@ void			 conf_bindname(struct conf *, char *, char *);
 void			 conf_clear(struct conf *);
 void			 conf_client(struct client_ctx *);
 void			 conf_cmd_add(struct conf *, char *, char *);
-void			 conf_grab(struct conf *, struct keybinding *);
-void			 conf_grab_mouse(struct client_ctx *);
+void			 conf_grab_kbd(Window);
+void			 conf_grab_mouse(Window);
 void			 conf_init(struct conf *);
 void			 conf_ignore(struct conf *, char *);
-void			 conf_mousebind(struct conf *, char *, char *);
+int			 conf_mousebind(struct conf *, char *, char *);
 void			 conf_screen(struct screen_ctx *);
-void			 conf_ungrab(struct conf *, struct keybinding *);
 
 void			 xev_loop(void);
 
@@ -454,16 +452,15 @@ int			 xu_getprop(Window, Atom, Atom, long, u_char **);
 int			 xu_get_wm_state(Window, int *);
 int			 xu_getstrprop(Window, Atom, char **);
 void			 xu_key_grab(Window, u_int, KeySym);
-void			 xu_key_ungrab(Window, u_int, KeySym);
 void			 xu_ptr_getpos(Window, int *, int *);
 int			 xu_ptr_grab(Window, u_int, Cursor);
 int			 xu_ptr_regrab(u_int, Cursor);
 void			 xu_ptr_setpos(Window, int, int);
 void			 xu_ptr_ungrab(void);
-void			 xu_sendmsg(Window, Atom, long);
+void			 xu_sendmsg(Window, Atom, Atom);
 void			 xu_set_wm_state(Window win, int);
 void			 xu_xft_draw(struct screen_ctx *, const char *,
-			     Drawable, int, int, int);
+			     int, int, int);
 int			 xu_xft_width(XftFont *, const char *, int);
 void 			 xu_xorcolor(XftColor, XftColor, XftColor *);
 
@@ -482,6 +479,11 @@ void			 xu_ewmh_net_desktop_names(struct screen_ctx *, char *,
 			     int);
 
 void			 xu_ewmh_net_wm_desktop(struct client_ctx *);
+Atom 			*xu_ewmh_get_net_wm_state(struct client_ctx *, int *);
+void 			 xu_ewmh_handle_net_wm_state_msg(struct client_ctx *,
+			     int, Atom , Atom);
+void 			 xu_ewmh_set_net_wm_state(struct client_ctx *);
+void 			 xu_ewmh_restore_net_wm_state(struct client_ctx *);
 
 void			 u_exec(char *);
 void			 u_spawn(char *);
@@ -535,7 +537,16 @@ enum {
 	_NET_WM_NAME,
 	_NET_WM_DESKTOP,
 	_NET_CLOSE_WINDOW,
+	_NET_WM_STATE,
+#define	_NET_WM_STATES_NITEMS	2
+	_NET_WM_STATE_MAXIMIZED_VERT,
+	_NET_WM_STATE_MAXIMIZED_HORZ,
 	EWMH_NITEMS
+};
+enum {
+	_NET_WM_STATE_REMOVE,
+	_NET_WM_STATE_ADD,
+	_NET_WM_STATE_TOGGLE
 };
 struct atom_ctx {
 	char	*name;

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: client.c,v 1.131 2013/05/19 23:09:59 okan Exp $
+ * $OpenBSD: client.c,v 1.133 2013/05/23 16:52:39 okan Exp $
  */
 
 #include <sys/param.h>
@@ -133,6 +133,7 @@ client_init(Window win, struct screen_ctx *sc, int mapped)
 	xu_ewmh_net_client_list(sc);
 
 	client_wm_protocols(cc);
+	xu_ewmh_restore_net_wm_state(cc);
 
 	if (mapped)
 		group_autogroup(cc);
@@ -212,7 +213,7 @@ client_setactive(struct client_ctx *cc, int fg)
 		XInstallColormap(X_Dpy, cc->colormap);
 		XSetInputFocus(X_Dpy, cc->win,
 		    RevertToPointerRoot, CurrentTime);
-		conf_grab_mouse(cc);
+		conf_grab_mouse(cc->win);
 		/*
 		 * If we're in the middle of alt-tabbing, don't change
 		 * the order please.
@@ -301,6 +302,7 @@ client_maximize(struct client_ctx *cc)
 
 resize:
 	client_resize(cc, 0);
+	xu_ewmh_set_net_wm_state(cc);
 }
 
 void
@@ -341,6 +343,7 @@ client_vmaximize(struct client_ctx *cc)
 
 resize:
 	client_resize(cc, 0);
+	xu_ewmh_set_net_wm_state(cc);
 }
 
 void
@@ -381,6 +384,7 @@ client_hmaximize(struct client_ctx *cc)
 
 resize:
 	client_resize(cc, 0);
+	xu_ewmh_set_net_wm_state(cc);
 }
 
 void
@@ -389,6 +393,7 @@ client_resize(struct client_ctx *cc, int reset)
 	if (reset) {
 		cc->flags &= ~CLIENT_MAXIMIZED;
 		cc->bwidth = Conf.bwidth;
+		xu_ewmh_set_net_wm_state(cc);
 	}
 
 	client_draw_border(cc);

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xevents.c,v 1.79 2013/05/19 17:05:52 okan Exp $
+ * $OpenBSD: xevents.c,v 1.83 2013/05/23 16:52:39 okan Exp $
  */
 
 /*
@@ -340,7 +340,7 @@ static void
 xev_handle_clientmessage(XEvent *ee)
 {
 	XClientMessageEvent	*e = &ee->xclient;
-	struct client_ctx	*cc;
+	struct client_ctx	*cc, *old_cc;
 
 	if ((cc = client_find(e->window)) == NULL)
 		return;
@@ -351,6 +351,18 @@ xev_handle_clientmessage(XEvent *ee)
 
 	if (e->message_type == ewmh[_NET_CLOSE_WINDOW].atom)
 		client_send_delete(cc);
+
+	if (e->message_type == ewmh[_NET_ACTIVE_WINDOW].atom &&
+	    e->format == 32) {                                                
+		old_cc = client_current();
+		if (old_cc)
+			client_ptrsave(old_cc);
+		client_ptrwarp(cc);
+	}
+	if (e->message_type == ewmh[_NET_WM_STATE].atom &&
+	    e->format == 32)
+		xu_ewmh_handle_net_wm_state_msg(cc,
+		    e->data.l[0], e->data.l[1], e->data.l[2]);
 }
 
 static void
@@ -377,15 +389,13 @@ static void
 xev_handle_mappingnotify(XEvent *ee)
 {
 	XMappingEvent		*e = &ee->xmapping;
-	struct keybinding	*kb;
-
-	TAILQ_FOREACH(kb, &Conf.keybindingq, entry)
-		conf_ungrab(&Conf, kb);
+	struct screen_ctx	*sc;
 
 	XRefreshKeyboardMapping(e);
-
-	TAILQ_FOREACH(kb, &Conf.keybindingq, entry)
-		conf_grab(&Conf, kb);
+	if (e->request == MappingKeyboard) {
+		TAILQ_FOREACH(sc, &Screenq, entry)
+			conf_grab_kbd(sc->rootwin);
+	}
 }
 
 static void
