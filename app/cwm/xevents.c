@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xevents.c,v 1.83 2013/05/23 16:52:39 okan Exp $
+ * $OpenBSD: xevents.c,v 1.85 2013/06/10 21:37:30 okan Exp $
  */
 
 /*
@@ -150,7 +150,11 @@ xev_handle_configurerequest(XEvent *ee)
 		if (e->value_mask & CWY)
 			cc->geom.y = e->y;
 		if (e->value_mask & CWBorderWidth)
-			wc.border_width = e->border_width;
+			cc->bwidth = e->border_width;
+		if (e->value_mask & CWSibling)
+			wc.sibling = e->above;
+		if (e->value_mask & CWStackMode)
+			wc.stack_mode = e->detail;
 
 		if (cc->geom.x == 0 && cc->geom.w >= sc->view.w)
 			cc->geom.x -= cc->bwidth;
@@ -165,7 +169,7 @@ xev_handle_configurerequest(XEvent *ee)
 		wc.border_width = cc->bwidth;
 
 		XConfigureWindow(X_Dpy, cc->win, e->value_mask, &wc);
-		xu_configure(cc);
+		client_config(cc);
 	} else {
 		/* let it do what it wants, it'll be ours when we map it. */
 		wc.x = e->x;

@@ -1,14 +1,13 @@
 
 # Initialize Autoconf
 AC_PREREQ([2.60])
-AC_INIT([libXxf86dga], [1.1.3],
+AC_INIT([libXxf86dga], [1.1.4],
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], [libXxf86dga])
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_HEADERS(src/config.h)
 
 # Initialize Automake
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
-AM_MAINTAINER_MODE
 
 # Initialize libtool
 AC_PROG_LIBTOOL

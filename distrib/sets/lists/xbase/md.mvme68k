@@ -23,8 +23,6 @@
 ./usr/X11R6/include/pixman-1/pixman.h
 ./usr/X11R6/include/xf86drm.h
 ./usr/X11R6/include/xf86drmMode.h
-./usr/X11R6/include/xorg/optionstr.h
-./usr/X11R6/include/xorg/xf86Optionstr.h
 ./usr/X11R6/lib/libFS.so.9.0
 ./usr/X11R6/lib/libGL.a
 ./usr/X11R6/lib/libGL.so.13.0
@@ -70,11 +68,11 @@
 ./usr/X11R6/lib/libdrm.so.3.2
 ./usr/X11R6/lib/libfontconfig.so.8.0
 ./usr/X11R6/lib/libfontenc.so.3.0
-./usr/X11R6/lib/libfreetype.so.19.0
+./usr/X11R6/lib/libfreetype.so.20.0
 ./usr/X11R6/lib/libpciaccess.so.1.1
 ./usr/X11R6/lib/libpixman-1.a
 ./usr/X11R6/lib/libpixman-1.la
-./usr/X11R6/lib/libpixman-1.so.28.0
+./usr/X11R6/lib/libpixman-1.so.30.0
 ./usr/X11R6/lib/libpthread-stubs.so.1.0
 ./usr/X11R6/lib/libxcb-atom.so.1.0
 ./usr/X11R6/lib/libxcb-aux.so.0.0
