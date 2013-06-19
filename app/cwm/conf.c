@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: conf.c,v 1.133 2013/05/23 16:52:39 okan Exp $
+ * $OpenBSD: conf.c,v 1.135 2013/06/17 17:11:10 okan Exp $
  */
 
 #include <sys/param.h>
@@ -545,7 +545,9 @@ static struct {
 	{ "menu_cmd", mousefunc_menu_cmd, MOUSEBIND_CTX_ROOT },
 };
 
-static unsigned int mouse_btns[] = { Button1, Button2, Button3 };
+static unsigned int mouse_btns[] = {
+	Button1, Button2, Button3, Button4, Button5
+};
 
 int
 conf_mousebind(struct conf *c, char *name, char *binding)
@@ -571,7 +573,7 @@ conf_mousebind(struct conf *c, char *name, char *binding)
 	} else
 		substring = name;
 
-	button = strtonum(substring, 1, 3, &errstr);
+	button = strtonum(substring, 1, 5, &errstr);
 	if (errstr)
 		warnx("button number is %s: %s", errstr, substring);
 
@@ -623,6 +625,23 @@ conf_mouseunbind(struct conf *c, struct mousebinding *unbind)
 	}
 }
 
+static int cursor_binds[CF_NITEMS] = {
+	XC_X_cursor,		/* CF_DEFAULT */
+	XC_fleur,		/* CF_MOVE */
+	XC_left_ptr,		/* CF_NORMAL */
+	XC_question_arrow,	/* CF_QUESTION */
+	XC_bottom_right_corner,	/* CF_RESIZE */
+};
+
+void
+conf_cursor(struct conf *c)
+{
+	u_int	 i;
+
+	for (i = 0; i < nitems(cursor_binds); i++)
+		c->cursor[i] = XCreateFontCursor(X_Dpy, cursor_binds[i]);
+}
+
 void
 conf_grab_mouse(Window win)
 {
@@ -645,4 +664,3 @@ conf_grab_kbd(Window win)
 	TAILQ_FOREACH(kb, &Conf.keybindingq, entry)
 		xu_key_grab(win, kb->modmask, kb->keysym);
 }
-
