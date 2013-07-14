@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xevents.c,v 1.85 2013/06/10 21:37:30 okan Exp $
+ * $OpenBSD: xevents.c,v 1.88 2013/07/10 14:15:58 okan Exp $
  */
 
 /*
@@ -238,11 +238,7 @@ xev_handle_buttonpress(XEvent *ee)
 {
 	XButtonEvent		*e = &ee->xbutton;
 	struct client_ctx	*cc, fakecc;
-	struct screen_ctx	*sc;
 	struct mousebinding	*mb;
-
-	sc = screen_fromroot(e->root);
-	cc = client_find(e->window);
 
 	e->state &= ~IGNOREMODMASK;
 
@@ -253,13 +249,16 @@ xev_handle_buttonpress(XEvent *ee)
 
 	if (mb == NULL)
 		return;
-	if (mb->context == MOUSEBIND_CTX_ROOT) {
-		if (e->window != sc->rootwin)
+	if (mb->flags == MOUSEBIND_CTX_WIN) {
+		if (((cc = client_find(e->window)) == NULL) &&
+		    (cc = client_current()) == NULL)
+			return;
+	} else { /* (mb->flags == MOUSEBIND_CTX_ROOT) */
+		if (e->window != e->root)
 			return;
 		cc = &fakecc;
 		cc->sc = screen_fromroot(e->window);
-	} else if (cc == NULL) /* (mb->context == MOUSEBIND_CTX_WIN */
-		return;
+	}
 
 	(*mb->callback)(cc, e);
 }
@@ -357,7 +356,7 @@ xev_handle_clientmessage(XEvent *ee)
 		client_send_delete(cc);
 
 	if (e->message_type == ewmh[_NET_ACTIVE_WINDOW].atom &&
-	    e->format == 32) {                                                
+	    e->format == 32) {
 		old_cc = client_current();
 		if (old_cc)
 			client_ptrsave(old_cc);

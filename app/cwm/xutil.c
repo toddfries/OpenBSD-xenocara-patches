@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xutil.c,v 1.69 2013/06/10 21:37:30 okan Exp $
+ * $OpenBSD: xutil.c,v 1.71 2013/07/10 14:11:42 okan Exp $
  */
 
 #include <sys/param.h>
@@ -291,7 +291,7 @@ xu_ewmh_net_client_list(struct screen_ctx *sc)
 	if (i == 0)
 		return;
 
-	winlist = xmalloc(i * sizeof(*winlist));
+	winlist = xcalloc(i, sizeof(*winlist));
 	TAILQ_FOREACH(cc, &Clientq, entry)
 		winlist[j++] = cc->win;
 	XChangeProperty(X_Dpy, sc->rootwin, ewmh[_NET_CLIENT_LIST].atom,
@@ -382,7 +382,7 @@ xu_ewmh_get_net_wm_state(struct client_ctx *cc, int *n)
 	    (u_char **)&p)) <= 0)
 		return (NULL);
 
-	state = xmalloc(*n * sizeof(Atom));
+	state = xcalloc(*n, sizeof(Atom));
 	memcpy(state, p, *n * sizeof(Atom));
 	XFree((char *)p);
 
@@ -393,7 +393,7 @@ void
 xu_ewmh_handle_net_wm_state_msg(struct client_ctx *cc, int action,
     Atom first, Atom second)
 {
-	int i;
+	u_int i;
 	static struct handlers {
 		int atom;
 		int property;
@@ -449,7 +449,7 @@ xu_ewmh_set_net_wm_state(struct client_ctx *cc)
 	int	 n, i, j;
 
 	oatoms = xu_ewmh_get_net_wm_state(cc, &n);
-	atoms = xmalloc((n + _NET_WM_STATES_NITEMS) * sizeof(Atom));
+	atoms = xcalloc((n + _NET_WM_STATES_NITEMS), sizeof(Atom));
 	for (i = j = 0; i < n; i++) {
 		if (oatoms[i] != ewmh[_NET_WM_STATE_MAXIMIZED_HORZ].atom &&
 		    oatoms[i] != ewmh[_NET_WM_STATE_MAXIMIZED_VERT].atom)
