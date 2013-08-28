@@ -1,4 +1,4 @@
-# $OpenBSD: 3RDPARTY,v 1.162 2013/08/16 17:44:41 matthieu Exp $
+# $OpenBSD: 3RDPARTY,v 1.165 2013/08/26 20:09:49 matthieu Exp $
 #
 
 Package: 	Freetype
@@ -8,8 +8,8 @@ Maintainer:	Freetype.org
 Archive Site:	http://download.savannah.gnu.org/releases/freetype/
 
 Package:	xterm
-Version:	293
-Current Vers:	295
+Version:	296
+Current Vers:	296
 Maintainer:	Thomas E. Dickey
 Archive Site:	http://invisible-island.net/xterm/xterm.html
 
@@ -32,8 +32,8 @@ Maintainer:	Akira TAGOH
 Archive Site:	http://www.fontconfig.org/
 
 Package:	DejaVu Fonts
-Version:	2.33
-Current Vers:	2.33
+Version:	2.34
+Current Vers:	2.34
 Maintainer:	Freedesktop.org
 Archive Site:	http://dejavu-fonts.org/
 
