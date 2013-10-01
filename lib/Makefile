@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.22 2013/03/09 14:31:36 matthieu Exp $
+# $OpenBSD: Makefile,v 1.24 2013/09/05 15:11:54 jsg Exp $
 
 .include <bsd.xconf.mk>
 
@@ -56,7 +56,7 @@ SUBDIR+= libdrm
 .endif
 
 .if ${XENOCARA_BUILD_GL:L} == "yes"
-SUBDIR+= libGL libGLU libGLw
+SUBDIR+= libglapi libGL libEGL libGLESv1_CM libGLESv2 libGLU libGLw libtxc_dxtn
 .endif
 
 .include <bsd.subdir.mk>

@@ -1,14 +1,16 @@
-# $OpenBSD: Makefile,v 1.5 2013/08/12 04:16:52 jsg Exp $
+# $OpenBSD: Makefile,v 1.8 2013/09/07 02:12:21 jsg Exp $
 .include <bsd.xconf.mk>
 
 SUBDIR= rbug softpipe trace
 
 .if ${XENOCARA_BUILD_GALLIUM} == "llvm"
-SUBDIR+= llvmpipe
+SUBDIR+= llvmpipe radeonsi
 .endif
 
-.if ${XENOCARA_BUILD_GALLIUM:L} == "yes" || ${XENOCARA_BUILD_GALLIUM} == "llvm" &&
-    (${MACHINE} == i386 || ${MACHINE} == amd64 || ${MACHINE} == macppc || ${MACHINE} == sparc64)
+.if ((${XENOCARA_BUILD_GALLIUM:L} == "yes" || \
+      ${XENOCARA_BUILD_GALLIUM} == "llvm") && \
+    (${MACHINE} == i386 || ${MACHINE} == amd64 || ${MACHINE} == macppc || \
+     ${MACHINE} == sparc64))
 SUBDIR+= r300 r600
 .endif
 
