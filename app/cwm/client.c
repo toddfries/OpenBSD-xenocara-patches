@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: client.c,v 1.136 2013/07/15 23:51:59 okan Exp $
+ * $OpenBSD: client.c,v 1.141 2013/10/20 01:35:47 okan Exp $
  */
 
 #include <sys/param.h>
@@ -186,15 +186,10 @@ client_delete(struct client_ctx *cc)
 void
 client_leave(struct client_ctx *cc)
 {
-	struct screen_ctx	*sc;
-
 	if (cc == NULL)
 		cc = client_current();
 	if (cc == NULL)
 		return;
-
-	sc = cc->sc;
-	xu_btn_ungrab(sc->rootwin, AnyModifier, Button1);
 }
 
 void
@@ -396,8 +391,6 @@ client_resize(struct client_ctx *cc, int reset)
 		xu_ewmh_set_net_wm_state(cc);
 	}
 
-	client_draw_border(cc);
-
 	XMoveResizeWindow(X_Dpy, cc->win, cc->geom.x,
 	    cc->geom.y, cc->geom.w, cc->geom.h);
 	client_config(cc);
@@ -493,7 +486,6 @@ client_unhide(struct client_ctx *cc)
 	cc->flags &= ~CLIENT_HIDDEN;
 	cc->state = NormalState;
 	xu_set_wm_state(cc->win, cc->state);
-	client_draw_border(cc);
 }
 
 void
@@ -841,7 +833,7 @@ client_getmwmhints(struct client_ctx *cc)
 	struct mwm_hints	*mwmh;
 
 	if (xu_getprop(cc->win, cwmh[_MOTIF_WM_HINTS], cwmh[_MOTIF_WM_HINTS],
-	    PROP_MWM_HINTS_ELEMENTS, (u_char **)&mwmh) == MWM_NUMHINTS)
+	    PROP_MWM_HINTS_ELEMENTS, (unsigned char **)&mwmh) == MWM_NUMHINTS)
 		if (mwmh->flags & MWM_HINTS_DECORATIONS &&
 		    !(mwmh->decorations & MWM_DECOR_ALL) &&
 		    !(mwmh->decorations & MWM_DECOR_BORDER))

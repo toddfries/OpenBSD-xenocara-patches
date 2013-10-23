@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: group.c,v 1.79 2013/07/15 14:50:44 okan Exp $
+ * $OpenBSD: group.c,v 1.81 2013/10/17 13:59:10 okan Exp $
  */
 
 #include <sys/param.h>
@@ -177,7 +177,7 @@ group_movetogroup(struct client_ctx *cc, int idx)
 	struct group_ctx	*gc;
 
 	if (idx < 0 || idx >= CALMWM_NGROUPS)
-		err(1, "group_movetogroup: index out of range (%d)", idx);
+		errx(1, "group_movetogroup: index out of range (%d)", idx);
 
 	gc = &sc->groups[idx];
 	if (cc->group == gc)
@@ -240,7 +240,7 @@ group_hidetoggle(struct screen_ctx *sc, int idx)
 	struct group_ctx	*gc;
 
 	if (idx < 0 || idx >= CALMWM_NGROUPS)
-		err(1, "group_hidetoggle: index out of range (%d)", idx);
+		errx(1, "group_hidetoggle: index out of range (%d)", idx);
 
 	gc = &sc->groups[idx];
 	group_fix_hidden_state(gc);
@@ -261,7 +261,7 @@ group_only(struct screen_ctx *sc, int idx)
 	int	 i;
 
 	if (idx < 0 || idx >= CALMWM_NGROUPS)
-		err(1, "group_only: index out of range (%d)", idx);
+		errx(1, "group_only: index out of range (%d)", idx);
 
 	for (i = 0; i < CALMWM_NGROUPS; i++) {
 		if (i == idx)
@@ -419,7 +419,7 @@ group_update_names(struct screen_ctx *sc)
 	int		 i = 0, j = 0, nstrings = 0, n = 0, setnames = 0;
 
 	if ((j = xu_getprop(sc->rootwin, ewmh[_NET_DESKTOP_NAMES],
-	    cwmh[UTF8_STRING], 0xffffff, (u_char **)&prop_ret)) > 0) {
+	    cwmh[UTF8_STRING], 0xffffff, (unsigned char **)&prop_ret)) > 0) {
 		prop_ret[j - 1] = '\0'; /* paranoia */
 		while (i < j) {
 			if (prop_ret[i++] == '\0')
