@@ -1,4 +1,4 @@
-# $OpenBSD: 3RDPARTY,v 1.170 2013/10/20 12:27:33 matthieu Exp $
+# $OpenBSD: 3RDPARTY,v 1.173 2013/11/17 16:55:36 matthieu Exp $
 #
 
 Package: 	Freetype
@@ -14,14 +14,14 @@ Maintainer:	Thomas E. Dickey
 Archive Site:	http://invisible-island.net/xterm/xterm.html
 
 Package:	Mesa
-Version		9.2.1
-Current Vers:	9.2.2
+Version		9.2.2
+Current Vers:	9.2.3
 Maintainer:	Brian Paul
 Archive Site:	http://www.mesa3d.org/
 
 Package:	libdrm
 Version:	2.4.46
-Current Vers:	2.4.47
+Current Vers:	2.4.48
 Maintainer:	Eric Anholt
 Archive Site:	http://dri.freedesktop.org/
 
@@ -44,7 +44,7 @@ Maintainer:	bagleyd@tux.org
 Archive Site:	http://www.tux.org/~bagleyd/latest/
 
 Package:	xkeyboard-config
-Version:	2.7
+Version:	2.10.1
 Current Vers:	2.10.1
 Maintainer:	xkb@listserv.bat.ru
 Archive Site:	http://www.freedesktop.org/wiki/Software/XKeyboardConfig
