@@ -1,6 +1,6 @@
-# $OpenBSD: Makefile.inc,v 1.7 2013/07/08 09:10:05 jsg Exp $
+# $OpenBSD: Makefile.inc,v 1.9 2014/01/18 08:29:32 jsg Exp $
 
-PACKAGE_VERSION=	2.4.46
+PACKAGE_VERSION=	2.4.51
 
 NOPROFILE=
 

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: calmwm.c,v 1.80 2013/07/15 14:50:44 okan Exp $
+ * $OpenBSD: calmwm.c,v 1.83 2014/01/21 15:42:44 okan Exp $
  */
 
 #include <sys/param.h>
@@ -37,6 +37,7 @@
 
 char				**cwm_argv;
 Display				*X_Dpy;
+Time				 Last_Event_Time = CurrentTime;
 Atom				 cwmh[CWMH_NITEMS];
 Atom				 ewmh[EWMH_NITEMS];
 
@@ -45,7 +46,7 @@ struct client_ctx_q		 Clientq = TAILQ_HEAD_INITIALIZER(Clientq);
 
 int				 HasRandr, Randr_ev;
 struct conf			 Conf;
-char				*homedir;
+const char			*homedir;
 
 static void	sigchld_cb(int);
 static int	x_errorhandler(Display *, XErrorEvent *);
@@ -164,7 +165,7 @@ x_errorhandler(Display *dpy, XErrorEvent *e)
 	XGetErrorDatabaseText(X_Dpy, "XRequest", number,
 	    "<unknown>", req, sizeof(req));
 
-	warnx("%s(0x%x): %s", req, (u_int)e->resourceid, msg);
+	warnx("%s(0x%x): %s", req, (unsigned int)e->resourceid, msg);
 #endif
 	return (0);
 }

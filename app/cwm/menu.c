@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: menu.c,v 1.66 2013/06/17 17:11:10 okan Exp $
+ * $OpenBSD: menu.c,v 1.74 2014/01/21 15:42:45 okan Exp $
  */
 
 #include <sys/param.h>
@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <err.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,8 +78,8 @@ static struct menu 	*menu_complete_path(struct menu_ctx *);
 static int		 menu_keycode(XKeyEvent *, enum ctltype *, char *);
 
 struct menu *
-menu_filter(struct screen_ctx *sc, struct menu_q *menuq, char *prompt,
-    char *initial, int flags,
+menu_filter(struct screen_ctx *sc, struct menu_q *menuq, const char *prompt,
+    const char *initial, int flags,
     void (*match)(struct menu_q *, struct menu_q *, char *),
     void (*print)(struct menu *, int))
 {
@@ -92,7 +93,7 @@ menu_filter(struct screen_ctx *sc, struct menu_q *menuq, char *prompt,
 
 	TAILQ_INIT(&resultq);
 
-	bzero(&mc, sizeof(mc));
+	(void)memset(&mc, 0, sizeof(mc));
 
 	xu_ptr_getpos(sc->rootwin, &mc.x, &mc.y);
 
@@ -380,7 +381,7 @@ menu_draw(struct menu_ctx *mc, struct menu_q *menuq, struct menu_q *resultq)
 		mc->num++;
 	}
 
-	xine = screen_find_xinerama(sc, mc->x, mc->y);
+	xine = screen_find_xinerama(sc, mc->x, mc->y, CWM_GAP);
 	xine.w += xine.x;
 	xine.h += xine.y;
 
@@ -392,13 +393,13 @@ menu_draw(struct menu_ctx *mc, struct menu_q *menuq, struct menu_q *resultq)
 		mc->x = xine.w - mc->width;
 	if (mc->x < xine.x) {
 		mc->x = xine.x;
-		mc->width = xine.w - xine.x;
+		mc->width = MIN(mc->width, (xine.w - xine.x));
 	}
 	if (mc->y + mc->height >= xine.h)
 		mc->y = xine.h - mc->height;
 	if (mc->y < xine.y) {
 		mc->y = xine.y;
-		mc->height = xine.h - xine.y;
+		mc->height = MIN(mc->height, (xine.h - xine.y));
 	}
 
 	if (mc->x != xsave || mc->y != ysave)
@@ -427,10 +428,8 @@ menu_draw(struct menu_ctx *mc, struct menu_q *menuq, struct menu_q *resultq)
 		xu_xft_draw(sc, text, CWM_COLOR_MENU_FONT, 0, y);
 		n++;
 	}
-	if (mc->hasprompt && n > 1 && (mc->searchstr[0] != '\0')) {
-		mc->entry = 1;
-		menu_draw_entry(mc, resultq, mc->entry, 1);
-	}
+	if (mc->hasprompt && n > 1)
+		menu_draw_entry(mc, resultq, 1, 1);
 }
 
 static void
@@ -477,9 +476,6 @@ menu_handle_move(XEvent *e, struct menu_ctx *mc, struct menu_q *resultq)
 		menu_draw_entry(mc, resultq, mc->entry, 1);
 	} else
 		(void)xu_ptr_regrab(MENUGRABMASK, Conf.cursor[CF_DEFAULT]);
-
-	if (mc->hasprompt)
-		menu_draw_entry(mc, resultq, 1, 1);
 }
 
 static struct menu *
@@ -527,8 +523,8 @@ menu_calc_entry(struct menu_ctx *mc, int x, int y)
 static int
 menu_keycode(XKeyEvent *ev, enum ctltype *ctl, char *chr)
 {
-	KeySym	 ks;
-	u_int 	 state = ev->state;
+	KeySym		 ks;
+	unsigned int 	 state = ev->state;
 
 	*ctl = CTL_NONE;
 	chr[0] = '\0';
@@ -607,6 +603,22 @@ menu_keycode(XKeyEvent *ev, enum ctltype *ctl, char *chr)
 		return (-1);
 
 	return (0);
+}
+
+void
+menuq_add(struct menu_q *mq, void *ctx, const char *fmt, ...)
+{
+	va_list		 ap;
+	struct menu	*mi;
+
+	mi = xcalloc(1, sizeof(*mi));
+	mi->ctx = ctx;
+
+	va_start(ap, fmt);
+	(void)vsnprintf(mi->text, sizeof(mi->text), fmt, ap);
+	va_end(ap);
+
+	TAILQ_INSERT_TAIL(mq, mi, entry);
 }
 
 void

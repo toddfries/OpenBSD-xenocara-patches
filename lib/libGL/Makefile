@@ -1,4 +1,4 @@
-# $OpenBSD: Makefile,v 1.39 2013/11/09 02:54:53 jsg Exp $
+# $OpenBSD: Makefile,v 1.42 2014/01/19 03:20:40 jsg Exp $
 .include <bsd.xconf.mk>
 
 .if ${XENOCARA_BUILD_GALLIUM:L} == "yes" || ${XENOCARA_BUILD_GALLIUM} == "llvm"
@@ -22,7 +22,7 @@ MESA_DRI=	${.CURDIR}/../../dist/Mesa/src/mesa/drivers/dri
 # this needs to be updated in mesa/Makefile.inc as well
 MESA_MAJOR=	9
 MESA_MINOR=	2
-MESA_TINY=	2
+MESA_TINY=	5
 
 DRI_DRIVER_INSTALL_DIR=	${X11BASE}/lib/modules/dri
 
@@ -154,7 +154,8 @@ obj: _xenocara_obj
 .include <bsd.lib.mk>
 .include <bsd.xorg.mk>
 
-.if ${MACHINE_ARCH} == powerpc || ${MACHINE_ARCH} == sparc
+.if ${MACHINE_ARCH} == "m68k" || ${MACHINE_ARCH} == "powerpc" || \
+    ${MACHINE_ARCH} == "sparc"
 PICFLAG = -fPIC
 .endif
 

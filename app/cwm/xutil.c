@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: xutil.c,v 1.78 2013/10/20 02:00:02 okan Exp $
+ * $OpenBSD: xutil.c,v 1.83 2014/01/03 15:29:06 okan Exp $
  */
 
 #include <sys/param.h>
@@ -33,9 +33,9 @@
 static unsigned int ign_mods[] = { 0, LockMask, Mod2Mask, Mod2Mask | LockMask };
 
 void
-xu_btn_grab(Window win, int mask, u_int btn)
+xu_btn_grab(Window win, int mask, unsigned int btn)
 {
-	u_int	i;
+	unsigned int	i;
 
 	for (i = 0; i < nitems(ign_mods); i++)
 		XGrabButton(X_Dpy, btn, (mask | ign_mods[i]), win,
@@ -50,10 +50,10 @@ xu_btn_ungrab(Window win)
 }
 
 void
-xu_key_grab(Window win, u_int mask, KeySym keysym)
+xu_key_grab(Window win, unsigned int mask, KeySym keysym)
 {
-	KeyCode	 code;
-	u_int	 i;
+	KeyCode		 code;
+	unsigned int	 i;
 
 	code = XKeysymToKeycode(X_Dpy, keysym);
 	if ((XkbKeycodeToKeysym(X_Dpy, code, 0, 0) != keysym) &&
@@ -72,7 +72,7 @@ xu_key_ungrab(Window win)
 }
 
 int
-xu_ptr_grab(Window win, u_int mask, Cursor curs)
+xu_ptr_grab(Window win, unsigned int mask, Cursor curs)
 {
 	return (XGrabPointer(X_Dpy, win, False, mask,
 	    GrabModeAsync, GrabModeAsync,
@@ -80,7 +80,7 @@ xu_ptr_grab(Window win, u_int mask, Cursor curs)
 }
 
 int
-xu_ptr_regrab(u_int mask, Cursor curs)
+xu_ptr_regrab(unsigned int mask, Cursor curs)
 {
 	return (XChangeActivePointerGrab(X_Dpy, mask,
 	    curs, CurrentTime) == GrabSuccess ? 0 : -1);
@@ -95,9 +95,9 @@ xu_ptr_ungrab(void)
 void
 xu_ptr_getpos(Window win, int *x, int *y)
 {
-	Window	 w0, w1;
-	int	 tmp0, tmp1;
-	u_int	 tmp2;
+	Window		 w0, w1;
+	int		 tmp0, tmp1;
+	unsigned int	 tmp2;
 
 	XQueryPointer(X_Dpy, win, &w0, &w1, &tmp0, &tmp1, x, y, &tmp2);
 }
@@ -111,9 +111,9 @@ xu_ptr_setpos(Window win, int x, int y)
 int
 xu_getprop(Window win, Atom atm, Atom type, long len, unsigned char **p)
 {
-	Atom	 realtype;
-	u_long	 n, extra;
-	int	 format;
+	Atom		 realtype;
+	unsigned long	 n, extra;
+	int		 format;
 
 	if (XGetWindowProperty(X_Dpy, win, atm, 0L, len, False, type,
 	    &realtype, &format, &n, &extra, p) != Success || *p == NULL)
@@ -155,33 +155,6 @@ xu_getstrprop(Window win, Atom atm, char **text) {
 	XFree(prop.value);
 
 	return (nitems);
-}
-
-int
-xu_get_wm_state(Window win, int *state)
-{
-	long	*p = NULL;
-
-	if (xu_getprop(win, cwmh[WM_STATE], cwmh[WM_STATE], 2L,
-	    (unsigned char **)&p) <= 0)
-		return (-1);
-
-	*state = (int)*p;
-	XFree((char *)p);
-
-	return (0);
-}
-
-void
-xu_set_wm_state(Window win, int state)
-{
-	long	 dat[2];
-
-	dat[0] = state;
-	dat[1] = None;
-
-	XChangeProperty(X_Dpy, win, cwmh[WM_STATE], cwmh[WM_STATE], 32,
-	    PropModeReplace, (unsigned char *)dat, 2);
 }
 
 /* Root Window Properties */
@@ -338,7 +311,7 @@ xu_ewmh_get_net_wm_state(struct client_ctx *cc, int *n)
 		return (NULL);
 
 	state = xcalloc(*n, sizeof(Atom));
-	memcpy(state, p, *n * sizeof(Atom));
+	(void)memcpy(state, p, *n * sizeof(Atom));
 	XFree((char *)p);
 
 	return (state);
@@ -348,7 +321,7 @@ void
 xu_ewmh_handle_net_wm_state_msg(struct client_ctx *cc, int action,
     Atom first, Atom second)
 {
-	u_int i;
+	unsigned int i;
 	static struct handlers {
 		int atom;
 		int property;
@@ -360,6 +333,12 @@ xu_ewmh_handle_net_wm_state_msg(struct client_ctx *cc, int action,
 		{ _NET_WM_STATE_MAXIMIZED_HORZ,
 			CLIENT_HMAXIMIZED,
 			client_hmaximize },
+		{ _NET_WM_STATE_FULLSCREEN,
+			CLIENT_FULLSCREEN,
+			client_fullscreen },
+		{ _NET_WM_STATE_DEMANDS_ATTENTION,
+			CLIENT_URGENCY,
+			client_urgency },
 	};
 
 	for (i = 0; i < nitems(handlers); i++) {
@@ -393,6 +372,10 @@ xu_ewmh_restore_net_wm_state(struct client_ctx *cc)
 			client_hmaximize(cc);
 		if (atoms[i] == ewmh[_NET_WM_STATE_MAXIMIZED_VERT])
 			client_vmaximize(cc);
+		if (atoms[i] == ewmh[_NET_WM_STATE_FULLSCREEN])
+			client_fullscreen(cc);
+		if (atoms[i] == ewmh[_NET_WM_STATE_DEMANDS_ATTENTION])
+			client_urgency(cc);
 	}
 	free(atoms);
 }
@@ -407,14 +390,22 @@ xu_ewmh_set_net_wm_state(struct client_ctx *cc)
 	atoms = xcalloc((n + _NET_WM_STATES_NITEMS), sizeof(Atom));
 	for (i = j = 0; i < n; i++) {
 		if (oatoms[i] != ewmh[_NET_WM_STATE_MAXIMIZED_HORZ] &&
-		    oatoms[i] != ewmh[_NET_WM_STATE_MAXIMIZED_VERT])
+		    oatoms[i] != ewmh[_NET_WM_STATE_MAXIMIZED_VERT] &&
+		    oatoms[i] != ewmh[_NET_WM_STATE_FULLSCREEN] &&
+		    oatoms[i] != ewmh[_NET_WM_STATE_DEMANDS_ATTENTION])
 			atoms[j++] = oatoms[i];
 	}
 	free(oatoms);
-	if (cc->flags & CLIENT_HMAXIMIZED)
-		atoms[j++] = ewmh[_NET_WM_STATE_MAXIMIZED_HORZ];
-	if (cc->flags & CLIENT_VMAXIMIZED)
-		atoms[j++] = ewmh[_NET_WM_STATE_MAXIMIZED_VERT];
+	if (cc->flags & CLIENT_FULLSCREEN)
+		atoms[j++] = ewmh[_NET_WM_STATE_FULLSCREEN];
+	else {
+		if (cc->flags & CLIENT_HMAXIMIZED)
+			atoms[j++] = ewmh[_NET_WM_STATE_MAXIMIZED_HORZ];
+		if (cc->flags & CLIENT_VMAXIMIZED)
+			atoms[j++] = ewmh[_NET_WM_STATE_MAXIMIZED_VERT];
+	}
+	if (cc->flags & CLIENT_URGENCY)
+		atoms[j++] = ewmh[_NET_WM_STATE_DEMANDS_ATTENTION];
 	if (j > 0)
 		XChangeProperty(X_Dpy, cc->win, ewmh[_NET_WM_STATE],
 		    XA_ATOM, 32, PropModeReplace, (unsigned char *)atoms, j);

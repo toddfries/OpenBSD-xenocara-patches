@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: screen.c,v 1.52 2013/06/17 17:11:10 okan Exp $
+ * $OpenBSD: screen.c,v 1.54 2014/01/03 15:29:06 okan Exp $
  */
 
 #include <sys/param.h>
@@ -37,7 +37,7 @@ screen_init(int which)
 	Window			*wins, w0, w1;
 	XWindowAttributes	 winattr;
 	XSetWindowAttributes	 rootattr;
-	u_int			 nwins, i;
+	unsigned int		 nwins, i;
 
 	sc = xcalloc(1, sizeof(*sc));
 
@@ -105,7 +105,7 @@ screen_updatestackingorder(struct screen_ctx *sc)
 {
 	Window			*wins, w0, w1;
 	struct client_ctx	*cc;
-	u_int			 nwins, i, s;
+	unsigned int		 nwins, i, s;
 
 	if (!XQueryTree(X_Dpy, sc->rootwin, &w0, &w1, &wins, &nwins))
 		return;
@@ -126,7 +126,7 @@ screen_updatestackingorder(struct screen_ctx *sc)
  * Find which xinerama screen the coordinates (x,y) is on.
  */
 struct geom
-screen_find_xinerama(struct screen_ctx *sc, int x, int y)
+screen_find_xinerama(struct screen_ctx *sc, int x, int y, int flags)
 {
 	XineramaScreenInfo	*info;
 	struct geom		 geom;
@@ -141,12 +141,18 @@ screen_find_xinerama(struct screen_ctx *sc, int x, int y)
 		info = &sc->xinerama[i];
 		if (x >= info->x_org && x < info->x_org + info->width &&
 		    y >= info->y_org && y < info->y_org + info->height) {
-			geom.x = info->x_org + sc->gap.left;
-			geom.y = info->y_org + sc->gap.top;
-			geom.w = info->width - (sc->gap.left + sc->gap.right);
-			geom.h = info->height - (sc->gap.top + sc->gap.bottom);
+			geom.x = info->x_org;
+			geom.y = info->y_org;
+			geom.w = info->width;
+			geom.h = info->height;
 			break;
 		}
+	}
+	if (flags & CWM_GAP) {
+		geom.x += sc->gap.left;
+		geom.y += sc->gap.top;
+		geom.w -= (sc->gap.left + sc->gap.right);
+		geom.h -= (sc->gap.top + sc->gap.bottom);
 	}
 	return (geom);
 }

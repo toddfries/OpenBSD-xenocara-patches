@@ -81,20 +81,30 @@ extern "C" {
 
 /* Video mode flags */
 /* bit compatible with the xorg definitions. */
-#define DRM_MODE_FLAG_PHSYNC    (1<<0)
-#define DRM_MODE_FLAG_NHSYNC    (1<<1)
-#define DRM_MODE_FLAG_PVSYNC    (1<<2)
-#define DRM_MODE_FLAG_NVSYNC    (1<<3)
-#define DRM_MODE_FLAG_INTERLACE (1<<4)
-#define DRM_MODE_FLAG_DBLSCAN   (1<<5)
-#define DRM_MODE_FLAG_CSYNC     (1<<6)
-#define DRM_MODE_FLAG_PCSYNC    (1<<7)
-#define DRM_MODE_FLAG_NCSYNC    (1<<8)
-#define DRM_MODE_FLAG_HSKEW     (1<<9) /* hskew provided */
-#define DRM_MODE_FLAG_BCAST     (1<<10)
-#define DRM_MODE_FLAG_PIXMUX    (1<<11)
-#define DRM_MODE_FLAG_DBLCLK    (1<<12)
-#define DRM_MODE_FLAG_CLKDIV2   (1<<13)
+#define DRM_MODE_FLAG_PHSYNC			(1<<0)
+#define DRM_MODE_FLAG_NHSYNC			(1<<1)
+#define DRM_MODE_FLAG_PVSYNC			(1<<2)
+#define DRM_MODE_FLAG_NVSYNC			(1<<3)
+#define DRM_MODE_FLAG_INTERLACE			(1<<4)
+#define DRM_MODE_FLAG_DBLSCAN			(1<<5)
+#define DRM_MODE_FLAG_CSYNC			(1<<6)
+#define DRM_MODE_FLAG_PCSYNC			(1<<7)
+#define DRM_MODE_FLAG_NCSYNC			(1<<8)
+#define DRM_MODE_FLAG_HSKEW			(1<<9) /* hskew provided */
+#define DRM_MODE_FLAG_BCAST			(1<<10)
+#define DRM_MODE_FLAG_PIXMUX			(1<<11)
+#define DRM_MODE_FLAG_DBLCLK			(1<<12)
+#define DRM_MODE_FLAG_CLKDIV2			(1<<13)
+#define DRM_MODE_FLAG_3D_MASK			(0x1f<<14)
+#define  DRM_MODE_FLAG_3D_NONE			(0<<14)
+#define  DRM_MODE_FLAG_3D_FRAME_PACKING		(1<<14)
+#define  DRM_MODE_FLAG_3D_FIELD_ALTERNATIVE	(2<<14)
+#define  DRM_MODE_FLAG_3D_LINE_ALTERNATIVE	(3<<14)
+#define  DRM_MODE_FLAG_3D_SIDE_BY_SIDE_FULL	(4<<14)
+#define  DRM_MODE_FLAG_3D_L_DEPTH		(5<<14)
+#define  DRM_MODE_FLAG_3D_L_DEPTH_GFX_GFX_DEPTH	(6<<14)
+#define  DRM_MODE_FLAG_3D_TOP_AND_BOTTOM	(7<<14)
+#define  DRM_MODE_FLAG_3D_SIDE_BY_SIDE_HALF	(8<<14)
 
 /* DPMS flags */
 /* bit compatible with the xorg definitions. */
@@ -118,6 +128,8 @@ extern "C" {
 #define DRM_MODE_ENCODER_TMDS   2
 #define DRM_MODE_ENCODER_LVDS   3
 #define DRM_MODE_ENCODER_TVDAC  4
+#define DRM_MODE_ENCODER_VIRTUAL 5
+#define DRM_MODE_ENCODER_DSI	6
 
 #define DRM_MODE_SUBCONNECTOR_Automatic 0
 #define DRM_MODE_SUBCONNECTOR_Unknown   0
@@ -126,6 +138,7 @@ extern "C" {
 #define DRM_MODE_SUBCONNECTOR_Composite 5
 #define DRM_MODE_SUBCONNECTOR_SVIDEO    6
 #define DRM_MODE_SUBCONNECTOR_Component 8
+#define DRM_MODE_SUBCONNECTOR_SCART     9
 
 #define DRM_MODE_CONNECTOR_Unknown      0
 #define DRM_MODE_CONNECTOR_VGA          1
@@ -142,6 +155,8 @@ extern "C" {
 #define DRM_MODE_CONNECTOR_HDMIB        12
 #define DRM_MODE_CONNECTOR_TV		13
 #define DRM_MODE_CONNECTOR_eDP		14
+#define DRM_MODE_CONNECTOR_VIRTUAL      15
+#define DRM_MODE_CONNECTOR_DSI          16
 
 #define DRM_MODE_PROP_PENDING   (1<<0)
 #define DRM_MODE_PROP_RANGE     (1<<1)
@@ -218,11 +233,11 @@ typedef struct _drmModeProperty {
 	uint32_t flags;
 	char name[DRM_PROP_NAME_LEN];
 	int count_values;
-	uint64_t *values; // store the blob lengths
+	uint64_t *values; /* store the blob lengths */
 	int count_enums;
 	struct drm_mode_property_enum *enums;
 	int count_blobs;
-	uint32_t *blob_ids; // store the blob IDs
+	uint32_t *blob_ids; /* store the blob IDs */
 } drmModePropertyRes, *drmModePropertyPtr;
 
 typedef struct _drmModeCrtc {

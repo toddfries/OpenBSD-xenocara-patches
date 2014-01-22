@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: kbfunc.c,v 1.80 2013/10/17 13:59:10 okan Exp $
+ * $OpenBSD: kbfunc.c,v 1.90 2014/01/21 15:42:45 okan Exp $
  */
 
 #include <sys/param.h>
@@ -41,6 +41,7 @@ extern sig_atomic_t	xev_quit;
 void
 kbfunc_client_lower(struct client_ctx *cc, union arg *arg)
 {
+	client_ptrsave(cc);
 	client_lower(cc);
 }
 
@@ -56,8 +57,9 @@ void
 kbfunc_client_moveresize(struct client_ctx *cc, union arg *arg)
 {
 	struct screen_ctx	*sc = cc->sc;
+	struct geom		 xine;
 	int			 x, y, flags, amt;
-	u_int			 mx, my;
+	unsigned int		 mx, my;
 
 	if (cc->flags & CLIENT_FREEZE)
 		return;
@@ -99,12 +101,15 @@ kbfunc_client_moveresize(struct client_ctx *cc, union arg *arg)
 		if (cc->geom.y > sc->view.h - 1)
 			cc->geom.y = sc->view.h - 1;
 
+		xine = screen_find_xinerama(sc,
+		    cc->geom.x + cc->geom.w / 2,
+		    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 		cc->geom.x += client_snapcalc(cc->geom.x,
 		    cc->geom.x + cc->geom.w + (cc->bwidth * 2),
-		    sc->work.x, sc->work.w, Conf.snapdist);
+		    xine.x, xine.x + xine.w, sc->snapdist);
 		cc->geom.y += client_snapcalc(cc->geom.y,
 		    cc->geom.y + cc->geom.h + (cc->bwidth * 2),
-		    sc->work.y, sc->work.h, Conf.snapdist);
+		    xine.y, xine.y + xine.h, sc->snapdist);
 
 		client_move(cc);
 		xu_ptr_getpos(cc->win, &x, &y);
@@ -147,13 +152,8 @@ kbfunc_client_search(struct client_ctx *cc, union arg *arg)
 	old_cc = client_current();
 
 	TAILQ_INIT(&menuq);
-
-	TAILQ_FOREACH(cc, &Clientq, entry) {
-		mi = xcalloc(1, sizeof(*mi));
-		(void)strlcpy(mi->text, cc->name, sizeof(mi->text));
-		mi->ctx = cc;
-		TAILQ_INSERT_TAIL(&menuq, mi, entry);
-	}
+	TAILQ_FOREACH(cc, &Clientq, entry)
+		menuq_add(&menuq, cc, "%s", cc->name);
 
 	if ((mi = menu_filter(sc, &menuq, "window", NULL, 0,
 	    search_match_client, search_print_client)) != NULL) {
@@ -178,17 +178,12 @@ kbfunc_menu_search(struct client_ctx *cc, union arg *arg)
 	struct menu_q		 menuq;
 
 	TAILQ_INIT(&menuq);
-
-	TAILQ_FOREACH(cmd, &Conf.cmdq, entry) {
-		mi = xcalloc(1, sizeof(*mi));
-		(void)strlcpy(mi->text, cmd->label, sizeof(mi->text));
-		mi->ctx = cmd;
-		TAILQ_INSERT_TAIL(&menuq, mi, entry);
-	}
+	TAILQ_FOREACH(cmd, &Conf.cmdq, entry)
+		menuq_add(&menuq, cmd, "%s", cmd->name);
 
 	if ((mi = menu_filter(sc, &menuq, "application", NULL, 0,
 	    search_match_text, NULL)) != NULL)
-		u_spawn(((struct cmd *)mi->ctx)->image);
+		u_spawn(((struct cmd *)mi->ctx)->path);
 
 	menuq_clear(&menuq);
 }
@@ -234,8 +229,9 @@ kbfunc_exec(struct client_ctx *cc, union arg *arg)
 {
 #define NPATHS 256
 	struct screen_ctx	*sc = cc->sc;
-	char			**ap, *paths[NPATHS], *path, *pathcpy, *label;
+	char			**ap, *paths[NPATHS], *path, *pathcpy;
 	char			 tpath[MAXPATHLEN];
+	const char		*label;
 	DIR			*dirp;
 	struct dirent		*dp;
 	struct menu		*mi;
@@ -280,12 +276,8 @@ kbfunc_exec(struct client_ctx *cc, union arg *arg)
 			/* check for truncation etc */
 			if (l == -1 || l >= (int)sizeof(tpath))
 				continue;
-			if (access(tpath, X_OK) == 0) {
-				mi = xcalloc(1, sizeof(*mi));
-				(void)strlcpy(mi->text,
-				    dp->d_name, sizeof(mi->text));
-				TAILQ_INSERT_TAIL(&menuq, mi, entry);
-			}
+			if (access(tpath, X_OK) == 0)
+				menuq_add(&menuq, NULL, "%s", dp->d_name);
 		}
 		(void)closedir(dirp);
 	}
@@ -356,9 +348,7 @@ kbfunc_ssh(struct client_ctx *cc, union arg *arg)
 		if (p - buf + 1 > sizeof(hostbuf))
 			continue;
 		(void)strlcpy(hostbuf, buf, p - buf + 1);
-		mi = xcalloc(1, sizeof(*mi));
-		(void)strlcpy(mi->text, hostbuf, sizeof(mi->text));
-		TAILQ_INSERT_TAIL(&menuq, mi, entry);
+		menuq_add(&menuq, NULL, hostbuf);
 	}
 	free(lbuf);
 	(void)fclose(fp);
@@ -441,6 +431,12 @@ void
 kbfunc_client_movetogroup(struct client_ctx *cc, union arg *arg)
 {
 	group_movetogroup(cc, arg->i);
+}
+
+void
+kbfunc_client_fullscreen(struct client_ctx *cc, union arg *arg)
+{
+	client_fullscreen(cc);
 }
 
 void

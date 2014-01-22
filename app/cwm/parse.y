@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.47 2013/07/16 14:04:44 okan Exp $ */
+/*	$OpenBSD: parse.y,v 1.51 2014/01/20 21:34:32 okan Exp $ */
 
 /*
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -70,7 +70,7 @@ typedef struct {
 %token	AUTOGROUP BIND COMMAND IGNORE
 %token	YES NO BORDERWIDTH MOVEAMOUNT
 %token	COLOR SNAPDIST
-%token	ACTIVEBORDER INACTIVEBORDER
+%token	ACTIVEBORDER INACTIVEBORDER URGENCYBORDER
 %token	GROUPBORDER UNGROUPBORDER
 %token	MENUBG MENUFG
 %token	FONTCOLOR FONTSELCOLOR
@@ -137,7 +137,7 @@ main		: FONTNAME STRING		{
 			conf->snapdist = $2;
 		}
 		| COMMAND STRING string		{
-			conf_cmd_add(conf, $3, $2);
+			conf_cmd_add(conf, $2, $3);
 			free($2);
 			free($3);
 		}
@@ -155,7 +155,12 @@ main		: FONTNAME STRING		{
 			free($2);
 		}
 		| BIND STRING string		{
-			conf_bind_kbd(conf, $2, $3);
+			if (!conf_bind_kbd(conf, $2, $3)) {
+				yyerror("invalid bind: %s %s", $2, $3);
+				free($2);
+				free($3);
+				YYERROR;
+			}
 			free($2);
 			free($3);
 		}
@@ -192,6 +197,10 @@ colors		: ACTIVEBORDER STRING {
 		| INACTIVEBORDER STRING {
 			free(conf->color[CWM_COLOR_BORDER_INACTIVE]);
 			conf->color[CWM_COLOR_BORDER_INACTIVE] = $2;
+		}
+		| URGENCYBORDER STRING {
+			free(conf->color[CWM_COLOR_BORDER_URGENCY]);
+			conf->color[CWM_COLOR_BORDER_URGENCY] = $2;
 		}
 		| GROUPBORDER STRING {
 			free(conf->color[CWM_COLOR_BORDER_GROUP]);
@@ -271,6 +280,7 @@ lookup(char *s)
 		{ "snapdist",		SNAPDIST},
 		{ "sticky",		STICKY},
 		{ "ungroupborder",	UNGROUPBORDER},
+		{ "urgencyborder",	URGENCYBORDER},
 		{ "yes",		YES}
 	};
 	const struct keywords	*p;
@@ -286,9 +296,9 @@ lookup(char *s)
 
 #define MAXPUSHBACK	128
 
-char	*parsebuf;
+u_char	*parsebuf;
 int	 parseindex;
-char	 pushback_buffer[MAXPUSHBACK];
+u_char	 pushback_buffer[MAXPUSHBACK];
 int	 pushback_index = 0;
 
 int
@@ -381,8 +391,8 @@ findeol(void)
 int
 yylex(void)
 {
-	char	 buf[8096];
-	char	*p;
+	u_char	 buf[8096];
+	u_char	*p;
 	int	 quotec, next, c;
 	int	 token;
 
@@ -423,7 +433,7 @@ yylex(void)
 				yyerror("string too long");
 				return (findeol());
 			}
-			*p++ = (char)c;
+			*p++ = c;
 		}
 		yylval.v.string = xstrdup(buf);
 		return (STRING);

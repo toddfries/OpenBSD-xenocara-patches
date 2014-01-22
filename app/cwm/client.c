@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: client.c,v 1.149 2013/11/12 21:25:00 okan Exp $
+ * $OpenBSD: client.c,v 1.168 2014/01/03 14:23:50 okan Exp $
  */
 
 #include <sys/param.h>
@@ -37,10 +37,10 @@ static void			 client_mtf(struct client_ctx *);
 static void			 client_none(struct screen_ctx *);
 static void			 client_placecalc(struct client_ctx *);
 static void			 client_wm_protocols(struct client_ctx *);
-static void			 client_getmwmhints(struct client_ctx *);
+static void			 client_mwm_hints(struct client_ctx *);
 static int			 client_inbound(struct client_ctx *, int, int);
 
-struct client_ctx	*_curcc = NULL;
+struct client_ctx	*curcc = NULL;
 
 struct client_ctx *
 client_find(Window win)
@@ -58,10 +58,8 @@ struct client_ctx *
 client_init(Window win, struct screen_ctx *sc, int mapped)
 {
 	struct client_ctx	*cc;
-	XClassHint		 xch;
 	XWindowAttributes	 wattr;
-	XWMHints		*wmhints;
-	int			 state;
+	long			 state;
 
 	if (win == None)
 		return (NULL);
@@ -70,22 +68,19 @@ client_init(Window win, struct screen_ctx *sc, int mapped)
 
 	XGrabServer(X_Dpy);
 
-	cc->state = mapped ? NormalState : IconicState;
 	cc->sc = sc;
 	cc->win = win;
-
-	client_getsizehints(cc);
 
 	TAILQ_INIT(&cc->nameq);
 	client_setname(cc);
 
 	conf_client(cc);
 
-	if (XGetClassHint(X_Dpy, cc->win, &xch)) {
-		cc->app_name = xch.res_name;
-		cc->app_class = xch.res_class;
-	}
-	client_getmwmhints(cc);
+	XGetClassHint(X_Dpy, cc->win, &cc->ch);
+	client_wm_hints(cc);
+	client_wm_protocols(cc);
+	client_getsizehints(cc);
+	client_mwm_hints(cc);
 
 	/* Saved pointer position */
 	cc->ptr.x = -1;
@@ -98,26 +93,12 @@ client_init(Window win, struct screen_ctx *sc, int mapped)
 	cc->geom.h = wattr.height;
 	cc->colormap = wattr.colormap;
 
-	if ((wmhints = XGetWMHints(X_Dpy, cc->win)) != NULL) {
-		if (wmhints->flags & InputHint) {
-			if (wmhints->input == 1)
-				cc->flags |= CLIENT_INPUT;
-		}
-	}
 	if (wattr.map_state != IsViewable) {
 		client_placecalc(cc);
 		client_move(cc);
-		if ((wmhints) && (wmhints->flags & StateHint)) {
-			cc->state = wmhints->initial_state;
-			xu_set_wm_state(cc->win, cc->state);
-		}
+		if ((cc->wmh) && (cc->wmh->flags & StateHint))
+			client_set_wm_state(cc, cc->wmh->initial_state);
 	}
-	if (wmhints)
-		XFree(wmhints);
-	client_draw_border(cc);
-
-	if (xu_get_wm_state(cc->win, &state) < 0)
-		state = NormalState;
 
 	XSelectInput(X_Dpy, cc->win, ColormapChangeMask | EnterWindowMask |
 	    PropertyChangeMask | KeyReleaseMask);
@@ -129,6 +110,9 @@ client_init(Window win, struct screen_ctx *sc, int mapped)
 	/* Notify client of its configuration. */
 	client_config(cc);
 
+	if ((state = client_get_wm_state(cc)) < 0)
+		state = NormalState;
+
 	(state == IconicState) ? client_hide(cc) : client_unhide(cc);
 
 	TAILQ_INSERT_TAIL(&sc->mruq, cc, mru_entry);
@@ -136,7 +120,6 @@ client_init(Window win, struct screen_ctx *sc, int mapped)
 
 	xu_ewmh_net_client_list(sc);
 
-	client_wm_protocols(cc);
 	xu_ewmh_restore_net_wm_state(cc);
 
 	if (mapped)
@@ -165,68 +148,56 @@ client_delete(struct client_ctx *cc)
 	if (cc == client_current())
 		client_none(sc);
 
-	if (cc->app_name != NULL)
-		XFree(cc->app_name);
-	if (cc->app_class != NULL)
-		XFree(cc->app_class);
-
 	while ((wn = TAILQ_FIRST(&cc->nameq)) != NULL) {
 		TAILQ_REMOVE(&cc->nameq, wn, entry);
 		free(wn->name);
 		free(wn);
 	}
 
+	if (cc->ch.res_class)
+		XFree(cc->ch.res_class);
+	if (cc->ch.res_name)
+		XFree(cc->ch.res_name);
+	if (cc->wmh)
+		XFree(cc->wmh);
+
 	free(cc);
 }
 
 void
-client_leave(struct client_ctx *cc)
+client_setactive(struct client_ctx *cc)
 {
-	if (cc == NULL)
-		cc = client_current();
-	if (cc == NULL)
-		return;
-}
+	struct screen_ctx	*sc = cc->sc;
+	struct client_ctx	*oldcc;
 
-void
-client_setactive(struct client_ctx *cc, int fg)
-{
-	struct screen_ctx	*sc;
-
-	if (cc == NULL)
-		cc = client_current();
-	if (cc == NULL)
+	if (cc->flags & CLIENT_HIDDEN)
 		return;
 
-	sc = cc->sc;
+	XInstallColormap(X_Dpy, cc->colormap);
 
-	if (fg) {
-		XInstallColormap(X_Dpy, cc->colormap);
-		if ((cc->flags & CLIENT_INPUT) ||
-		    ((cc->flags & CLIENT_WM_TAKE_FOCUS) == 0)) {
-			XSetInputFocus(X_Dpy, cc->win,
-			    RevertToPointerRoot, CurrentTime);
-		}
-		if (cc->flags & CLIENT_WM_TAKE_FOCUS)
-			client_msg(cc, cwmh[WM_TAKE_FOCUS]);
-		conf_grab_mouse(cc->win);
-		/*
-		 * If we're in the middle of alt-tabbing, don't change
-		 * the order please.
-		 */
-		if (!sc->cycling)
-			client_mtf(cc);
-	} else
-		client_leave(cc);
+	if ((cc->flags & CLIENT_INPUT) ||
+	    ((cc->flags & CLIENT_WM_TAKE_FOCUS) == 0)) {
+		XSetInputFocus(X_Dpy, cc->win,
+		    RevertToPointerRoot, CurrentTime);
+	}
+	if (cc->flags & CLIENT_WM_TAKE_FOCUS)
+		client_msg(cc, cwmh[WM_TAKE_FOCUS], Last_Event_Time);
 
-	if (fg && cc != client_current()) {
-		client_setactive(NULL, 0);
-		_curcc = cc;
-		xu_ewmh_net_active_window(sc, cc->win);
+	if ((oldcc = client_current())) {
+		oldcc->active = 0;
+		client_draw_border(oldcc);
 	}
 
-	cc->active = fg;
+	/* If we're in the middle of cycing, don't change the order. */
+	if (!sc->cycling)
+		client_mtf(cc);
+
+	curcc = cc;
+	cc->active = 1;
+	cc->flags &= ~CLIENT_URGENCY;
 	client_draw_border(cc);
+	conf_grab_mouse(cc->win);
+	xu_ewmh_net_active_window(sc, cc->win);
 }
 
 /*
@@ -239,13 +210,13 @@ client_none(struct screen_ctx *sc)
 
 	xu_ewmh_net_active_window(sc, none);
 
-	_curcc = NULL;
+	curcc = NULL;
 }
 
 struct client_ctx *
 client_current(void)
 {
-	return (_curcc);
+	return (curcc);
 }
 
 void
@@ -258,6 +229,38 @@ client_freeze(struct client_ctx *cc)
 }
 
 void
+client_fullscreen(struct client_ctx *cc)
+{
+	struct screen_ctx	*sc = cc->sc;
+	struct geom		 xine;
+
+	if ((cc->flags & CLIENT_FREEZE) &&
+	    !(cc->flags & CLIENT_FULLSCREEN))
+		return;
+
+	if ((cc->flags & CLIENT_FULLSCREEN)) {
+		cc->bwidth = Conf.bwidth;
+		cc->geom = cc->fullgeom;
+		cc->flags &= ~(CLIENT_FULLSCREEN | CLIENT_FREEZE);
+		goto resize;
+	}
+
+	cc->fullgeom = cc->geom;
+
+	xine = screen_find_xinerama(sc,
+	    cc->geom.x + cc->geom.w / 2,
+	    cc->geom.y + cc->geom.h / 2, CWM_NOGAP);
+
+	cc->bwidth = 0;
+	cc->geom = xine;
+	cc->flags |= (CLIENT_FULLSCREEN | CLIENT_FREEZE);
+
+resize:
+	client_resize(cc, 0);
+	xu_ewmh_set_net_wm_state(cc);
+}
+
+void
 client_maximize(struct client_ctx *cc)
 {
 	struct screen_ctx	*sc = cc->sc;
@@ -267,9 +270,8 @@ client_maximize(struct client_ctx *cc)
 		return;
 
 	if ((cc->flags & CLIENT_MAXFLAGS) == CLIENT_MAXIMIZED) {
-		cc->flags &= ~CLIENT_MAXIMIZED;
 		cc->geom = cc->savegeom;
-		cc->bwidth = Conf.bwidth;
+		cc->flags &= ~CLIENT_MAXIMIZED;
 		goto resize;
 	}
 
@@ -290,10 +292,12 @@ client_maximize(struct client_ctx *cc)
 	 */
 	xine = screen_find_xinerama(sc,
 	    cc->geom.x + cc->geom.w / 2,
-	    cc->geom.y + cc->geom.h / 2);
+	    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 
-	cc->geom = xine;
-	cc->bwidth = 0;
+	cc->geom.x = xine.x;
+	cc->geom.y = xine.y;
+	cc->geom.w = xine.w - (cc->bwidth * 2);
+	cc->geom.h = xine.h - (cc->bwidth * 2);
 	cc->flags |= CLIENT_MAXIMIZED;
 
 resize:
@@ -313,9 +317,6 @@ client_vmaximize(struct client_ctx *cc)
 	if (cc->flags & CLIENT_VMAXIMIZED) {
 		cc->geom.y = cc->savegeom.y;
 		cc->geom.h = cc->savegeom.h;
-		cc->bwidth = Conf.bwidth;
-		if (cc->flags & CLIENT_HMAXIMIZED)
-			cc->geom.w -= cc->bwidth * 2;
 		cc->flags &= ~CLIENT_VMAXIMIZED;
 		goto resize;
 	}
@@ -323,15 +324,9 @@ client_vmaximize(struct client_ctx *cc)
 	cc->savegeom.y = cc->geom.y;
 	cc->savegeom.h = cc->geom.h;
 
-	/* if this will make us fully maximized then remove boundary */
-	if ((cc->flags & CLIENT_MAXFLAGS) == CLIENT_HMAXIMIZED) {
-		cc->geom.w += cc->bwidth * 2;
-		cc->bwidth = 0;
-	}
-
 	xine = screen_find_xinerama(sc,
 	    cc->geom.x + cc->geom.w / 2,
-	    cc->geom.y + cc->geom.h / 2);
+	    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 
 	cc->geom.y = xine.y;
 	cc->geom.h = xine.h - (cc->bwidth * 2);
@@ -354,9 +349,6 @@ client_hmaximize(struct client_ctx *cc)
 	if (cc->flags & CLIENT_HMAXIMIZED) {
 		cc->geom.x = cc->savegeom.x;
 		cc->geom.w = cc->savegeom.w;
-		cc->bwidth = Conf.bwidth;
-		if (cc->flags & CLIENT_VMAXIMIZED)
-			cc->geom.h -= cc->bwidth * 2;
 		cc->flags &= ~CLIENT_HMAXIMIZED;
 		goto resize;
 	}
@@ -364,15 +356,9 @@ client_hmaximize(struct client_ctx *cc)
 	cc->savegeom.x = cc->geom.x;
 	cc->savegeom.w = cc->geom.w;
 
-	/* if this will make us fully maximized then remove boundary */
-	if ((cc->flags & CLIENT_MAXFLAGS) == CLIENT_VMAXIMIZED) {
-		cc->geom.h += cc->bwidth * 2;
-		cc->bwidth = 0;
-	}
-
 	xine = screen_find_xinerama(sc,
 	    cc->geom.x + cc->geom.w / 2,
-	    cc->geom.y + cc->geom.h / 2);
+	    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 
 	cc->geom.x = xine.x;
 	cc->geom.w = xine.w - (cc->bwidth * 2);
@@ -388,7 +374,6 @@ client_resize(struct client_ctx *cc, int reset)
 {
 	if (reset) {
 		cc->flags &= ~CLIENT_MAXIMIZED;
-		cc->bwidth = Conf.bwidth;
 		xu_ewmh_set_net_wm_state(cc);
 	}
 
@@ -423,7 +408,7 @@ client_config(struct client_ctx *cc)
 {
 	XConfigureEvent	 cn;
 
-	bzero(&cn, sizeof(cn));
+	(void)memset(&cn, 0, sizeof(cn));
 	cn.type = ConfigureNotify;
 	cn.event = cc->win;
 	cn.window = cc->win;
@@ -448,7 +433,10 @@ client_ptrwarp(struct client_ctx *cc)
 		y = cc->geom.h / 2;
 	}
 
-	(cc->state == IconicState) ? client_unhide(cc) : client_raise(cc);
+	if (cc->flags & CLIENT_HIDDEN)
+		client_unhide(cc);
+	else
+		client_raise(cc);
 	xu_ptr_setpos(cc->win, x, y);
 }
 
@@ -474,8 +462,7 @@ client_hide(struct client_ctx *cc)
 
 	cc->active = 0;
 	cc->flags |= CLIENT_HIDDEN;
-	cc->state = IconicState;
-	xu_set_wm_state(cc->win, cc->state);
+	client_set_wm_state(cc, IconicState);
 
 	if (cc == client_current())
 		client_none(cc->sc);
@@ -487,8 +474,14 @@ client_unhide(struct client_ctx *cc)
 	XMapRaised(X_Dpy, cc->win);
 
 	cc->flags &= ~CLIENT_HIDDEN;
-	cc->state = NormalState;
-	xu_set_wm_state(cc->win, cc->state);
+	client_set_wm_state(cc, NormalState);
+	client_draw_border(cc);
+}
+
+void
+client_urgency(struct client_ctx *cc)
+{
+	cc->flags |= CLIENT_URGENCY;
 }
 
 void
@@ -512,6 +505,9 @@ client_draw_border(struct client_ctx *cc)
 	else
 		pixel = sc->xftcolor[CWM_COLOR_BORDER_INACTIVE].pixel;
 
+	if (cc->flags & CLIENT_URGENCY)
+		pixel = sc->xftcolor[CWM_COLOR_BORDER_URGENCY].pixel;
+
 	XSetWindowBorderWidth(X_Dpy, cc->win, cc->bwidth);
 	XSetWindowBorder(X_Dpy, cc->win, pixel);
 }
@@ -534,17 +530,30 @@ client_wm_protocols(struct client_ctx *cc)
 }
 
 void
-client_msg(struct client_ctx *cc, Atom proto)
+client_wm_hints(struct client_ctx *cc)
+{
+	if ((cc->wmh = XGetWMHints(X_Dpy, cc->win)) == NULL)
+		return;
+
+	if ((cc->wmh->flags & InputHint) && (cc->wmh->input))
+		cc->flags |= CLIENT_INPUT;
+
+	if ((cc->wmh->flags & XUrgencyHint))
+		client_urgency(cc);
+}
+
+void
+client_msg(struct client_ctx *cc, Atom proto, Time ts)
 {
 	XClientMessageEvent	 cm;
 
-	bzero(&cm, sizeof(cm));
+	(void)memset(&cm, 0, sizeof(cm));
 	cm.type = ClientMessage;
 	cm.window = cc->win;
 	cm.message_type = cwmh[WM_PROTOCOLS];
 	cm.format = 32;
 	cm.data.l[0] = proto;
-	cm.data.l[1] = CurrentTime;
+	cm.data.l[1] = ts;
 
 	XSendEvent(X_Dpy, cc->win, False, NoEventMask, (XEvent *)&cm);
 }
@@ -553,7 +562,7 @@ void
 client_send_delete(struct client_ctx *cc)
 {
 	if (cc->flags & CLIENT_WM_DELETE_WINDOW)
-		client_msg(cc, cwmh[WM_DELETE_WINDOW]);
+		client_msg(cc, cwmh[WM_DELETE_WINDOW], CurrentTime);
 	else
 		XKillClient(X_Dpy, cc->win);
 }
@@ -640,12 +649,14 @@ client_cycle(struct screen_ctx *sc, int flags)
 }
 
 void
-client_cycle_leave(struct screen_ctx *sc, struct client_ctx *cc)
+client_cycle_leave(struct screen_ctx *sc)
 {
+	struct client_ctx	*cc;
+
 	sc->cycling = 0;
 
-	client_mtf(NULL);
-	if (cc) {
+	if ((cc = client_current())) {
+		client_mtf(cc);
 		group_sticky_toggle_exit(cc);
 		XUngrabKeyboard(X_Dpy, CurrentTime);
 	}
@@ -694,7 +705,7 @@ client_placecalc(struct client_ctx *cc)
 		int			 xmouse, ymouse;
 
 		xu_ptr_getpos(sc->rootwin, &xmouse, &ymouse);
-		xine = screen_find_xinerama(sc, xmouse, ymouse);
+		xine = screen_find_xinerama(sc, xmouse, ymouse, CWM_GAP);
 		xine.w += xine.x;
 		xine.h += xine.y;
 		xmouse = MAX(xmouse, xine.x) - cc->geom.w / 2;
@@ -724,14 +735,8 @@ client_placecalc(struct client_ctx *cc)
 static void
 client_mtf(struct client_ctx *cc)
 {
-	struct screen_ctx	*sc;
+	struct screen_ctx	*sc = cc->sc;
 
-	if (cc == NULL)
-		cc = client_current();
-	if (cc == NULL)
-		return;
-
-	sc = cc->sc;
 	TAILQ_REMOVE(&sc->mruq, cc, mru_entry);
 	TAILQ_INSERT_HEAD(&sc->mruq, cc, mru_entry);
 }
@@ -740,52 +745,46 @@ void
 client_getsizehints(struct client_ctx *cc)
 {
 	long		 tmp;
-	XSizeHints	*size;
+	XSizeHints	 size;
 
-	if ((size = XAllocSizeHints()) == NULL)
-		warnx("XAllocSizeHints failure");
+	if (!XGetWMNormalHints(X_Dpy, cc->win, &size, &tmp))
+		size.flags = 0;
 
-	if (!XGetWMNormalHints(X_Dpy, cc->win, size, &tmp))
-		size->flags = 0;
+	cc->hint.flags = size.flags;
 
-	cc->hint.flags = size->flags;
-
-	if (size->flags & PBaseSize) {
-		cc->hint.basew = size->base_width;
-		cc->hint.baseh = size->base_height;
-	} else if (size->flags & PMinSize) {
-		cc->hint.basew = size->min_width;
-		cc->hint.baseh = size->min_height;
+	if (size.flags & PBaseSize) {
+		cc->hint.basew = size.base_width;
+		cc->hint.baseh = size.base_height;
+	} else if (size.flags & PMinSize) {
+		cc->hint.basew = size.min_width;
+		cc->hint.baseh = size.min_height;
 	}
-	if (size->flags & PMinSize) {
-		cc->hint.minw = size->min_width;
-		cc->hint.minh = size->min_height;
-	} else if (size->flags & PBaseSize) {
-		cc->hint.minw = size->base_width;
-		cc->hint.minh = size->base_height;
+	if (size.flags & PMinSize) {
+		cc->hint.minw = size.min_width;
+		cc->hint.minh = size.min_height;
+	} else if (size.flags & PBaseSize) {
+		cc->hint.minw = size.base_width;
+		cc->hint.minh = size.base_height;
 	}
-	if (size->flags & PMaxSize) {
-		cc->hint.maxw = size->max_width;
-		cc->hint.maxh = size->max_height;
+	if (size.flags & PMaxSize) {
+		cc->hint.maxw = size.max_width;
+		cc->hint.maxh = size.max_height;
 	}
-	if (size->flags & PResizeInc) {
-		cc->hint.incw = size->width_inc;
-		cc->hint.inch = size->height_inc;
+	if (size.flags & PResizeInc) {
+		cc->hint.incw = size.width_inc;
+		cc->hint.inch = size.height_inc;
 	}
 	cc->hint.incw = MAX(1, cc->hint.incw);
 	cc->hint.inch = MAX(1, cc->hint.inch);
 
-	if (size->flags & PAspect) {
-		if (size->min_aspect.x > 0)
-			cc->hint.mina = (float)size->min_aspect.y /
-			    size->min_aspect.x;
-		if (size->max_aspect.y > 0)
-			cc->hint.maxa = (float)size->max_aspect.x /
-			    size->max_aspect.y;
+	if (size.flags & PAspect) {
+		if (size.min_aspect.x > 0)
+			cc->hint.mina = (float)size.min_aspect.y /
+			    size.min_aspect.x;
+		if (size.max_aspect.y > 0)
+			cc->hint.maxa = (float)size.max_aspect.x /
+			    size.max_aspect.y;
 	}
-
-	if (size)
-		XFree(size);
 }
 
 void
@@ -803,12 +802,10 @@ client_applysizehints(struct client_ctx *cc)
 	}
 
 	/* adjust for aspect limits */
-	if (cc->hint.mina > 0 && cc->hint.maxa > 0) {
-		if (cc->hint.maxa <
-		    (float)cc->geom.w / cc->geom.h)
+	if (cc->hint.mina && cc->hint.maxa) {
+		if (cc->hint.maxa < (float)cc->geom.w / cc->geom.h)
 			cc->geom.w = cc->geom.h * cc->hint.maxa;
-		else if (cc->hint.mina <
-		    (float)cc->geom.h / cc->geom.w)
+		else if (cc->hint.mina < (float)cc->geom.h / cc->geom.w)
 			cc->geom.h = cc->geom.w * cc->hint.mina;
 	}
 
@@ -835,10 +832,13 @@ client_applysizehints(struct client_ctx *cc)
 		cc->geom.w = MIN(cc->geom.w, cc->hint.maxw);
 	if (cc->hint.maxh)
 		cc->geom.h = MIN(cc->geom.h, cc->hint.maxh);
+
+	cc->geom.w = MAX(cc->geom.w, 1);
+	cc->geom.h = MAX(cc->geom.h, 1);
 }
 
 static void
-client_getmwmhints(struct client_ctx *cc)
+client_mwm_hints(struct client_ctx *cc)
 {
 	struct mwm_hints	*mwmh;
 
@@ -923,7 +923,7 @@ client_htile(struct client_ctx *cc)
 
 	xine = screen_find_xinerama(sc,
 	    cc->geom.x + cc->geom.w / 2,
-	    cc->geom.y + cc->geom.h / 2);
+	    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 
 	if (cc->flags & CLIENT_VMAXIMIZED ||
 	    cc->geom.h + (cc->bwidth * 2) >= xine.h)
@@ -982,7 +982,7 @@ client_vtile(struct client_ctx *cc)
 
 	xine = screen_find_xinerama(sc,
 	    cc->geom.x + cc->geom.w / 2,
-	    cc->geom.y + cc->geom.h / 2);
+	    cc->geom.y + cc->geom.h / 2, CWM_GAP);
 
 	if (cc->flags & CLIENT_HMAXIMIZED ||
 	    cc->geom.w + (cc->bwidth * 2) >= xine.w)
@@ -1016,3 +1016,26 @@ client_vtile(struct client_ctx *cc)
 		i++;
 	}
 }
+
+long
+client_get_wm_state(struct client_ctx *cc)
+{
+	long	*p, state = -1;
+
+	if (xu_getprop(cc->win, cwmh[WM_STATE], cwmh[WM_STATE], 2L,
+	    (unsigned char **)&p) > 0) {
+		state = *p;
+		XFree(p);
+	}
+	return(state);
+}
+
+void
+client_set_wm_state(struct client_ctx *cc, long state)
+{
+	long	 data[] = { state, None };
+
+	XChangeProperty(X_Dpy, cc->win, cwmh[WM_STATE], cwmh[WM_STATE], 32,
+	    PropModeReplace, (unsigned char *)data, 2);
+}
+

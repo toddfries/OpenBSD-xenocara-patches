@@ -16,7 +16,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: group.c,v 1.81 2013/10/17 13:59:10 okan Exp $
+ * $OpenBSD: group.c,v 1.83 2014/01/20 18:58:03 okan Exp $
  */
 
 #include <sys/param.h>
@@ -324,15 +324,8 @@ group_menu(struct screen_ctx *sc)
 		if (TAILQ_EMPTY(&gc->clients))
 			continue;
 
-		mi = xcalloc(1, sizeof(*mi));
-		if (gc->hidden)
-			(void)snprintf(mi->text, sizeof(mi->text), "%d: [%s]",
-			    gc->shortcut, sc->group_names[i]);
-		else
-			(void)snprintf(mi->text, sizeof(mi->text), "%d: %s",
-			    gc->shortcut, sc->group_names[i]);
-		mi->ctx = gc;
-		TAILQ_INSERT_TAIL(&menuq, mi, entry);
+		menuq_add(&menuq, gc, gc->hidden ? "%d: [%s]" : "%d: %s",
+		    gc->shortcut, sc->group_names[i]);
 	}
 
 	if (TAILQ_EMPTY(&menuq))
@@ -371,7 +364,7 @@ group_autogroup(struct client_ctx *cc)
 	int			 no = -1, both_match = 0;
 	long			*grpno;
 
-	if (cc->app_class == NULL || cc->app_name == NULL)
+	if (cc->ch.res_class == NULL || cc->ch.res_name == NULL)
 		return;
 
 	if (xu_getprop(cc->win, ewmh[_NET_WM_DESKTOP],
@@ -385,9 +378,9 @@ group_autogroup(struct client_ctx *cc)
 		XFree(grpno);
 	} else {
 		TAILQ_FOREACH(aw, &Conf.autogroupq, entry) {
-			if (strcmp(aw->class, cc->app_class) == 0) {
+			if (strcmp(aw->class, cc->ch.res_class) == 0) {
 				if ((aw->name != NULL) &&
-				    (strcmp(aw->name, cc->app_name) == 0)) {
+				    (strcmp(aw->name, cc->ch.res_name) == 0)) {
 					no = aw->num;
 					both_match = 1;
 				} else if (aw->name == NULL && !both_match)

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: search.c,v 1.31 2013/04/30 21:11:07 okan Exp $
+ * $OpenBSD: search.c,v 1.36 2014/01/20 18:58:03 okan Exp $
  */
 
 #include <sys/param.h>
@@ -85,8 +85,8 @@ search_match_client(struct menu_q *menuq, struct menu_q *resultq, char *search)
 		}
 
 		/* Then if there is a match on the window class name. */
-		if (tier < 0 && strsubmatch(search, cc->app_class, 0)) {
-			cc->matchname = cc->app_class;
+		if (tier < 0 && strsubmatch(search, cc->ch.res_class, 0)) {
+			cc->matchname = cc->ch.res_class;
 			tier = 3;
 		}
 
@@ -142,8 +142,8 @@ search_print_client(struct menu *mi, int list)
 	if (list)
 		cc->matchname = cc->name;
 
-	(void)snprintf(mi->print, sizeof(mi->print), "%c%s", flag,
-	    cc->matchname);
+	(void)snprintf(mi->print, sizeof(mi->print), "(%d) %c%s",
+	    cc->group ? cc->group->shortcut : 0, flag, cc->matchname);
 
 	if (!list && cc->matchname != cc->name &&
 	    strlen(mi->print) < sizeof(mi->print) - 1) {
@@ -172,10 +172,9 @@ search_print_client(struct menu *mi, int list)
 static void
 search_match_path(struct menu_q *menuq, struct menu_q *resultq, char *search, int flag)
 {
-	struct menu	*mi;
-	char 		 pattern[MAXPATHLEN];
-	glob_t		 g;
-	int		 i;
+	char 	 pattern[MAXPATHLEN];
+	glob_t	 g;
+	int	 i;
 
 	TAILQ_INIT(resultq);
 
@@ -187,9 +186,7 @@ search_match_path(struct menu_q *menuq, struct menu_q *resultq, char *search, in
 	for (i = 0; i < g.gl_pathc; i++) {
 		if ((flag & PATH_EXEC) && access(g.gl_pathv[i], X_OK))
 			continue;
-		mi = xcalloc(1, sizeof(*mi));
-		(void)strlcpy(mi->text, g.gl_pathv[i], sizeof(mi->text));
-		TAILQ_INSERT_TAIL(resultq, mi, resultentry);
+		menuq_add(resultq, NULL, "%s", g.gl_pathv[i]);
 	}
 	globfree(&g);
 }
@@ -253,8 +250,8 @@ search_match_exec_path(struct menu_q *menuq, struct menu_q *resultq, char *searc
 static int
 strsubmatch(char *sub, char *str, int zeroidx)
 {
-	size_t	 len, sublen;
-	u_int	 n, flen;
+	size_t		 len, sublen;
+	unsigned int	 n, flen;
 
 	if (sub == NULL || str == NULL)
 		return (0);
