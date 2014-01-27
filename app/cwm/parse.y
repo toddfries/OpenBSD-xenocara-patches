@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.51 2014/01/20 21:34:32 okan Exp $ */
+/*	$OpenBSD: parse.y,v 1.53 2014/01/27 14:49:40 okan Exp $ */
 
 /*
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -116,21 +116,21 @@ main		: FONTNAME STRING		{
 				conf->flags |= CONF_STICKY_GROUPS;
 		}
 		| BORDERWIDTH NUMBER {
-			if ($2 < 0) {
+			if ($2 < 0 || $2 > UINT_MAX) {
 				yyerror("invalid borderwidth: %d", $2);
 				YYERROR;
 			}
 			conf->bwidth = $2;
 		}
 		| MOVEAMOUNT NUMBER {
-			if ($2 < 0) {
+			if ($2 < 0 || $2 > INT_MAX) {
 				yyerror("invalid movemount: %d", $2);
 				YYERROR;
 			}
 			conf->mamount = $2;
 		}
 		| SNAPDIST NUMBER {
-			if ($2 < 0) {
+			if ($2 < 0 || $2 > INT_MAX) {
 				yyerror("invalid snapdist: %d", $2);
 				YYERROR;
 			}
@@ -165,7 +165,10 @@ main		: FONTNAME STRING		{
 			free($3);
 		}
 		| GAP NUMBER NUMBER NUMBER NUMBER {
-			if ($2 < 0 || $3 < 0 || $4 < 0 || $5 < 0) {
+			if ($2 < 0 || $2 > INT_MAX ||
+			    $3 < 0 || $3 > INT_MAX ||
+			    $4 < 0 || $4 > INT_MAX ||
+			    $5 < 0 || $5 > INT_MAX) {
 				yyerror("invalid gap: %d %d %d %d",
 				    $2, $3, $4, $5);
 				YYERROR;
@@ -544,15 +547,12 @@ parse_config(const char *filename, struct conf *xconf)
 {
 	int			 errors = 0;
 
-	conf = xcalloc(1, sizeof(*conf));
+	conf = xconf;
 
 	if ((file = pushfile(filename)) == NULL) {
-		free(conf);
 		return (-1);
 	}
 	topfile = file;
-
-	conf_init(conf);
 
 	yyparse();
 	errors = file->errors;
@@ -560,60 +560,8 @@ parse_config(const char *filename, struct conf *xconf)
 
 	if (errors) {
 		conf_clear(conf);
+		conf_init(conf);
 	}
-	else {
-		struct autogroupwin	*ag;
-		struct keybinding	*kb;
-		struct winmatch		*wm;
-		struct cmd		*cmd;
-		struct mousebinding	*mb;
-		int			 i;
-
-		conf_clear(xconf);
-
-		xconf->flags = conf->flags;
-		xconf->bwidth = conf->bwidth;
-		xconf->mamount = conf->mamount;
-		xconf->snapdist = conf->snapdist;
-		xconf->gap = conf->gap;
-
-		while ((cmd = TAILQ_FIRST(&conf->cmdq)) != NULL) {
-			TAILQ_REMOVE(&conf->cmdq, cmd, entry);
-			TAILQ_INSERT_TAIL(&xconf->cmdq, cmd, entry);
-		}
-
-		while ((kb = TAILQ_FIRST(&conf->keybindingq)) != NULL) {
-			TAILQ_REMOVE(&conf->keybindingq, kb, entry);
-			TAILQ_INSERT_TAIL(&xconf->keybindingq, kb, entry);
-		}
-
-		while ((ag = TAILQ_FIRST(&conf->autogroupq)) != NULL) {
-			TAILQ_REMOVE(&conf->autogroupq, ag, entry);
-			TAILQ_INSERT_TAIL(&xconf->autogroupq, ag, entry);
-		}
-
-		while ((wm = TAILQ_FIRST(&conf->ignoreq)) != NULL) {
-			TAILQ_REMOVE(&conf->ignoreq, wm, entry);
-			TAILQ_INSERT_TAIL(&xconf->ignoreq, wm, entry);
-		}
-
-		while ((mb = TAILQ_FIRST(&conf->mousebindingq)) != NULL) {
-			TAILQ_REMOVE(&conf->mousebindingq, mb, entry);
-			TAILQ_INSERT_TAIL(&xconf->mousebindingq, mb, entry);
-		}
-
-		(void)strlcpy(xconf->termpath, conf->termpath,
-		    sizeof(xconf->termpath));
-		(void)strlcpy(xconf->lockpath, conf->lockpath,
-		    sizeof(xconf->lockpath));
-
-		for (i = 0; i < CWM_COLOR_NITEMS; i++)
-			xconf->color[i] = conf->color[i];
-
-		xconf->font = conf->font;
-	}
-
-	free(conf);
 
 	return (errors ? -1 : 0);
 }
