@@ -19,6 +19,8 @@
 #include <sys/memrange.h>
 #include <sys/mman.h>
 #include <sys/pciio.h>
+#include <sys/sysctl.h>
+#include <machine/cpu.h>
 
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcidevs.h>
@@ -599,8 +601,11 @@ pci_system_openbsd_create(void)
 	for (domain = 0; domain < sizeof(pcifd) / sizeof(pcifd[0]); domain++) {
 		snprintf(path, sizeof(path), "/dev/pci%d", domain);
 	        pcifd[domain] = open(path, O_RDWR | O_CLOEXEC);
-		if (pcifd[domain] == -1)
-			break;
+		if (pcifd[domain] == -1) {
+			pcifd[domain] = open(path, O_RDONLY | O_CLOEXEC);
+			if (pcifd[domain] == -1)
+				break;
+		}
 		ndomains++;
 	}
 
@@ -711,6 +716,22 @@ pci_device_vgaarb_init(void)
 	};
 	struct pci_vga pv;
 	int err;
+
+#ifdef CPU_ALLOWAPERTURE
+	int mib[2];
+	int allowaperture;
+	size_t len;
+
+	mib[0] = CTL_MACHDEP;
+	mib[1] = CPU_ALLOWAPERTURE;
+	len = sizeof(allowaperture);
+	if (sysctl(mib, 2, &allowaperture, &len, NULL, 0) == 0 &&
+	    allowaperture == 0) {
+		/* No direct hardware access allowed. */
+		pci_sys->vga_count = 0;
+		return 0;
+	}
+#endif
 
 	pv.pv_sel.pc_bus = 0;
 	pv.pv_sel.pc_dev = 0;

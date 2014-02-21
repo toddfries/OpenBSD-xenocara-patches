@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * $OpenBSD: kbfunc.c,v 1.93 2014/01/23 16:51:28 okan Exp $
+ * $OpenBSD: kbfunc.c,v 1.95 2014/01/30 15:41:11 okan Exp $
  */
 
 #include <sys/param.h>
@@ -34,6 +34,8 @@
 #include "calmwm.h"
 
 #define HASH_MARKER	"|1|"
+
+extern sig_atomic_t	 cwm_status;
 
 void
 kbfunc_client_lower(struct client_ctx *cc, union arg *arg)
@@ -167,7 +169,7 @@ kbfunc_client_search(struct client_ctx *cc, union arg *arg)
 }
 
 void
-kbfunc_menu_search(struct client_ctx *cc, union arg *arg)
+kbfunc_menu_cmd(struct client_ctx *cc, union arg *arg)
 {
 	struct screen_ctx	*sc = cc->sc;
 	struct cmd		*cmd;

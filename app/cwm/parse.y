@@ -1,4 +1,4 @@
-/*	$OpenBSD: parse.y,v 1.53 2014/01/27 14:49:40 okan Exp $ */
+/*	$OpenBSD: parse.y,v 1.58 2014/01/30 22:41:16 okan Exp $ */
 
 /*
  * Copyright (c) 2002, 2003, 2004 Henning Brauer <henning@openbsd.org>
@@ -137,7 +137,12 @@ main		: FONTNAME STRING		{
 			conf->snapdist = $2;
 		}
 		| COMMAND STRING string		{
-			conf_cmd_add(conf, $2, $3);
+			if (!conf_cmd_add(conf, $2, $3)) {
+				yyerror("command name/path too long");
+				free($2);
+				free($3);
+				YYERROR;
+			}
 			free($2);
 			free($3);
 		}
@@ -545,7 +550,7 @@ popfile(void)
 int
 parse_config(const char *filename, struct conf *xconf)
 {
-	int			 errors = 0;
+	int		 errors = 0;
 
 	conf = xconf;
 
@@ -557,11 +562,6 @@ parse_config(const char *filename, struct conf *xconf)
 	yyparse();
 	errors = file->errors;
 	popfile();
-
-	if (errors) {
-		conf_clear(conf);
-		conf_init(conf);
-	}
 
 	return (errors ? -1 : 0);
 }

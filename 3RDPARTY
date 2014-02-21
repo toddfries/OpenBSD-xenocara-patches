@@ -1,4 +1,4 @@
-# $OpenBSD: 3RDPARTY,v 1.182 2014/01/26 16:08:58 matthieu Exp $
+# $OpenBSD: 3RDPARTY,v 1.184 2014/02/14 19:41:21 matthieu Exp $
 #
 
 Package: 	Freetype
@@ -8,7 +8,7 @@ Maintainer:	Freetype.org
 Archive Site:	http://download.savannah.gnu.org/releases/freetype/
 
 Package:	xterm
-Version:	300
+Version:	301
 Current Vers:	301
 Maintainer:	Thomas E. Dickey
 Archive Site:	http://invisible-island.net/xterm/xterm.html
@@ -45,7 +45,7 @@ Archive Site:	http://www.tux.org/~bagleyd/latest/
 
 Package:	xkeyboard-config
 Version:	2.10.1
-Current Vers:	2.10.1
+Current Vers:	2.11
 Maintainer:	xkb@listserv.bat.ru
 Archive Site:	http://www.freedesktop.org/wiki/Software/XKeyboardConfig
 
