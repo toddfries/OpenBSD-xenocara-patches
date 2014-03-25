@@ -1,9 +1,9 @@
-#	$OpenBSD: Makefile,v 1.33 2014/02/16 08:10:36 matthieu Exp $
+#	$OpenBSD: Makefile,v 1.36 2014/03/15 18:02:09 matthieu Exp $
 
 FREETYPESRC=	${.CURDIR}/src
 
 # Get it from builds/unix/configure.ac
-FT_VERSION_INFO= 17.1.11
+FT_VERSION_INFO= 17.2.11
 INSTALL_PROGRAM = ${INSTALL} ${INSTALL_COPY} -m 755 -o $(BINOWN) -g $(BINGRP)
 
 .ifmake includes
@@ -67,9 +67,8 @@ freetype2.pc: freetype2.in Makefile
 freetype-config: freetype-config.in
 	sed -e s,%prefix%,${X11BASE}, -e s,%exec_prefix%,${X11BASE}, \
 		-e s,%includedir%,${INCSDIR}, -e s,%libdir%,${LIBDIR}, \
-		-e s,%LIBZ%,-lz, -e s,%FT2_EXTRA_LIBS%,, \
-		-e s,%LIBBZ2%,, -e s,%LIBPNG%,, \
-		-e s,%enable_shared%,yes, \
+		-e 's,%LIBS_CONFIG%,-lfreetype -lz,' \
+		-e 's,%LIBSSTATIC_CONFIG%,-lfreetype -lz,' \
 		-e 's,%hardcode_libdir_flag_spec%,,' \
 		-e 's,%ft_version%,${FT_VERSION_INFO},' -e 's,%wl%,,' \
 		-e 's,%build_libtool_libs%,yes,' \
